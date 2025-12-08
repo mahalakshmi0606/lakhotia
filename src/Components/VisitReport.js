@@ -15,7 +15,7 @@ import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
 
-// ⭐ Excel + PDF
+// Excel + PDF
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
@@ -38,21 +38,16 @@ const VisitReportPage = () => {
   const [searchMobile, setSearchMobile] = useState("");
 
   const [formData, setFormData] = useState({
-    company_name: "",
-    company_address: "",
-    pin_code: "",
-    industry_segment: "",
     customer_name: "",
+    company_name: "",
     customer_mobile: "",
-    customer_email: "",
-    department: "",
     notes: "",
     attachment: null,
     created_by: username,
   });
 
   // ============================
-  // ⭐ FETCH REPORTS
+  // FETCH REPORTS
   // ============================
   useEffect(() => {
     fetchReports();
@@ -75,14 +70,16 @@ const VisitReportPage = () => {
   };
 
   // ============================
-  // ⭐ SEARCH FILTERS
+  // SEARCH FILTERS
   // ============================
   useEffect(() => {
     let temp = reports;
 
     if (searchCustomer.trim()) {
       temp = temp.filter((r) =>
-        (r.customer_name || "").toLowerCase().includes(searchCustomer.toLowerCase())
+        (r.customer_name || "")
+          .toLowerCase()
+          .includes(searchCustomer.toLowerCase())
       );
     }
 
@@ -100,7 +97,7 @@ const VisitReportPage = () => {
   }, [searchCustomer, searchCompany, searchMobile, reports]);
 
   // ============================
-  // ⭐ HANDLE INPUT
+  // INPUT HANDLER
   // ============================
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -112,12 +109,19 @@ const VisitReportPage = () => {
     }
   };
 
-  // ⭐ FIXED — AUTO-FILL FROM COMPANY MOBILE API
+  // ⭐ FETCH COMPANY + CUSTOMER NAME USING MOBILE
   const handleMobileChange = async (e) => {
-    const mobile = e.target.value;
+    const mobile = e.target.value.replace(/\D/g, "").slice(-10);
     setFormData({ ...formData, customer_mobile: mobile });
 
-    if (mobile.length !== 10) return;
+    if (mobile.length !== 10) {
+      setFormData((prev) => ({
+        ...prev,
+        company_name: "",
+        customer_name: "",
+      }));
+      return;
+    }
 
     try {
       const res = await axios.get(`${API_BASE}/company/mobile/${mobile}`);
@@ -126,21 +130,20 @@ const VisitReportPage = () => {
       setFormData((prev) => ({
         ...prev,
         company_name: data.company_name || "",
-        company_address: data.company_address || "",
-        pin_code: data.pin_code || "",
-        industry_segment: data.industry_segment || "",
         customer_name: data.customer_name || "",
-        customer_email: data.customer_email || "",
-        department: data.department || "",
       }));
     } catch (err) {
-      console.log("Auto-fill failed:", err);
+      setFormData((prev) => ({
+        ...prev,
+        company_name: "",
+        customer_name: "",
+      }));
       toast.info("ℹ No company found for this number");
     }
   };
 
   // ============================
-  // ⭐ MODAL CONTROL
+  // MODAL CONTROL
   // ============================
   const openModal = (mode, report = null) => {
     setFormMode(mode);
@@ -149,7 +152,14 @@ const VisitReportPage = () => {
     if (mode === "add") {
       resetForm();
     } else if (report) {
-      setFormData({ ...report, created_by: username });
+      setFormData({
+        customer_name: report.customer_name,
+        company_name: report.company_name,
+        customer_mobile: report.customer_mobile,
+        notes: report.notes,
+        attachment: null,
+        created_by: username,
+      });
     }
 
     setShowModal(true);
@@ -162,14 +172,9 @@ const VisitReportPage = () => {
 
   const resetForm = () => {
     setFormData({
-      company_name: "",
-      company_address: "",
-      pin_code: "",
-      industry_segment: "",
       customer_name: "",
+      company_name: "",
       customer_mobile: "",
-      customer_email: "",
-      department: "",
       notes: "",
       attachment: null,
       created_by: username,
@@ -177,7 +182,7 @@ const VisitReportPage = () => {
   };
 
   // ============================
-  // ⭐ SUBMIT FORM
+  // SUBMIT FORM
   // ============================
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -207,7 +212,7 @@ const VisitReportPage = () => {
   };
 
   // ============================
-  // ⭐ DELETE REPORT
+  // DELETE REPORT
   // ============================
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this report?")) return;
@@ -221,7 +226,7 @@ const VisitReportPage = () => {
   };
 
   // ============================
-  // ⭐ EXPORT TO EXCEL
+  // EXPORT TO EXCEL
   // ============================
   const exportToExcel = () => {
     if (!filteredReports.length) return toast.error("No data");
@@ -230,10 +235,6 @@ const VisitReportPage = () => {
       "Customer Name": r.customer_name,
       "Company Name": r.company_name,
       Mobile: r.customer_mobile,
-      Address: r.company_address,
-      Industry: r.industry_segment,
-      Email: r.customer_email,
-      Department: r.department,
       Notes: r.notes,
     }));
 
@@ -251,49 +252,34 @@ const VisitReportPage = () => {
   };
 
   // ============================
-  // ⭐ EXPORT TO PDF — FIXED FULL WIDTH
+  // EXPORT TO PDF
   // ============================
   const exportToPDF = () => {
     if (!filteredReports.length) return toast.error("No data");
 
     const doc = new jsPDF("landscape", "pt", "a4");
 
-    const columns = [
-      "Customer Name",
-      "Company Name",
-      "Mobile",
-      "Address",
-      "Industry",
-      "Email",
-      "Department",
-      "Notes",
-    ];
+    const columns = ["Customer Name", "Company Name", "Mobile", "Notes"];
 
     const rows = filteredReports.map((item) => [
       item.customer_name,
       item.company_name,
       item.customer_mobile,
-      item.company_address,
-      item.industry_segment,
-      item.customer_email,
-      item.department,
       item.notes,
     ]);
 
     autoTable(doc, {
       head: [columns],
       body: rows,
-      styles: { fontSize: 8, cellWidth: "wrap" },
-      columnStyles: { 7: { cellWidth: 200 } },
+      styles: { fontSize: 8 },
       margin: { top: 20, left: 10, right: 10 },
-      pageBreak: "auto",
     });
 
     doc.save("Visit_Reports.pdf");
   };
 
   // ======================================================
-  // ⭐ UI RENDER
+  // UI RENDER
   // ======================================================
   return (
     <div className="container py-4">
@@ -373,6 +359,7 @@ const VisitReportPage = () => {
                     <td>{r.customer_name}</td>
                     <td>{r.company_name}</td>
                     <td>{r.customer_mobile}</td>
+
                     <td>
                       {r.attachment ? (
                         <a
@@ -386,6 +373,7 @@ const VisitReportPage = () => {
                         "-"
                       )}
                     </td>
+
                     <td>{r.notes}</td>
 
                     <td>
@@ -394,11 +382,13 @@ const VisitReportPage = () => {
                         style={{ cursor: "pointer" }}
                         onClick={() => openModal("view", r)}
                       />
+
                       <FaEdit
                         className="text-warning mx-2"
                         style={{ cursor: "pointer" }}
                         onClick={() => openModal("edit", r)}
                       />
+
                       <FaTrash
                         className="text-danger mx-2"
                         style={{ cursor: "pointer" }}
@@ -443,12 +433,26 @@ const VisitReportPage = () => {
                         Mobile Number
                       </label>
                       <input
-                        type="text"
+                        type="tel"
                         name="customer_mobile"
                         className="form-control"
                         value={formData.customer_mobile}
                         onChange={handleMobileChange}
+                        maxLength="10"
                         disabled={formMode === "view"}
+                      />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">
+                        Customer Name
+                      </label>
+                      <input
+                        type="text"
+                        name="customer_name"
+                        className="form-control"
+                        value={formData.customer_name}
+                        disabled
                       />
                     </div>
 
@@ -461,8 +465,7 @@ const VisitReportPage = () => {
                         name="company_name"
                         className="form-control"
                         value={formData.company_name}
-                        onChange={handleChange}
-                        disabled={formMode === "view"}
+                        disabled
                       />
                     </div>
 

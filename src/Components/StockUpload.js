@@ -28,6 +28,10 @@ export default function StockUploadPage() {
   const [applyingMRP, setApplyingMRP] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage] = useState(10);
+
   const fileInputRef = useRef(null);
 
   // -------------------------
@@ -43,6 +47,33 @@ export default function StockUploadPage() {
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, filename);
   };
+
+  // ----------------------------------------------------
+  // Pagination calculations
+  // ----------------------------------------------------
+  const totalPages = Math.ceil(rows.length / rowsPerPage);
+  const indexOfLastRow = currentPage * rowsPerPage;
+  const indexOfFirstRow = indexOfLastRow - rowsPerPage;
+  const currentRows = rows.slice(indexOfFirstRow, indexOfLastRow);
+
+  // ----------------------------------------------------
+  // Pagination handlers
+  // ----------------------------------------------------
+  const goToPage = (pageNumber) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setCurrentPage(pageNumber);
+    }
+  };
+
+  const handleFirstPage = () => goToPage(1);
+  const handleLastPage = () => goToPage(totalPages);
+  const handlePrevPage = () => goToPage(currentPage - 1);
+  const handleNextPage = () => goToPage(currentPage + 1);
+
+  // Reset to first page when rows change (upload, delete, etc.)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rows.length]);
 
   // ----------------------------------------------------
   // Add multiple empty rows (prompt count)
@@ -307,6 +338,45 @@ export default function StockUploadPage() {
   );
 
   // ----------------------------------------------------
+  // Render page numbers
+  // ----------------------------------------------------
+  const renderPageNumbers = () => {
+    const pageNumbers = [];
+    const maxVisiblePages = 5;
+
+    if (totalPages <= maxVisiblePages) {
+      // Show all pages if total is small
+      for (let i = 1; i <= totalPages; i++) {
+        pageNumbers.push(i);
+      }
+    } else {
+      // Show limited pages with ellipsis
+      let startPage = Math.max(1, currentPage - 2);
+      let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+      if (endPage - startPage + 1 < maxVisiblePages) {
+        startPage = Math.max(1, endPage - maxVisiblePages + 1);
+      }
+
+      if (startPage > 1) {
+        pageNumbers.push(1);
+        if (startPage > 2) pageNumbers.push("...");
+      }
+
+      for (let i = startPage; i <= endPage; i++) {
+        pageNumbers.push(i);
+      }
+
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1) pageNumbers.push("...");
+        pageNumbers.push(totalPages);
+      }
+    }
+
+    return pageNumbers;
+  };
+
+  // ----------------------------------------------------
   // Render UI
   // ----------------------------------------------------
   return (
@@ -428,8 +498,114 @@ export default function StockUploadPage() {
         )}
       </div>
 
+      {/* Pagination info and controls - TOP */}
+      {rows.length > 0 && (
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center", 
+          margin: "16px 0", 
+          padding: "12px 16px",
+          backgroundColor: "#f8f9fa",
+          borderRadius: "6px",
+          border: "1px solid #dee2e6"
+        }}>
+          <div style={{ fontWeight: 600 }}>
+            Showing {indexOfFirstRow + 1} to {Math.min(indexOfLastRow, rows.length)} of {rows.length} entries
+          </div>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              onClick={handleFirstPage}
+              disabled={currentPage === 1}
+              style={{
+                padding: "6px 12px",
+                border: "1px solid #ddd",
+                background: currentPage === 1 ? "#f5f5f5" : "#fff",
+                color: currentPage === 1 ? "#999" : "#333",
+                cursor: currentPage === 1 ? "default" : "pointer",
+                borderRadius: "4px"
+              }}
+              title="First Page"
+            >
+              «
+            </button>
+            
+            <button
+              onClick={handlePrevPage}
+              disabled={currentPage === 1}
+              style={{
+                padding: "6px 12px",
+                border: "1px solid #ddd",
+                background: currentPage === 1 ? "#f5f5f5" : "#fff",
+                color: currentPage === 1 ? "#999" : "#333",
+                cursor: currentPage === 1 ? "default" : "pointer",
+                borderRadius: "4px"
+              }}
+              title="Previous Page"
+            >
+              ‹
+            </button>
+            
+            {renderPageNumbers().map((page, index) => (
+              page === "..." ? (
+                <span key={`ellipsis-${index}`} style={{ padding: "0 8px" }}>...</span>
+              ) : (
+                <button
+                  key={page}
+                  onClick={() => goToPage(page)}
+                  style={{
+                    padding: "6px 12px",
+                    border: "1px solid #ddd",
+                    background: currentPage === page ? "#007bff" : "#fff",
+                    color: currentPage === page ? "#fff" : "#333",
+                    cursor: "pointer",
+                    borderRadius: "4px",
+                    fontWeight: currentPage === page ? "bold" : "normal"
+                  }}
+                >
+                  {page}
+                </button>
+              )
+            ))}
+            
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              style={{
+                padding: "6px 12px",
+                border: "1px solid #ddd",
+                background: currentPage === totalPages ? "#f5f5f5" : "#fff",
+                color: currentPage === totalPages ? "#999" : "#333",
+                cursor: currentPage === totalPages ? "default" : "pointer",
+                borderRadius: "4px"
+              }}
+              title="Next Page"
+            >
+              ›
+            </button>
+            
+            <button
+              onClick={handleLastPage}
+              disabled={currentPage === totalPages}
+              style={{
+                padding: "6px 12px",
+                border: "1px solid #ddd",
+                background: currentPage === totalPages ? "#f5f5f5" : "#fff",
+                color: currentPage === totalPages ? "#999" : "#333",
+                cursor: currentPage === totalPages ? "default" : "pointer",
+                borderRadius: "4px"
+              }}
+              title="Last Page"
+            >
+              »
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
-      <div style={{ overflowX: "auto", marginTop: 16 }}>
+      <div style={{ overflowX: "auto", marginTop: rows.length > 0 ? 0 : 16 }}>
         <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "#f3f3f3", position: "sticky", top: 0 }}>
             <tr>
@@ -442,10 +618,10 @@ export default function StockUploadPage() {
           </thead>
 
           <tbody>
-            {rows.length > 0 ? (
-              rows.map((row, idx) => (
+            {currentRows.length > 0 ? (
+              currentRows.map((row, idx) => (
                 <tr key={row._id || idx}>
-                  <td style={{ width: 36 }}>{idx + 1}</td>
+                  <td style={{ width: 36 }}>{indexOfFirstRow + idx + 1}</td>
 
                   {fixedHeaders.map((h) => (
                     <td key={h}>
@@ -477,6 +653,85 @@ export default function StockUploadPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination controls - BOTTOM */}
+      {rows.length > 0 && totalPages > 1 && (
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "center", 
+          alignItems: "center", 
+          marginTop: "20px", 
+          gap: "8px"
+        }}>
+          <button
+            onClick={handleFirstPage}
+            disabled={currentPage === 1}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #ddd",
+              background: currentPage === 1 ? "#f5f5f5" : "#fff",
+              color: currentPage === 1 ? "#999" : "#333",
+              cursor: currentPage === 1 ? "default" : "pointer",
+              borderRadius: "4px"
+            }}
+            title="First Page"
+          >
+            « First
+          </button>
+          
+          <button
+            onClick={handlePrevPage}
+            disabled={currentPage === 1}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #ddd",
+              background: currentPage === 1 ? "#f5f5f5" : "#fff",
+              color: currentPage === 1 ? "#999" : "#333",
+              cursor: currentPage === 1 ? "default" : "pointer",
+              borderRadius: "4px"
+            }}
+            title="Previous Page"
+          >
+            Previous
+          </button>
+          
+          <div style={{ padding: "0 12px", fontWeight: 600 }}>
+            Page {currentPage} of {totalPages}
+          </div>
+          
+          <button
+            onClick={handleNextPage}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #ddd",
+              background: currentPage === totalPages ? "#f5f5f5" : "#fff",
+              color: currentPage === totalPages ? "#999" : "#333",
+              cursor: currentPage === totalPages ? "default" : "pointer",
+              borderRadius: "4px"
+            }}
+            title="Next Page"
+          >
+            Next
+          </button>
+          
+          <button
+            onClick={handleLastPage}
+            disabled={currentPage === totalPages}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #ddd",
+              background: currentPage === totalPages ? "#f5f5f5" : "#fff",
+              color: currentPage === totalPages ? "#999" : "#333",
+              cursor: currentPage === totalPages ? "default" : "pointer",
+              borderRadius: "4px"
+            }}
+            title="Last Page"
+          >
+            Last »
+          </button>
+        </div>
+      )}
     </div>
   );
 }

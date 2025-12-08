@@ -2,27 +2,54 @@ import React, { useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 
-const API_MRP_UPDATE = "http://127.0.0.1:5000/api/mrp/update";
-const API_MRP_ALL = "http://127.0.0.1:5000/api/mrp/all";
-const API_MRP_DELETE = "http://127.0.0.1:5000/api/mrp/delete";
-const API_MRP_EDIT = "http://127.0.0.1:5000/api/mrp/edit";
+// Correct API endpoints
+const API_STOCK_ALL = "http://127.0.0.1:5000/api/stock/all";
+const API_MRP_UPDATE = "http://127.0.0.1:5000/api/stock/update-mrp"; 
+const API_SINGLE_UPDATE = "http://127.0.0.1:5000/api/stock/update";
+const API_DELETE = "http://127.0.0.1:5000/api/stock/delete";
 
 export default function MRPChangePage() {
   const [file, setFile] = useState(null);
   const [previewData, setPreviewData] = useState([]);
-  const [insertedItems, setInsertedItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [allMRP, setAllMRP] = useState([]);
-
-  // Track editable values for all rows
   const [editData, setEditData] = useState({});
 
-  // File Upload
+  // ----------------------------
+  // Download Excel Template
+  // ----------------------------
+  const handleDownloadExcel = async () => {
+    try {
+      const res = await axios.get(API_STOCK_ALL);
+      const data = res.data.data;
+
+      if (!data.length) return alert("No stock data found!");
+
+      const ws = XLSX.utils.json_to_sheet(
+        data.map((d) => ({
+          "Item Name": d["Item Name"],
+          "Brand": d["Brand"],
+          "Brand Code": d["Brand Code"],
+          "Brand Description": d["Brand Description"],
+          "MRP": d["MRP"],
+        }))
+      );
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Stock");
+      XLSX.writeFile(wb, "MRP_Update.xlsx");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to download Excel");
+    }
+  };
+
+  // ----------------------------
+  // Upload Excel + Preview
+  // ----------------------------
   const handleFileUpload = (e) => {
     const selectedFile = e.target.files[0];
     setFile(selectedFile);
-
-    if (!selectedFile) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -34,78 +61,81 @@ export default function MRPChangePage() {
     reader.readAsBinaryString(selectedFile);
   };
 
-  // Insert Excel Records
-  const handleMRPInsert = async () => {
-    if (!file) {
-      alert("Please upload a file first");
-      return;
-    }
+  // ----------------------------
+  // Update MRP from Excel File
+  // ----------------------------
+  const handleMRPUpdate = async () => {
+    if (!file) return alert("Upload Excel first!");
 
-    setInsertedItems([]);
     setLoading(true);
-
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const res = await axios.post(API_MRP_UPDATE, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const res = await axios.put(API_MRP_UPDATE, {
+        records: previewData,
       });
 
-      setInsertedItems(res.data.inserted || []);
-      alert(`Inserted ${res.data.inserted_count} records`);
-    } catch (err) {
-      alert("Error inserting records");
+      alert(res.data.message || "MRP Updated Successfully!");
+      fetchAllMRP();
+    } catch (error) {
+      console.error(error);
+      alert("Error updating MRP");
     }
-
     setLoading(false);
   };
 
-  // Load all records
+  // ----------------------------
+  // Fetch All MRP Records
+  // ----------------------------
   const fetchAllMRP = async () => {
     try {
-      const res = await axios.get(API_MRP_ALL);
-      setAllMRP(res.data.data || []);
+      const res = await axios.get(API_STOCK_ALL);
+      const data = res.data.data || [];
+      setAllMRP(data);
 
-      // Load editable values
       const editable = {};
-      res.data.data.forEach((item) => {
-        editable[item.id] = { brand: item.brand, mrp: item.mrp };
+      data.forEach((item) => {
+        editable[item.id] = {
+          brand: item.Brand,
+          mrp: item.MRP,
+        };
       });
+
       setEditData(editable);
-    } catch (err) {
-      alert("Error fetching records");
+    } catch {
+      alert("Could not fetch records");
     }
   };
 
-  // Handle edit change
+  // ----------------------------
+  // Inline Edit
+  // ----------------------------
   const handleEditChange = (id, field, value) => {
     setEditData({
       ...editData,
-      [id]: {
-        ...editData[id],
-        [field]: value,
-      },
+      [id]: { ...editData[id], [field]: value },
     });
   };
 
-  // Save edited row
+  // ----------------------------
+  // Save Single Row Edit
+  // ----------------------------
   const saveEdit = async (id) => {
     try {
-      await axios.put(`${API_MRP_EDIT}/${id}`, editData[id]);
+      await axios.put(`${API_SINGLE_UPDATE}/${id}`, editData[id]);
       alert("Updated successfully");
       fetchAllMRP();
     } catch {
-      alert("Error updating");
+      alert("Update failed");
     }
   };
 
-  // Delete row
+  // ----------------------------
+  // Delete Item
+  // ----------------------------
   const handleDelete = async (id) => {
-    if (!window.confirm("Delete this record?")) return;
+    if (!window.confirm("Delete this item?")) return;
 
     try {
-      await axios.delete(`${API_MRP_DELETE}/${id}`);
+      await axios.delete(`${API_DELETE}/${id}`);
       fetchAllMRP();
     } catch {
       alert("Delete failed");
@@ -115,6 +145,13 @@ export default function MRPChangePage() {
   return (
     <div style={styles.container}>
       <h2 style={styles.heading}>MRP Management</h2>
+
+      {/* Download Excel */}
+      <div style={styles.card}>
+        <button style={styles.button} onClick={handleDownloadExcel}>
+          Download Excel Template
+        </button>
+      </div>
 
       {/* Upload Excel */}
       <div style={styles.card}>
@@ -147,14 +184,14 @@ export default function MRPChangePage() {
         </div>
       )}
 
-      {/* Insert */}
+      {/* Update Button */}
       {file && (
-        <button style={styles.button} onClick={handleMRPInsert} disabled={loading}>
-          {loading ? "Inserting..." : "Insert Records"}
+        <button style={styles.button} onClick={handleMRPUpdate}>
+          {loading ? "Updating..." : "Update MRP from Excel"}
         </button>
       )}
 
-      {/* Display All */}
+      {/* All MRP Records */}
       <div style={styles.card}>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <h3>All MRP Records</h3>
@@ -180,31 +217,37 @@ export default function MRPChangePage() {
 
                 <td style={styles.td}>
                   <input
-                    type="text"
-                    style={styles.input}
                     value={editData[item.id]?.brand || ""}
                     onChange={(e) =>
                       handleEditChange(item.id, "brand", e.target.value)
                     }
+                    style={styles.input}
                   />
                 </td>
 
                 <td style={styles.td}>
                   <input
                     type="number"
-                    style={styles.input}
                     value={editData[item.id]?.mrp || ""}
                     onChange={(e) =>
                       handleEditChange(item.id, "mrp", e.target.value)
                     }
+                    style={styles.input}
                   />
                 </td>
 
                 <td style={styles.td}>
-                  <button style={styles.smallBtnGreen} onClick={() => saveEdit(item.id)}>
+                  <button
+                    style={styles.smallBtnGreen}
+                    onClick={() => saveEdit(item.id)}
+                  >
                     Save
                   </button>
-                  <button style={styles.smallBtnRed} onClick={() => handleDelete(item.id)}>
+
+                  <button
+                    style={styles.smallBtnRed}
+                    onClick={() => handleDelete(item.id)}
+                  >
                     Delete
                   </button>
                 </td>
@@ -222,23 +265,15 @@ export default function MRPChangePage() {
 // ----------------------------------
 const styles = {
   container: { padding: "20px", maxWidth: "900px", margin: "auto" },
-
-  heading: { textAlign: "center", fontSize: "22px", marginBottom: "20px" },
-
+  heading: { textAlign: "center", marginBottom: "20px" },
   card: {
     padding: "15px",
-    background: "#fafafa",
+    background: "#f8f8f8",
     borderRadius: "8px",
     border: "1px solid #ddd",
     marginBottom: "20px",
   },
-
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-    marginTop: "10px",
-  },
-
+  table: { width: "100%", borderCollapse: "collapse" },
   th: {
     background: "#ffe680",
     border: "1px solid #ccc",
@@ -246,21 +281,8 @@ const styles = {
     fontWeight: "bold",
     textAlign: "center",
   },
-
-  td: {
-    border: "1px solid #ccc",
-    padding: "6px",
-    textAlign: "center",
-  },
-
-  input: {
-    width: "90%",
-    padding: "4px",
-    border: "1px solid #bbb",
-    borderRadius: "4px",
-    fontSize: "14px",
-  },
-
+  td: { border: "1px solid #ccc", padding: "6px", textAlign: "center" },
+  input: { padding: "4px", width: "90%" },
   button: {
     background: "#007bff",
     padding: "10px 16px",
@@ -269,35 +291,23 @@ const styles = {
     borderRadius: "6px",
     cursor: "pointer",
   },
-
   loadBtn: {
     background: "#6c5ce7",
-    padding: "8px 14px",
+    padding: "7px 12px",
     color: "white",
-    border: "none",
-    borderRadius: "5px",
-    cursor: "pointer",
-    fontSize: "14px",
+    borderRadius: "6px",
   },
-
   smallBtnGreen: {
     background: "#2ecc71",
     padding: "5px 10px",
-    fontSize: "12px",
     color: "white",
-    border: "none",
     borderRadius: "4px",
     marginRight: "6px",
-    cursor: "pointer",
   },
-
   smallBtnRed: {
     background: "#e74c3c",
     padding: "5px 10px",
-    fontSize: "12px",
     color: "white",
-    border: "none",
     borderRadius: "4px",
-    cursor: "pointer",
   },
 };
