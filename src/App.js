@@ -37,6 +37,7 @@ import GRNPage from "./Components/Grn";
 import StockSoldPage from "./Components/StockSold";
 import Quotation from "./Components/Quotation";
 import MRPChangePage from "./Components/mrpchange";
+import QuotationReportPage from "./Components/QuotationReport";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -123,6 +124,7 @@ function AppContent({
               <Route path="/CasualLeave" element={<CasualLeave />} />
               <Route path="/noesipf" element={<CasualLabourSalaryReport />} />
               <Route path="/accesscontrol" element={<AccessControlPage />} />
+              <Route path="/quotationreport" element={<QuotationReportPage />} />
 
               <Route path="/stockupload" element={<StockUploadPage />} />
               <Route path="/stocksold" element={<StockSoldPage />} />

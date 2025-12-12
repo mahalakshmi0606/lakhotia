@@ -52,6 +52,7 @@ export const menuItems = [
   { name: "stocksold", icon: <FaUserShield />, path: "/stocksold" },
   { name: "Industrial Segmentation", icon: <FaUserShield />, path: "/IndustrialSegmentation" },
   { name: "Quotation", icon: <FaUserShield />, path: "/quotation" },
+  {name:"QuotationStatus",icon:<FaClipboard/>,path:"/quotationreport"},
   {name:"mrpchange",icon:<FaUserShield />,path:"/mrpchange"}
 ];
 

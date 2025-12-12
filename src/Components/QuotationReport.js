@@ -1,467 +1,374 @@
-// src/components/InvoiceModal.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
-import dayjs from "dayjs";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
+import { FaEye, FaTrash, FaEdit, FaSearch } from "react-icons/fa";
+import { ToastContainer, toast } from "react-toastify";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "react-toastify/dist/ReactToastify.css";
 
-/*
-  InvoiceModal.jsx
-  - Popup modal opened by button "New Quote / Invoice"
-  - Inline styles only
-  - Fetches companies from GET /company and fills contact fields
-  - Add/Delete items, calculations, export to PDF
-*/
+const API_QUOTATIONS = "http://localhost:5000/api/quotations";
 
-export default function InvoiceModal() {
-  // idRef must be declared before createEmptyItem / items init
-  const idRef = useRef(1000);
+export default function QuotationReportPage() {
+  const [quotations, setQuotations] = useState([]);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const [perPage] = useState(20);
+  const [pagination, setPagination] = useState({});
+  const [loading, setLoading] = useState(false);
 
-  // helper to create item
-  function createEmptyItem(seq) {
-    idRef.current += 1;
-    return {
-      id: idRef.current,
-      itemName: "",
-      hsnSac: "",
-      supplierPartNo: "",
-      custDescription: "",
-      cutWidth: 1,
-      length: 1,
-      batchNo: `B-${Date.now().toString().slice(-6)}-${seq}`,
-      mrp: autoMrp(""),
-      quantity: 1,
-      unit: "pcs",
-      discount: 0,
-    };
-  }
+  // VIEW POPUP STATES
+  const [viewData, setViewData] = useState(null);
+  const [reviewStatus, setReviewStatus] = useState("No");
+  const [itemStatuses, setItemStatuses] = useState({});
 
-  // Quote metadata
-  const [quoteNo] = useState(() => `Q-${Date.now().toString().slice(-8)}`);
-  const [date] = useState(() => dayjs().format("YYYY-MM-DD"));
-  const [time] = useState(() => dayjs().format("HH:mm:ss"));
+  const userName = localStorage.getItem("user_name") || "Unknown User";
 
-  // Issuer static details
-  const issuer = {
-    name: "Lakhotia",
-    address: "64/3A Sidco Industrial Estate, Ambatur, Chennai",
-    phone: "7845663338",
-    email: "vivek@lakhotia.net",
-    gstin: "33AABFL9981E1Z7",
-    stateCode: "33-Tamil Nadu",
-    placeOfSupply: "33-Tamil Nadu",
-  };
-
-  // Backend companies list
-  const [companies, setCompanies] = useState([]);
-  const [selectedCompanyId, setSelectedCompanyId] = useState("");
-  const [billTo, setBillTo] = useState("");
-  const [contactPerson, setContactPerson] = useState("");
-  const [contactMob, setContactMob] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [contactEmailSame, setContactEmailSame] = useState(false);
-
-  // Items state (initialized after idRef)
-  const [items, setItems] = useState(() => [createEmptyItem(1)]);
-
-  // Modal open
-  const [modalOpen, setModalOpen] = useState(false);
-
-  // DOM ref for invoice content to convert to PDF
-  const invoiceRef = useRef(null);
-
-  // Fetch companies
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      try {
-        // 🔥 FIXED: Actual API URL
-        const res = await axios.get("http://127.0.0.1:5000/api/company");
-
-        if (Array.isArray(res.data)) setCompanies(res.data);
-        else setCompanies([]);
-      } catch (err) {
-        console.error("fetch companies failed:", err.message || err);
-        setCompanies([]);
-      }
-    };
-    fetchCompanies();
-  }, []);
-
-  // When company selected, autofill data
-  useEffect(() => {
-    if (!selectedCompanyId) return;
-    const c = companies.find((x) => Number(x.id) === Number(selectedCompanyId));
-    if (!c) return;
-
-    setBillTo(c.company_name || "");
-    setContactPerson(c.customer_name || "");
-    setContactMob(c.customer_mobile || "");
-    setContactEmail(c.customer_email || "");
-  }, [selectedCompanyId, companies]);
-
-  useEffect(() => {
-    if (contactEmailSame) setContactEmail(issuer.email);
-  }, [contactEmailSame]);
-
-  function autoMrp(partNo) {
-    const lookup = { "SP-001": 120.0, "SP-002": 250.0 };
-    if (partNo && lookup[partNo]) return lookup[partNo];
-    return parseFloat((Math.random() * 200 + 20).toFixed(2));
-  }
-
-  function handleItemChange(index, field, value) {
-    const copy = items.map((it) => ({ ...it }));
-    let val = value;
-    if (["cutWidth", "length", "mrp", "quantity", "discount"].includes(field)) {
-      val = parseFloat(value || 0);
-    }
-    copy[index][field] = val;
-    if (field === "supplierPartNo") {
-      copy[index].mrp = autoMrp(val);
-    }
-    setItems(copy);
-  }
-
-  function addItem() {
-    setItems((old) => [...old, createEmptyItem(old.length + 1)]);
-  }
-
-  function removeItem(index) {
-    setItems((old) => old.filter((_, i) => i !== index));
-  }
-
-  const pricePerUnit = (it) => {
-    const p = (parseFloat(it.mrp || 0) * parseFloat(it.cutWidth || 0)) || 0;
-    return parseFloat(p.toFixed(2));
-  };
-
-  const amount = (it) => {
-    const a = (parseFloat(it.quantity || 0) * pricePerUnit(it)) || 0;
-    return parseFloat(a.toFixed(2));
-  };
-
-  const gstAmount = (it) => {
-    const g = amount(it) * 0.18;
-    return parseFloat(g.toFixed(2));
-  };
-
-  const totals = () => {
-    const subtotal = items.reduce((s, it) => s + amount(it), 0);
-    const gst = items.reduce((s, it) => s + gstAmount(it), 0);
-    const discount = items.reduce((s, it) => s + (parseFloat(it.discount || 0)), 0);
-    const grand = subtotal + gst - discount;
-    return {
-      subtotal: subtotal.toFixed(2),
-      gst: gst.toFixed(2),
-      discount: discount.toFixed(2),
-      grand: grand.toFixed(2),
-    };
-  };
-
-  async function exportPdf() {
-    if (!invoiceRef.current) return;
-    const element = invoiceRef.current;
-    const canvas = await html2canvas(element, { scale: 2 });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`${quoteNo}.pdf`);
-  }
-
-  async function saveDraft() {
-    const payload = {
-      quoteNo,
-      date,
-      time,
-      issuer,
-      companyId: selectedCompanyId,
-      billTo,
-      contactPerson,
-      contactMob,
-      contactEmail,
-      items,
-      totals: totals(),
-    };
+  // Fetch quotations
+  const loadQuotations = async () => {
     try {
-      console.log("Draft payload:", payload);
-      alert("Draft logged to console. Replace with API call to save if needed.");
+      setLoading(true);
+      const res = await axios.get(API_QUOTATIONS, {
+        params: { status, page, per_page: perPage },
+      });
+
+      if (res.data.success) {
+        setQuotations(res.data.data);
+        setPagination(res.data.pagination);
+      }
+      setLoading(false);
     } catch (err) {
-      console.error("Save draft failed:", err);
-      alert("Save failed - see console.");
+      setLoading(false);
+      toast.error("Error loading quotations");
     }
-  }
-
-  // ----------------------------------------------------
-  // STYLES + JSX (UNCHANGED)
-  // ----------------------------------------------------
-
-  const styles = {
-    root: { fontFamily: "Arial, Helvetica, sans-serif", padding: 18, color: "#222" },
-    topActions: { marginBottom: 12 },
-    btn: { background: "#f0f0f0", border: "1px solid #ccc", padding: "8px 12px", borderRadius: 4, cursor: "pointer", marginRight: 8 },
-    primaryBtn: { background: "#1f6feb", color: "#fff", borderColor: "#165ec7" },
-    dangerBtn: { background: "#e74c3c", color: "#fff", borderColor: "#c0392b" },
-    modalBackdrop: {
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,0.45)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 2000,
-    },
-    modal: {
-      width: "94%",
-      maxWidth: 1120,
-      maxHeight: "92vh",
-      overflow: "auto",
-      background: "#fff",
-      borderRadius: 8,
-      boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
-      padding: 18,
-    },
-    modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-    modalBody: { padding: "6px 0" },
-    row: { display: "flex", flexDirection: "row" },
-    col: { flex: 1 },
-    gap: { gap: 18, display: "flex" },
-    spaceBetween: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" },
-    card: { border: "1px solid #e6e6e6", padding: 12, borderRadius: 6, background: "#fafafa" },
-    label: { display: "block", marginTop: 8, marginBottom: 6, fontWeight: 600, fontSize: 13 },
-    input: { width: "100%", boxSizing: "border-box", padding: 8, border: "1px solid #d6d6d6", borderRadius: 4, fontSize: 14, marginBottom: 6 },
-    textarea: { width: "100%", boxSizing: "border-box", padding: 8, border: "1px solid #d6d6d6", borderRadius: 4, fontSize: 14 },
-    itemsTable: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-    thtd: { border: "1px solid #ddd", padding: 8, verticalAlign: "middle", textAlign: "left" },
-    mono: { fontFamily: "'Courier New', monospace", textAlign: "right" },
-    totalsBox: { width: 320, border: "1px solid #e3e3e3", padding: 12, borderRadius: 6, background: "#fff" },
-    small: { fontSize: 12, color: "#444" },
-    note: { marginTop: 14, color: "#666", fontSize: 14 },
   };
+
+  // Search quotations
+  const handleSearch = async () => {
+    if (search.trim() === "") {
+      loadQuotations();
+      return;
+    }
+    try {
+      const res = await axios.get(`${API_QUOTATIONS}/search?q=${search}`);
+      if (res.data.success) {
+        setQuotations(res.data.data);
+        setPagination({});
+      }
+    } catch (err) {
+      toast.error("Search failed");
+    }
+  };
+
+  // Delete
+  const deleteQuotation = async (id) => {
+    if (!window.confirm("Delete this quotation?")) return;
+
+    try {
+      const res = await axios.delete(`${API_QUOTATIONS}/${id}`);
+      if (res.data.success) {
+        toast.success("Deleted successfully");
+        loadQuotations();
+      }
+    } catch (err) {
+      toast.error("Delete failed");
+    }
+  };
+
+  // View quotation
+  const viewQuotation = async (id) => {
+    try {
+      const res = await axios.get(`${API_QUOTATIONS}/${id}`);
+      if (res.data.success) {
+        setViewData(res.data.data);
+
+        // load current item statuses
+        const itemState = {};
+        res.data.data.items.forEach((it) => {
+          itemState[it.id] = it.item_status === "approved";
+        });
+
+        setItemStatuses(itemState);
+
+        setReviewStatus(res.data.data.review_status || "No");
+      }
+    } catch (err) {
+      toast.error("Unable to load details");
+    }
+  };
+
+  // Save updates
+  const saveUpdates = async () => {
+    try {
+      const payload = {
+        review_status: reviewStatus,
+        items: Object.keys(itemStatuses).map((id) => ({
+          id,
+          item_status: itemStatuses[id] ? "approved" : "pending",
+        })),
+        updated_by: userName,
+      };
+
+      const res = await axios.put(
+        `${API_QUOTATIONS}/${viewData.id}/review`,
+        payload
+      );
+
+      if (res.data.success) {
+        toast.success("Quotation updated!");
+        setViewData(null);
+        loadQuotations();
+      }
+    } catch (err) {
+      toast.error("Update failed");
+    }
+  };
+
+  useEffect(() => {
+    loadQuotations();
+  }, [status, page]);
 
   return (
-    <div style={styles.root}>
-      <div style={styles.topActions}>
-        <button
-          style={{ ...styles.btn, ...styles.primaryBtn }}
-          onClick={() => setModalOpen(true)}
-        >
-          New Quote / Invoice
-        </button>
+    <div className="container py-3">
+      <ToastContainer />
+      <h3 className="mb-3">Quotation Report</h3>
+
+      {/* Filters */}
+      <div className="row g-3 mb-3">
+        <div className="col-md-3">
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Search company / quote / item..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
+        </div>
+
+        <div className="col-md-2">
+          <button className="btn btn-primary w-100" onClick={handleSearch}>
+            <FaSearch /> Search
+          </button>
+        </div>
+
+        <div className="col-md-3">
+          <select
+            className="form-select"
+            value={status}
+            onChange={(e) => {
+              setPage(1);
+              setStatus(e.target.value);
+            }}
+          >
+            <option value="">All Status</option>
+            <option value="draft">Draft</option>
+            <option value="sent">Sent</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+            <option value="paid">Paid</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
       </div>
 
-      {!modalOpen && (
-        <div style={styles.note}>
-          Click <strong>New Quote / Invoice</strong> to open the popup. Companies are loaded from <code>GET /company</code>.
+      {/* Table */}
+      <div className="table-responsive">
+        <table className="table table-bordered table-hover">
+          <thead className="table-dark">
+            <tr>
+              <th>#</th>
+              <th>Quote No</th>
+              <th>Company</th>
+              <th>Contact</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="8" className="text-center">
+                  Loading...
+                </td>
+              </tr>
+            ) : quotations.length === 0 ? (
+              <tr>
+                <td colSpan="8" className="text-center">
+                  No quotations found
+                </td>
+              </tr>
+            ) : (
+              quotations.map((q, idx) => (
+                <tr key={q.id}>
+                  <td>{(page - 1) * perPage + idx + 1}</td>
+                  <td>{q.quote_number}</td>
+                  <td>{q.company_name}</td>
+                  <td>{q.contact_mobile}</td>
+                  <td>₹{q.grand_total}</td>
+
+                  <td>
+                    <span
+                      className={`badge bg-${
+                        q.status === "accepted"
+                          ? "success"
+                          : q.status === "rejected"
+                          ? "danger"
+                          : q.status === "paid"
+                          ? "primary"
+                          : q.status === "sent"
+                          ? "warning"
+                          : "secondary"
+                      }`}
+                    >
+                      {q.status}
+                    </span>
+                  </td>
+
+                  <td>{q.date}</td>
+
+                  <td>
+                    <button
+                      className="btn btn-sm btn-info me-2"
+                      onClick={() => viewQuotation(q.id)}
+                    >
+                      <FaEye />
+                    </button>
+
+                    <button
+                      className="btn btn-sm btn-warning me-2"
+                      onClick={() =>
+                        (window.location.href = `/edit-quotation/${q.id}`)
+                      }
+                    >
+                      <FaEdit />
+                    </button>
+
+                    <button
+                      className="btn btn-sm btn-danger"
+                      onClick={() => deleteQuotation(q.id)}
+                    >
+                      <FaTrash />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {pagination?.pages > 1 && (
+        <div className="d-flex justify-content-between mt-3">
+          <button
+            className="btn btn-secondary"
+            disabled={page === 1}
+            onClick={() => setPage(page - 1)}
+          >
+            Previous
+          </button>
+
+          <span>
+            Page {pagination.page} / {pagination.pages}
+          </span>
+
+          <button
+            className="btn btn-secondary"
+            disabled={page === pagination.pages}
+            onClick={() => setPage(page + 1)}
+          >
+            Next
+          </button>
         </div>
       )}
 
-      {/* Modal */}
-      {modalOpen && (
-        <div style={styles.modalBackdrop} role="dialog" aria-modal="true">
-          <div style={styles.modal}>
-            <div style={styles.modalHeader}>
-              <h3 style={{ margin: 0 }}>Create Quote / Invoice</h3>
-              <div>
-                <button
-                  style={{ ...styles.btn }}
-                  onClick={() => setModalOpen(false)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
+      {/* View Popup */}
+      {viewData && (
+        <div
+          className="modal fade show d-block"
+          style={{ background: "#00000090" }}
+          onClick={() => setViewData(null)}
+        >
+          <div
+            className="modal-dialog modal-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content p-3">
+              <h4>Quotation Details</h4>
 
-            <div style={styles.modalBody} ref={invoiceRef}>
-              {/* issuer + meta */}
-              <div style={{ ...styles.row, justifyContent: "space-between", alignItems: "flex-start" }}>
-                <div style={{ maxWidth: 520 }}>
-                  <h2 style={{ margin: 0 }}>{issuer.name}</h2>
-                  <div style={styles.small}>{issuer.address}</div>
-                  <div style={styles.small}>Phone: {issuer.phone} | Email: {issuer.email}</div>
-                  <div style={styles.small}>GSTIN: {issuer.gstin}</div>
-                  <div style={styles.small}>State: {issuer.stateCode}</div>
-                </div>
+              <p>
+                <strong>Quote No:</strong> {viewData.quote_number}
+              </p>
+              <p>
+                <strong>Company:</strong> {viewData.company_name}
+              </p>
+              <p>
+                <strong>Total:</strong> ₹{viewData.grand_total}
+              </p>
 
-                <div style={{ textAlign: "right" }}>
-                  <div><strong>Quote No:</strong> {quoteNo}</div>
-                  <div><strong>Date:</strong> {date}</div>
-                  <div><strong>Time:</strong> {time}</div>
-                  <div><strong>Place of Supply:</strong> {issuer.placeOfSupply}</div>
-                </div>
-              </div>
+              {/* Review Status */}
+              <h5>Review Status</h5>
+              <select
+                className="form-select w-50 mb-3"
+                value={reviewStatus}
+                onChange={(e) => setReviewStatus(e.target.value)}
+              >
+                <option value="No">No</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+              </select>
 
-              {/* contact + billto */}
-              <div style={{ marginTop: 12, ...styles.card }}>
-                <div style={{ display: "flex", gap: 18 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={styles.label}>Select Company (from backend)</label>
+              <h5>Items</h5>
+              <table className="table table-sm table-bordered">
+                <thead>
+                  <tr>
+                    <th>✓</th>
+                    <th>Item</th>
+                    <th>Qty</th>
+                    <th>Rate</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
 
-                    {/* 🔥 Company dropdown now works */}
-                    <select
-                      style={styles.input}
-                      value={selectedCompanyId}
-                      onChange={(e) => setSelectedCompanyId(e.target.value)}
-                    >
-                      <option value="">-- Choose company --</option>
-                      {companies.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.company_name} ({c.customer_name}) - {c.customer_mobile}
-                        </option>
-                      ))}
-                    </select>
+                <tbody>
+                  {viewData.items.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={itemStatuses[item.id] || false}
+                          onChange={(e) =>
+                            setItemStatuses({
+                              ...itemStatuses,
+                              [item.id]: e.target.checked,
+                            })
+                          }
+                        />
+                      </td>
+                      <td>{item.item_name}</td>
+                      <td>{item.quantity}</td>
+                      <td>{item.price_per_unit}</td>
+                      <td>{item.item_total}</td>
+                      <td>{item.item_status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-                    <label style={styles.label}>Contact Person</label>
-                    <input style={styles.input} value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} />
+              <button className="btn btn-success" onClick={saveUpdates}>
+                Save
+              </button>
 
-                    <label style={styles.label}>Contact Mobile</label>
-                    <input style={styles.input} value={contactMob} onChange={(e) => setContactMob(e.target.value)} />
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                      <input type="checkbox" id="sameEmail" checked={contactEmailSame} onChange={(e) => setContactEmailSame(e.target.checked)} />
-                      <label htmlFor="sameEmail" style={styles.small}>Use issuer email for contact</label>
-                    </div>
-
-                    <label style={styles.label}>Contact Email</label>
-                    <input style={styles.input} value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} />
-                  </div>
-
-                  <div style={{ flex: 1 }}>
-                    <label style={styles.label}>Bill To (Company)</label>
-                    <input style={styles.input} value={billTo} onChange={(e) => setBillTo(e.target.value)} />
-
-                    <label style={{ ...styles.label, marginTop: 6 }}>Bill To Contact No</label>
-                    <input style={{ ...styles.input, background: "#f6f6f6" }} value={contactMob} readOnly />
-
-                    <label style={styles.label}>Notes</label>
-                    <textarea style={{ ...styles.textarea, height: 96 }} defaultValue={`Note the created address: ${issuer.address}\nGSTIN: ${issuer.gstin}`} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Item table */}
-              <div style={{ marginTop: 12, ...styles.card }}>
-                <div style={{ overflowX: "auto", marginTop: 6 }}>
-                  <table style={styles.itemsTable}>
-                    <thead>
-                      <tr>
-                        <th style={styles.thtd}>#</th>
-                        <th style={styles.thtd}>Item name</th>
-                        <th style={styles.thtd}>Hsn/Sac</th>
-                        <th style={styles.thtd}>Supplier Part no</th>
-                        <th style={styles.thtd}>Customer Description</th>
-                        <th style={styles.thtd}>Cut Width</th>
-                        <th style={styles.thtd}>Length</th>
-                        <th style={styles.thtd}>Batch No</th>
-                        <th style={styles.thtd}>MRP</th>
-                        <th style={styles.thtd}>Qty</th>
-                        <th style={styles.thtd}>Unit</th>
-                        <th style={styles.thtd}>Price/unit</th>
-                        <th style={styles.thtd}>Discount</th>
-                        <th style={styles.thtd}>GST(18%)</th>
-                        <th style={styles.thtd}>Amount</th>
-                        <th style={styles.thtd}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((it, idx) => (
-                        <tr key={it.id}>
-                          <td style={styles.thtd}>{idx + 1}</td>
-
-                          <td style={styles.thtd}>
-                            <input style={styles.input} value={it.itemName} onChange={(e) => handleItemChange(idx, "itemName", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input style={styles.input} value={it.hsnSac} onChange={(e) => handleItemChange(idx, "hsnSac", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input style={styles.input} value={it.supplierPartNo} onChange={(e) => handleItemChange(idx, "supplierPartNo", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input style={styles.input} value={it.custDescription} onChange={(e) => handleItemChange(idx, "custDescription", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input type="number" style={styles.input} value={it.cutWidth} onChange={(e) => handleItemChange(idx, "cutWidth", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input type="number" style={styles.input} value={it.length} onChange={(e) => handleItemChange(idx, "length", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input readOnly style={{ ...styles.input, background: "#f6f6f6" }} value={it.batchNo} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input type="number" style={styles.input} value={it.mrp} onChange={(e) => handleItemChange(idx, "mrp", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input type="number" style={styles.input} value={it.quantity} onChange={(e) => handleItemChange(idx, "quantity", e.target.value)} />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input readOnly style={{ ...styles.input, background: "#f6f6f6" }} value={it.unit} />
-                          </td>
-
-                          <td style={{ ...styles.thtd, textAlign: "right" }}>
-                            {pricePerUnit(it).toFixed(2)}
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input type="number" style={styles.input} value={it.discount} onChange={(e) => handleItemChange(idx, "discount", e.target.value)} />
-                          </td>
-
-                          <td style={{ ...styles.thtd, textAlign: "right" }}>
-                            {gstAmount(it).toFixed(2)}
-                          </td>
-
-                          <td style={{ ...styles.thtd, textAlign: "right" }}>
-                            {amount(it).toFixed(2)}
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <button style={{ ...styles.btn, ...styles.dangerBtn }} onClick={() => removeItem(idx)}>Delete</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, alignItems: "flex-start" }}>
-                  <div>
-                    <button style={styles.btn} onClick={addItem}>Add Item</button>
-                  </div>
-
-                  <div style={styles.totalsBox}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>Subtotal</span><strong>{totals().subtotal}</strong>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>Total GST (18%)</span><strong>{totals().gst}</strong>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>Total Discount</span><strong>- {totals().discount}</strong>
-                    </div>
-                    <hr style={{ border: "none", borderTop: "1px solid #eee", margin: "8px 0" }} />
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18 }}>
-                      <span>Grand Total</span><strong>{totals().grand}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                  <button style={{ ...styles.btn, ...styles.primaryBtn }} onClick={exportPdf}>Export PDF</button>
-                  <button style={styles.btn} onClick={saveDraft}>Save Draft</button>
-                  <button style={styles.btn} onClick={() => setModalOpen(false)}>Close</button>
-                </div>
-              </div>
+              <button
+                className="btn btn-danger ms-2"
+                onClick={() => setViewData(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

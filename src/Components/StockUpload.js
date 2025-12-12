@@ -17,10 +17,20 @@ export default function StockUploadPage() {
     "GST",
   ];
 
+  // Configuration for duplicate detection
+  const duplicateDetectionFields = [
+    "Item Name",
+    "Brand", 
+    "Batch Code",
+    "HSN"
+  ];
+
   const [rows, setRows] = useState([]);
-  const [unmatched, setUnmatched] = useState([]); // { Brand, MRP }
+  const [filteredRows, setFilteredRows] = useState([]);
+  const [unmatched, setUnmatched] = useState([]); // For both unmatched brands and duplicates
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Loading states
   const [loadingStock, setLoadingStock] = useState(false);
@@ -49,12 +59,77 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
+  // Utility: Duplicate checker
+  // ----------------------------------------------------
+  const checkForDuplicates = (newRows, existingRows, checkFields = duplicateDetectionFields) => {
+    const duplicates = [];
+    const uniqueNewRows = [];
+
+    for (const newRow of newRows) {
+      let isDuplicate = false;
+      
+      for (const existingRow of existingRows) {
+        const allMatch = checkFields.every(field => {
+          const newValue = String(newRow[field] || "").trim().toLowerCase();
+          const existingValue = String(existingRow[field] || "").trim().toLowerCase();
+          return newValue === existingValue && newValue !== "";
+        });
+
+        if (allMatch) {
+          isDuplicate = true;
+          duplicates.push({
+            ...newRow,
+            duplicateOf: existingRow,
+            duplicateFields: checkFields
+          });
+          break;
+        }
+      }
+
+      if (!isDuplicate) {
+        uniqueNewRows.push(newRow);
+      }
+    }
+
+    return { duplicates, uniqueNewRows };
+  };
+
+  // ----------------------------------------------------
+  // Search functionality
+  // ----------------------------------------------------
+  const handleSearch = (term) => {
+    setSearchTerm(term);
+    if (!term.trim()) {
+      setFilteredRows(rows);
+      setCurrentPage(1);
+      return;
+    }
+    
+    const searchLower = term.toLowerCase();
+    const filtered = rows.filter(row => {
+      return fixedHeaders.some(header => {
+        const value = row[header];
+        return value && String(value).toLowerCase().includes(searchLower);
+      });
+    });
+    
+    setFilteredRows(filtered);
+    setCurrentPage(1);
+  };
+
+  // Update filtered rows when rows change
+  useEffect(() => {
+    setFilteredRows(rows);
+  }, [rows]);
+
+  // ----------------------------------------------------
   // Pagination calculations
   // ----------------------------------------------------
-  const totalPages = Math.ceil(rows.length / rowsPerPage);
+  const displayRows = searchTerm ? filteredRows : rows;
+  const totalPages = Math.ceil(displayRows.length / rowsPerPage);
   const indexOfLastRow = currentPage * rowsPerPage;
   const indexOfFirstRow = indexOfLastRow - rowsPerPage;
-  const currentRows = rows.slice(indexOfFirstRow, indexOfLastRow);
+  const currentRows = displayRows.slice(indexOfFirstRow, indexOfLastRow);
 
   // ----------------------------------------------------
   // Pagination handlers
@@ -73,7 +148,7 @@ export default function StockUploadPage() {
   // Reset to first page when rows change (upload, delete, etc.)
   useEffect(() => {
     setCurrentPage(1);
-  }, [rows.length]);
+  }, [rows.length, searchTerm]);
 
   // ----------------------------------------------------
   // Add multiple empty rows (prompt count)
@@ -110,6 +185,7 @@ export default function StockUploadPage() {
             _id: index + "_" + Math.random().toString(36).slice(2, 7),
           }));
           setRows(finalRows);
+          setFilteredRows(finalRows);
         } else {
           // If API returns differently, tolerate gracefully
           if (Array.isArray(data)) {
@@ -118,8 +194,10 @@ export default function StockUploadPage() {
               _id: index + "_" + Math.random().toString(36).slice(2, 7),
             }));
             setRows(finalRows);
+            setFilteredRows(finalRows);
           } else {
             setRows([]);
+            setFilteredRows([]);
           }
         }
       } catch (e) {
@@ -134,11 +212,13 @@ export default function StockUploadPage() {
   }, []);
 
   // ----------------------------------------------------
-  // Handle Excel upload (parse & normalize) — optimized
+  // Handle Excel upload (parse & normalize) with duplicate detection
   // ----------------------------------------------------
   const handleFile = (e) => {
     setError("");
     setSuccess("");
+    setUnmatched([]);
+    setSearchTerm("");
 
     const file = e.target.files?.[0];
     if (!file) return;
@@ -182,7 +262,53 @@ export default function StockUploadPage() {
           };
         });
 
-        setRows(finalRows);
+        // Duplicate detection logic
+        const existingRows = rows;
+        const { duplicates, uniqueNewRows } = checkForDuplicates(finalRows, existingRows);
+
+        // Ask user what to do with duplicates
+        if (duplicates.length > 0) {
+          const shouldSkipDuplicates = window.confirm(
+            `Found ${duplicates.length} duplicate row(s) based on:\n` +
+            `${duplicateDetectionFields.join(", ")}\n\n` +
+            `Do you want to skip duplicates and add only ${uniqueNewRows.length} unique rows?\n\n` +
+            `Click OK to skip duplicates\n` +
+            `Click Cancel to add all ${finalRows.length} rows (including duplicates)`
+          );
+
+          if (shouldSkipDuplicates) {
+            // Option 1: Skip duplicates (only add unique rows)
+            setRows(prev => [...prev, ...uniqueNewRows]);
+            setSuccess(`Added ${uniqueNewRows.length} unique rows. Skipped ${duplicates.length} duplicate(s).`);
+            
+            // Show duplicate details
+            const duplicateDisplay = duplicates.map(dup => ({
+              Item: dup["Item Name"] || "(No Item Name)",
+              Brand: dup.Brand || "(Empty Brand)",
+              Batch: dup["Batch Code"] || "(No Batch)",
+              HSN: dup.HSN || "(No HSN)",
+              MRP: dup.MRP || "(No MRP)",
+              Status: "Duplicate - Skipped"
+            }));
+            
+            // Keep existing unmatched plus new duplicates
+            setUnmatched(prev => [...prev, ...duplicateDisplay]);
+          } else {
+            // Option 2: Add all rows (including duplicates)
+            setRows(prev => [...prev, ...finalRows]);
+            setSuccess(`Added all ${finalRows.length} rows (including ${duplicates.length} duplicates).`);
+          }
+        } else {
+          // No duplicates found, add all rows
+          setRows(prev => [...prev, ...finalRows]);
+          setSuccess(`Added ${finalRows.length} unique rows successfully.`);
+        }
+
+        // Reset file input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+
       } catch (err) {
         console.error(err);
         setError("Invalid Excel file. Upload a valid .xlsx/.xls file.");
@@ -192,82 +318,14 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // MRP Change: fetch MRP list, apply to rows, collect unmatched
-  // - Efficient: build map of mrp once and single pass over rows
-  // ----------------------------------------------------
-  const handleMRPChange = async () => {
-    if (rows.length === 0) {
-      alert("No stock rows available to update.");
-      return;
-    }
-
-    setError("");
-    setSuccess("");
-    setApplyingMRP(true);
-    setUnmatched([]);
-
-    try {
-      setLoadingMRP(true);
-      const res = await fetch("http://localhost:5000/api/mrp/all");
-      const data = await res.json();
-      setLoadingMRP(false);
-
-      if (!data || !Array.isArray(data.data) || data.data.length === 0) {
-        setError("No MRP records found in backend.");
-        setApplyingMRP(false);
-        return;
-      }
-
-      // Build a map for O(1) lookups: brandLower -> mrp
-      const mrpMap = new Map();
-      for (const item of data.data) {
-        if (item && item.brand) {
-          mrpMap.set(String(item.brand).trim().toLowerCase(), item.mrp);
-        }
-      }
-
-      // Single pass over rows to update and collect unmatched
-      const unmatchedList = [];
-      const updatedRows = rows.map((row) => {
-        const brandRaw = row["Brand"];
-        const brandLower = brandRaw ? String(brandRaw).trim().toLowerCase() : "";
-        if (brandLower && mrpMap.has(brandLower)) {
-          // Update MRP only
-          const newMRP = mrpMap.get(brandLower);
-          return { ...row, MRP: newMRP };
-        } else {
-          // Unmatched — include Brand and show "Not Found" for MRP (Option A)
-          unmatchedList.push({
-            Brand: brandRaw || "(Empty Brand)",
-            MRP: "Not Found",
-          });
-          return row;
-        }
-      });
-
-      setRows(updatedRows);
-      setUnmatched(unmatchedList);
-      setSuccess(
-        `MRP change applied. ${unmatchedList.length} unmatched row(s) found.`
-      );
-    } catch (err) {
-      console.error("MRP Change error:", err);
-      setError("Error fetching or applying MRP change.");
-    } finally {
-      setApplyingMRP(false);
-      setLoadingMRP(false);
-    }
-  };
-
-  // ----------------------------------------------------
   // Download unmatched Excel
   // ----------------------------------------------------
   const handleDownloadUnmatched = () => {
     if (unmatched.length === 0) {
-      alert("No unmatched rows to download.");
+      alert("No issues to download.");
       return;
     }
-    downloadExcel(unmatched, "unmatched_brands.xlsx", "Unmatched");
+    downloadExcel(unmatched, "issues_found.xlsx", "Issues");
   };
 
   // ----------------------------------------------------
@@ -314,7 +372,10 @@ export default function StockUploadPage() {
   // ----------------------------------------------------
   // Small helpers: update / delete
   // ----------------------------------------------------
-  const deleteRow = (id) => setRows((prev) => prev.filter((r) => r._id !== id));
+  const deleteRow = (id) => {
+    setRows((prev) => prev.filter((r) => r._id !== id));
+  };
+  
   const updateCell = (id, key, value) =>
     setRows((prev) => prev.map((r) => (r._id === id ? { ...r, [key]: value } : r)));
 
@@ -383,7 +444,7 @@ export default function StockUploadPage() {
     <div style={{ width: "100%", padding: 20, fontFamily: "Segoe UI, Arial" }}>
       <Keyframes />
 
-      {/* Unmatched box */}
+      {/* Issues box (for both unmatched brands and duplicates) */}
       {unmatched.length > 0 && (
         <div
           style={{
@@ -395,24 +456,38 @@ export default function StockUploadPage() {
           }}
         >
           <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
-            Unmatched Brands ({unmatched.length})
+            Issues Found ({unmatched.length})
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ minWidth: 220, fontWeight: 600 }}>Brand</div>
-            <div style={{ minWidth: 120, fontWeight: 600 }}>MRP</div>
+            <div style={{ minWidth: 180, fontWeight: 600 }}>Item</div>
+            <div style={{ minWidth: 120, fontWeight: 600 }}>Brand</div>
+            <div style={{ minWidth: 100, fontWeight: 600 }}>Batch</div>
+            <div style={{ minWidth: 80, fontWeight: 600 }}>MRP</div>
+            <div style={{ minWidth: 120, fontWeight: 600 }}>Status</div>
           </div>
 
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 8, maxHeight: 200, overflowY: 'auto' }}>
             {unmatched.map((u, i) => (
               <div key={i} style={{ display: "flex", gap: 12, padding: "4px 0" }}>
-                <div style={{ minWidth: 220, color: "#d84315" }}>{u.Brand}</div>
-                <div style={{ minWidth: 120 }}>{u.MRP}</div>
+                <div style={{ minWidth: 180, color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1" }}>
+                  {u.Item || "(No Item)"}
+                </div>
+                <div style={{ minWidth: 120 }}>{u.Brand}</div>
+                <div style={{ minWidth: 100 }}>{u.Batch}</div>
+                <div style={{ minWidth: 80 }}>{u.MRP}</div>
+                <div style={{ 
+                  minWidth: 120, 
+                  color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1",
+                  fontWeight: 600 
+                }}>
+                  {u.Status}
+                </div>
               </div>
             ))}
           </div>
 
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
             <button
               onClick={handleDownloadUnmatched}
               style={{
@@ -424,14 +499,28 @@ export default function StockUploadPage() {
                 cursor: "pointer",
               }}
             >
-              Download Unmatched (Excel)
+              Download Issues (Excel)
+            </button>
+            
+            <button
+              onClick={() => setUnmatched([])}
+              style={{
+                background: "#78909c",
+                color: "#fff",
+                border: "none",
+                padding: "8px 12px",
+                borderRadius: 5,
+                cursor: "pointer",
+              }}
+            >
+              Clear Issues
             </button>
           </div>
         </div>
       )}
 
       {/* Header + actions */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16 }}>
         <h2 style={{ margin: 0 }}>Stock Bulk Upload</h2>
 
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -454,16 +543,6 @@ export default function StockUploadPage() {
           </button>
 
           <button
-            onClick={handleMRPChange}
-            style={{ background: "#ff9800", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
-            disabled={loadingMRP || applyingMRP}
-            title="Fetch MRP and update rows"
-          >
-            {applyingMRP ? "Applying MRP..." : "MRP Change"}
-            {(loadingMRP || applyingMRP) && <span style={spinnerStyle} />}
-          </button>
-
-          <button
             onClick={saveToBackend}
             style={{ background: "green", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
             disabled={saving}
@@ -471,6 +550,58 @@ export default function StockUploadPage() {
             {saving ? "Saving..." : "Save"}
             {saving && <span style={spinnerStyle} />}
           </button>
+        </div>
+      </div>
+
+      {/* Search Bar */}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          gap: 8,
+          backgroundColor: "#f8f9fa",
+          padding: "12px 16px",
+          borderRadius: "6px",
+          border: "1px solid #dee2e6"
+        }}>
+          <div style={{ fontWeight: 600, minWidth: 100 }}>Search:</div>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => handleSearch(e.target.value)}
+            placeholder="Search in all columns..."
+            style={{
+              flex: 1,
+              padding: "8px 12px",
+              border: "1px solid #ced4da",
+              borderRadius: "4px",
+              fontSize: "14px"
+            }}
+          />
+          <div style={{ 
+            color: "#6c757d", 
+            fontSize: "14px",
+            minWidth: 120,
+            textAlign: "right"
+          }}>
+            {searchTerm ? `Found: ${filteredRows.length} items` : `Total: ${rows.length} items`}
+          </div>
+          {searchTerm && (
+            <button
+              onClick={() => handleSearch("")}
+              style={{
+                background: "#6c757d",
+                color: "#fff",
+                border: "none",
+                padding: "8px 12px",
+                borderRadius: "4px",
+                cursor: "pointer",
+                fontSize: "14px"
+              }}
+            >
+              Clear Search
+            </button>
+          )}
         </div>
       </div>
 
@@ -499,7 +630,7 @@ export default function StockUploadPage() {
       </div>
 
       {/* Pagination info and controls - TOP */}
-      {rows.length > 0 && (
+      {displayRows.length > 0 && (
         <div style={{ 
           display: "flex", 
           justifyContent: "space-between", 
@@ -511,7 +642,8 @@ export default function StockUploadPage() {
           border: "1px solid #dee2e6"
         }}>
           <div style={{ fontWeight: 600 }}>
-            Showing {indexOfFirstRow + 1} to {Math.min(indexOfLastRow, rows.length)} of {rows.length} entries
+            Showing {indexOfFirstRow + 1} to {Math.min(indexOfLastRow, displayRows.length)} of {displayRows.length} entries
+            {searchTerm && <span style={{ color: "#007bff", marginLeft: 8 }}>(Filtered)</span>}
           </div>
           
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -605,7 +737,7 @@ export default function StockUploadPage() {
       )}
 
       {/* Table */}
-      <div style={{ overflowX: "auto", marginTop: rows.length > 0 ? 0 : 16 }}>
+      <div style={{ overflowX: "auto", marginTop: displayRows.length > 0 ? 0 : 16 }}>
         <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead style={{ background: "#f3f3f3", position: "sticky", top: 0 }}>
             <tr>
@@ -646,7 +778,11 @@ export default function StockUploadPage() {
             ) : (
               <tr>
                 <td colSpan={fixedHeaders.length + 2} style={{ textAlign: "center", padding: 12 }}>
-                  {loadingStock ? "Loading stock..." : "No data uploaded. Click Bulk Upload."}
+                  {loadingStock 
+                    ? "Loading stock..." 
+                    : searchTerm 
+                    ? `No results found for "${searchTerm}"` 
+                    : "No data uploaded. Click Bulk Upload."}
                 </td>
               </tr>
             )}
@@ -655,7 +791,7 @@ export default function StockUploadPage() {
       </div>
 
       {/* Pagination controls - BOTTOM */}
-      {rows.length > 0 && totalPages > 1 && (
+      {displayRows.length > 0 && totalPages > 1 && (
         <div style={{ 
           display: "flex", 
           justifyContent: "center", 

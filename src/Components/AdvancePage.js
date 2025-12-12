@@ -12,6 +12,7 @@ const AdvancePage = () => {
   const [employees, setEmployees] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
+
   const [formData, setFormData] = useState({
     email: "",
     name: "",
@@ -20,7 +21,9 @@ const AdvancePage = () => {
     reason: "",
     date: "",
     time: "",
-    status: "Pending",
+    status: "Provided", // DEFAULT STATUS
+    deduct_month: "",   // NEW FIELD
+    deducted_time: "",  // NEW FIELD
   });
 
   useEffect(() => {
@@ -50,32 +53,57 @@ const AdvancePage = () => {
 
   const handleEmailChange = (e) => {
     const selectedEmail = e.target.value;
-    setFormData((prev) => ({ ...prev, email: selectedEmail }));
+    const employee = employees.find((emp) => emp.email === selectedEmail);
 
-    const emp = employees.find((emp) => emp.email === selectedEmail);
-    if (emp) {
-      setFormData((prev) => ({
-        ...prev,
-        name: emp.name,
-        department: emp.department,
-        date: new Date().toISOString().slice(0, 10),
-        time: new Date().toLocaleTimeString(),
-      }));
-    }
+    setFormData((prev) => ({
+      ...prev,
+      email: selectedEmail,
+      name: employee?.name || "",
+      department: employee?.department || "",
+      date: new Date().toISOString().slice(0, 10),
+      time: new Date().toLocaleTimeString(),
+    }));
   };
 
   const handleChange = (e) =>
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
+  // ⭐ Status Change Update
+  const handleStatusChange = async (id, newStatus) => {
+    let payload = { status: newStatus };
+
+    if (newStatus === "Deducted This Month") {
+      const month = prompt("Enter deduction month (YYYY-MM):");
+
+      if (!month || !/^\d{4}-\d{2}$/.test(month)) {
+        toast.error("Invalid month format");
+        return;
+      }
+
+      payload.deduct_month = month;
+      payload.deducted_time = new Date().toLocaleString();
+    }
+
+    try {
+      await axios.put(`${API_ADVANCE}/${id}`, payload);
+      toast.success("Status updated successfully");
+      fetchAdvances();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update status");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const payload = {
-        ...formData,
-        date: new Date().toISOString().slice(0, 10),
-        time: new Date().toLocaleTimeString(),
-      };
 
+    const payload = {
+      ...formData,
+      date: new Date().toISOString().slice(0, 10),
+      time: new Date().toLocaleTimeString(),
+    };
+
+    try {
       if (editingId) {
         await axios.put(`${API_ADVANCE}/${editingId}`, payload);
         toast.success("Advance updated successfully");
@@ -94,8 +122,11 @@ const AdvancePage = () => {
         reason: "",
         date: "",
         time: "",
-        status: "Pending",
+        status: "Provided",
+        deduct_month: "",
+        deducted_time: "",
       });
+
       fetchAdvances();
     } catch (err) {
       console.error(err);
@@ -104,13 +135,24 @@ const AdvancePage = () => {
   };
 
   const handleEdit = (advance) => {
-    setFormData(advance);
+    if (advance.status === "Deducted This Month") {
+      toast.error("Deducted entries cannot be edited");
+      return;
+    }
+
     setEditingId(advance.id);
+    setFormData(advance);
     setShowModal(true);
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this advance?")) {
+    const adv = advances.find((a) => a.id === id);
+    if (adv.status === "Deducted This Month") {
+      toast.error("Deducted entries cannot be deleted");
+      return;
+    }
+
+    if (window.confirm("Do you want to delete this entry?")) {
       try {
         await axios.delete(`${API_ADVANCE}/${id}`);
         toast.success("Advance deleted successfully");
@@ -119,17 +161,6 @@ const AdvancePage = () => {
         console.error(err);
         toast.error("Failed to delete advance");
       }
-    }
-  };
-
-  const handleStatusChange = async (id, newStatus) => {
-    try {
-      await axios.put(`${API_ADVANCE}/${id}`, { status: newStatus });
-      toast.success("Status updated successfully");
-      fetchAdvances();
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to update status");
     }
   };
 
@@ -144,99 +175,79 @@ const AdvancePage = () => {
         </button>
       </div>
 
-      {/* Table Section */}
       <table style={styles.table}>
         <thead>
           <tr>
-            <th style={styles.th}>#</th>
-            <th style={styles.th}>Email</th>
-            <th style={styles.th}>Name</th>
-            <th style={styles.th}>Department</th>
-            <th style={styles.th}>Amount</th>
-            <th style={styles.th}>Reason</th>
-            <th style={styles.th}>Date</th>
-            <th style={styles.th}>Time</th>
-            <th style={styles.th}>Status</th>
-            <th style={styles.th}>Action</th>
+            <th>#</th>
+            <th>Email</th>
+            <th>Name</th>
+            <th>Dept</th>
+            <th>Amount</th>
+            <th>Reason</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Deduct Month</th>
+            <th>Action</th>
           </tr>
         </thead>
+
         <tbody>
-          {advances.length > 0 ? (
-            advances.map((a, index) => (
-              <tr key={a.id}>
-                <td style={styles.td}>{index + 1}</td>
-                <td style={styles.td}>{a.email}</td>
-                <td style={styles.td}>{a.name}</td>
-                <td style={styles.td}>{a.department}</td>
-                <td style={styles.td}>₹{a.amount}</td>
-                <td style={styles.td}>{a.reason}</td>
-                <td style={styles.td}>{a.date}</td>
-                <td style={styles.td}>{a.time}</td>
-                <td style={styles.td}>
-                  <select
-                    value={a.status}
-                    onChange={(e) =>
-                      handleStatusChange(a.id, e.target.value)
-                    }
-                    style={{
-                      padding: "5px 8px",
-                      borderRadius: "6px",
-                      border: "1px solid #ccc",
-                      backgroundColor:
-                        a.status === "Pending"
-                          ? "#fff3cd"
-                          : a.status === "Provided"
-                          ? "#d4edda"
-                          : "#f8d7da",
-                      color:
-                        a.status === "Pending"
-                          ? "#856404"
-                          : a.status === "Provided"
-                          ? "#155724"
-                          : "#721c24",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Provided">Provided</option>
-                    <option value="Deducted">Deducted</option>
-                  </select>
-                </td>
-                <td style={styles.td}>
-                  {a.status === "Pending" ? (
-                    <>
-                      <FaEdit
-                        style={{ ...styles.icon, color: "#007bff" }}
-                        onClick={() => handleEdit(a)}
-                      />
-                      <FaTrash
-                        style={{ ...styles.icon, color: "#dc3545" }}
-                        onClick={() => handleDelete(a.id)}
-                      />
-                    </>
-                  ) : (
-                    <FaEye style={{ ...styles.icon, color: "#28a745" }} />
-                  )}
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="10" style={{ textAlign: "center", padding: "15px" }}>
-                No advance requests found.
+          {advances.map((a, index) => (
+            <tr key={a.id}>
+              <td>{index + 1}</td>
+              <td>{a.email}</td>
+              <td>{a.name}</td>
+              <td>{a.department}</td>
+              <td>₹{a.amount}</td>
+              <td>{a.reason}</td>
+              <td>{a.date}</td>
+              <td>{a.time}</td>
+
+              <td>
+                <select
+                  value={a.status}
+                  onChange={(e) => handleStatusChange(a.id, e.target.value)}
+                  disabled={a.status === "Deducted This Month"}
+                  style={styles.status(a.status)}
+                >
+                  <option value="Provided">Provided</option>
+                  <option value="Deducted This Month">Deducted This Month</option>
+                  <option value="Deduct Next Month">Deduct Next Month</option>
+                </select>
+              </td>
+
+              <td>{a.deduct_month || "-"}</td>
+
+              <td>
+                {a.status === "Deducted This Month" ? (
+                  <FaEye style={styles.iconGreen} />
+                ) : (
+                  <>
+                    <FaEdit
+                      style={styles.iconBlue}
+                      onClick={() => handleEdit(a)}
+                    />
+                    <FaTrash
+                      style={styles.iconRed}
+                      onClick={() => handleDelete(a.id)}
+                    />
+                  </>
+                )}
               </td>
             </tr>
-          )}
+          ))}
         </tbody>
       </table>
 
-      {/* Popup Modal Form */}
+      {/* Modal */}
       {showModal && (
         <div style={styles.modalOverlay}>
           <div style={styles.modal}>
-            <h3 style={{ textAlign: "center", marginBottom: "15px" }}>
-              {editingId ? "Edit Advance" : "New Advance Request"}
+            <h3 style={{ textAlign: "center" }}>
+              {editingId ? "Edit Advance" : "New Advance"}
             </h3>
+
             <form onSubmit={handleSubmit}>
               <div style={styles.formGroup}>
                 <label>Email</label>
@@ -255,24 +266,17 @@ const AdvancePage = () => {
                   ))}
                 </select>
               </div>
+
               <div style={styles.formGroup}>
                 <label>Name</label>
-                <input
-                  type="text"
-                  value={formData.name}
-                  readOnly
-                  style={styles.input}
-                />
+                <input type="text" value={formData.name} readOnly style={styles.input} />
               </div>
+
               <div style={styles.formGroup}>
                 <label>Department</label>
-                <input
-                  type="text"
-                  value={formData.department}
-                  readOnly
-                  style={styles.input}
-                />
+                <input type="text" value={formData.department} readOnly style={styles.input} />
               </div>
+
               <div style={styles.formGroup}>
                 <label>Amount</label>
                 <input
@@ -284,6 +288,7 @@ const AdvancePage = () => {
                   style={styles.input}
                 />
               </div>
+
               <div style={styles.formGroup}>
                 <label>Reason</label>
                 <textarea
@@ -316,85 +321,84 @@ const AdvancePage = () => {
 };
 
 const styles = {
-  page: { padding: "20px", fontFamily: "Poppins, sans-serif" },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  title: { color: "#333" },
+  page: { padding: "20px", fontFamily: "Poppins" },
+  header: { display: "flex", justifyContent: "space-between", marginBottom: 20 },
+  title: { fontSize: "22px", fontWeight: "bold" },
   addBtn: {
     backgroundColor: "#007bff",
     color: "#fff",
     padding: "8px 14px",
-    border: "none",
-    borderRadius: "8px",
+    borderRadius: 8,
     cursor: "pointer",
+    border: "none",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    marginTop: "20px",
+    marginTop: 20,
   },
-  th: {
-    border: "1px solid #ddd",
-    padding: "10px",
-    backgroundColor: "#f1f1f1",
-  },
-  td: {
-    border: "1px solid #ddd",
-    padding: "10px",
-    textAlign: "center",
-  },
-  icon: { margin: "0 5px", cursor: "pointer" },
+  status: (status) => ({
+    padding: "6px",
+    borderRadius: 6,
+    background:
+      status === "Provided"
+        ? "#d1ecf1"
+        : status === "Deducted This Month"
+        ? "#f8d7da"
+        : "#fff3cd",
+    color:
+      status === "Provided"
+        ? "#0c5460"
+        : status === "Deducted This Month"
+        ? "#721c24"
+        : "#856404",
+  }),
+  iconBlue: { color: "#007bff", cursor: "pointer", marginRight: 8 },
+  iconRed: { color: "#dc3545", cursor: "pointer" },
+  iconGreen: { color: "#28a745", cursor: "pointer" },
+
   modalOverlay: {
     position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    inset: 0,
     backgroundColor: "rgba(0,0,0,0.5)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
   },
   modal: {
-    backgroundColor: "#fff",
-    padding: "25px",
-    borderRadius: "12px",
-    width: "400px",
-    boxShadow: "0 0 15px rgba(0,0,0,0.3)",
+    background: "#fff",
+    padding: 25,
+    borderRadius: 12,
+    width: 400,
   },
-  formGroup: { marginBottom: "10px" },
   input: {
     width: "100%",
-    padding: "8px",
-    borderRadius: "6px",
+    padding: 8,
+    borderRadius: 6,
     border: "1px solid #ccc",
   },
   textarea: {
     width: "100%",
-    height: "80px",
-    padding: "8px",
-    borderRadius: "6px",
+    height: 80,
+    padding: 8,
+    borderRadius: 6,
     border: "1px solid #ccc",
   },
+  formGroup: { marginBottom: 12 },
   submitBtn: {
     backgroundColor: "#28a745",
-    color: "#fff",
     padding: "8px 16px",
+    borderRadius: 8,
     border: "none",
-    borderRadius: "8px",
-    marginRight: "10px",
-    cursor: "pointer",
+    color: "#fff",
+    marginRight: 10,
   },
   cancelBtn: {
     backgroundColor: "#dc3545",
-    color: "#fff",
     padding: "8px 16px",
+    borderRadius: 8,
     border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
+    color: "#fff",
   },
 };
 
