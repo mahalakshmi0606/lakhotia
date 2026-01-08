@@ -69,7 +69,7 @@ const Dashboard = () => {
 
       <div style={{ display: "flex", gap: "40px", marginTop: "40px", flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 300 }}>
-          <h3>Tasks Assigned To Me</h3>
+          <h3>Tasks</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
@@ -93,7 +93,7 @@ const Dashboard = () => {
         </div>
 
         <div style={{ flex: 1, minWidth: 300 }}>
-          <h3>Tasks Assigned By Me</h3>
+          <h3>Tasks Status</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
               <Pie
