@@ -4,6 +4,10 @@ import dayjs from "dayjs";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 
+// Bootstrap CSS and Icons
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap-icons/font/bootstrap-icons.css';
+
 export default function QuotationModal() {
   const idRef = useRef(1000);
 
@@ -18,14 +22,20 @@ export default function QuotationModal() {
       description: "",
       cut_width: 1,
       length: 1,
+      count: 1,
       batch_no: `B-${Date.now().toString().slice(-6)}-${seq}`,
       mrp: 0,
+      buy_price: 0,
       quantity: 1,
       unit: "pcs",
       discount: 0,
       discount_type: "amount",
       tax_rate: 18.0,
-      item_status: "pending" // New: Add status for each item
+      packing_charges: 0,
+      other_charges: 0,
+      item_status: "pending",
+      customer_description: "",
+      brand_code: ""
     };
   }
 
@@ -45,6 +55,9 @@ export default function QuotationModal() {
     placeOfSupply: "33-Tamil Nadu",
   };
 
+  // Logo path
+  const companyLogo = "/Asset/Name1.jpg";
+
   // State variables
   const [companies, setCompanies] = useState([]);
   const [loadingCompanies, setLoadingCompanies] = useState(true);
@@ -55,40 +68,87 @@ export default function QuotationModal() {
   const [billTo, setBillTo] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [companyGstin, setCompanyGstin] = useState("");
+  const [companyPincode, setCompanyPincode] = useState(""); // NEW: For pincode
   const [contactPerson, setContactPerson] = useState("");
   const [contactMob, setContactMob] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactEmailSame, setContactEmailSame] = useState(false);
+  
+  // NEW: CC email field
+  const [ccEmail, setCcEmail] = useState("");
 
-  // Items state
-  const [items, setItems] = useState(() => [createEmptyItem(1)]);
+  // Company search dropdown state
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [filteredCompanies, setFilteredCompanies] = useState([]);
+
+  // Items state - Start with empty array
+  const [items, setItems] = useState(() => []);
 
   // Stock items for autocomplete
   const [stockItems, setStockItems] = useState([]);
   const [loadingStock, setLoadingStock] = useState(false);
   const [stockError, setStockError] = useState(null);
   
-  // Typeahead states for each item
-  const [typeaheadSuggestions, setTypeaheadSuggestions] = useState({});
-  const [activeTypeaheadIndex, setActiveTypeaheadIndex] = useState({});
-  const [showTypeahead, setShowTypeahead] = useState({});
+  // Popup modal states for item selection
+  const [showItemPopup, setShowItemPopup] = useState(false);
+  const [itemSearchTerm, setItemSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState(null);
+  const [newItemCutWidth, setNewItemCutWidth] = useState("");
+  const [newItemLength, setNewItemLength] = useState("");
+  const [newItemCount, setNewItemCount] = useState("1");
+  const [newItemQuantity, setNewItemQuantity] = useState("1");
+  const [newItemBatchCode, setNewItemBatchCode] = useState("");
+  const [availableBatchCodes, setAvailableBatchCodes] = useState([]);
+  const [newItemDiscount, setNewItemDiscount] = useState("0");
+  const [newItemDiscountType, setNewItemDiscountType] = useState("amount");
+  const [newItemPackingCharges, setNewItemPackingCharges] = useState("0");
+  const [newItemOtherCharges, setNewItemOtherCharges] = useState("0");
+  const [newItemCustomerDescription, setNewItemCustomerDescription] = useState("");
+  const [newItemSupplierPartNo, setNewItemSupplierPartNo] = useState("");
+  const [newItemBrandCode, setNewItemBrandCode] = useState("");
 
-  // Modal open
-  const [modalOpen, setModalOpen] = useState(false);
+  // View quotation modal state
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState(null);
+
+  // Edit quotation modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingQuotation, setEditingQuotation] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Modal states for multi-step flow
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [showItemsModal, setShowItemsModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
 
   // Saved quotations state
   const [savedQuotations, setSavedQuotations] = useState([]);
   const [loadingQuotations, setLoadingQuotations] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
 
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState("all");
+  
   // Statistics
   const [statistics, setStatistics] = useState(null);
+  const [quotationCounts, setQuotationCounts] = useState({
+    all: 0,
+    draft: 0,
+    requote: 0,
+    completed: 0,
+  });
 
   // DOM ref for quotation content
   const quotationRef = useRef(null);
-
-  // Ref for typeahead input
-  const typeaheadRefs = useRef({});
 
   // API base URL
   const API_BASE_URL = "http://127.0.0.1:5000";
@@ -96,46 +156,228 @@ export default function QuotationModal() {
   // Fetch saved quotations from backend on component mount
   useEffect(() => {
     fetchQuotations();
-  }, []);
+    fetchQuotationCounts();
+  }, [currentPage, searchTerm, statusFilter]);
 
-  // Load saved quotations from backend
+  // Fetch quotation counts by status
+  const fetchQuotationCounts = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`);
+      if (response.data.success) {
+        setStatistics(response.data.data);
+        const counts = {
+          all: response.data.data.total || 0,
+          draft: response.data.data.status_counts?.draft || 0,
+          requote: response.data.data.status_counts?.requote || 0,
+          completed: response.data.data.status_counts?.completed || 0,
+        };
+        setQuotationCounts(counts);
+      }
+    } catch (err) {
+      console.error("Error loading quotation counts:", err);
+      const saved = localStorage.getItem("savedQuotations");
+      if (saved) {
+        try {
+          const allQuotations = JSON.parse(saved);
+          const counts = {
+            all: allQuotations.length,
+            draft: allQuotations.filter(q => q.status === 'draft').length,
+            requote: allQuotations.filter(q => q.status === 'requote').length,
+            completed: allQuotations.filter(q => q.status === 'completed').length,
+          };
+          setQuotationCounts(counts);
+        } catch (e) {
+          console.error("Error parsing localStorage:", e);
+        }
+      }
+    }
+  };
+
+  // Fetch saved quotations with pagination
   const fetchQuotations = async () => {
     setLoadingQuotations(true);
     try {
+      const params = {
+        page: currentPage,
+        per_page: itemsPerPage
+      };
+      
+      if (searchTerm.trim()) {
+        params.q = searchTerm.trim();
+      }
+      
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
+      }
+      
       const response = await axios.get(`${API_BASE_URL}/api/quotations`, {
-        params: { page: 1, per_page: 50 }
+        params
       });
       
       if (response.data.success) {
-        const fetchedQuotations = response.data.data;
+        const fetchedQuotations = response.data.data || [];
+        const pagination = response.data.pagination || {};
         
-        // Ensure each item has a status field
-        const quotationsWithItemStatus = fetchedQuotations.map(quotation => ({
+        const quotationsWithItemStatus = fetchedQuotations.map(quotation => {
+          const transformedItems = (quotation.items || []).map(item => {
+            let brand_code = "";
+            let customer_description = "";
+            let original_description = item.description || "";
+            
+            if (original_description) {
+              try {
+                if (original_description.includes('[BRAND_CODE:') && original_description.includes('[CUSTOMER_DESC:')) {
+                  const brandCodeMatch = original_description.match(/\[BRAND_CODE:(.*?)\]/);
+                  const customerDescMatch = original_description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+                  
+                  if (brandCodeMatch) brand_code = brandCodeMatch[1];
+                  if (customerDescMatch) customer_description = customerDescMatch[1];
+                  
+                  original_description = original_description
+                    .replace(/\[BRAND_CODE:.*?\]/, '')
+                    .replace(/\[CUSTOMER_DESC:.*?\]/, '')
+                    .trim();
+                }
+              } catch (e) {
+                console.error("Error parsing description:", e);
+              }
+            }
+            
+            return {
+              ...item,
+              item_status: item.item_status || "pending",
+              brand_code: brand_code || "",
+              customer_description: customer_description || "",
+              description: original_description,
+              count: 1,
+              packing_charges: 0,
+              other_charges: 0,
+              buy_price: 0
+            };
+          });
+          
+          return {
+            ...quotation,
+            items: transformedItems
+          };
+        });
+        
+        setSavedQuotations(quotationsWithItemStatus);
+        setTotalItems(pagination.total || fetchedQuotations.length);
+        setTotalPages(pagination.pages || Math.ceil((pagination.total || fetchedQuotations.length) / itemsPerPage) || 1);
+      } else {
+        throw new Error(response.data.message || "API response unsuccessful");
+      }
+    } catch (err) {
+      console.error("Error loading quotations from API:", err);
+      loadFromLocalStorage();
+    } finally {
+      setLoadingQuotations(false);
+    }
+  };
+
+  // Load from localStorage with pagination
+  const loadFromLocalStorage = () => {
+    const saved = localStorage.getItem("savedQuotations");
+    if (saved) {
+      try {
+        const allQuotations = JSON.parse(saved);
+        
+        let filteredData = allQuotations;
+        if (statusFilter !== "all") {
+          filteredData = allQuotations.filter(quote => quote.status === statusFilter);
+        }
+        
+        if (searchTerm.trim()) {
+          const term = searchTerm.toLowerCase();
+          filteredData = filteredData.filter(quote => {
+            const quoteNo = (quote.quote_number || quote.quoteNo || "").toLowerCase();
+            const companyName = (quote.company_name || quote.billTo || "").toLowerCase();
+            const contactPersonName = (quote.contact_person || quote.contactPerson || "").toLowerCase();
+            const contactEmail = (quote.contact_email || quote.contactEmail || "").toLowerCase();
+            
+            return quoteNo.includes(term) ||
+                   companyName.includes(term) ||
+                   contactPersonName.includes(term) ||
+                   contactEmail.includes(term);
+          });
+        }
+        
+        filteredData.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.date || 0);
+          const dateB = new Date(b.createdAt || b.date || 0);
+          return dateB - dateA;
+        });
+        
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedData = filteredData.slice(startIndex, endIndex);
+        
+        const quotationsWithItemStatus = paginatedData.map(quotation => ({
           ...quotation,
-          items: quotation.items.map(item => ({
+          items: (quotation.items || []).map(item => ({
             ...item,
-            item_status: item.item_status || "pending" // Default status if not present
+            item_status: item.item_status || "pending"
           }))
         }));
         
         setSavedQuotations(quotationsWithItemStatus);
-        console.log(`✅ Loaded ${quotationsWithItemStatus.length} quotations from backend`);
+        setTotalItems(filteredData.length);
+        setTotalPages(Math.ceil(filteredData.length / itemsPerPage));
+      } catch (e) {
+        console.error("Error loading from localStorage:", e);
+        setSavedQuotations([]);
+        setTotalItems(0);
+        setTotalPages(1);
       }
-    } catch (err) {
-      console.error("❌ Error loading quotations:", err);
-      // Fallback to localStorage if API fails
-      const saved = localStorage.getItem("savedQuotations");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setSavedQuotations(parsed);
-        } catch (e) {
-          console.error("Error loading from localStorage:", e);
-        }
-      }
-    } finally {
-      setLoadingQuotations(false);
+    } else {
+      setSavedQuotations([]);
+      setTotalItems(0);
+      setTotalPages(1);
     }
+  };
+
+  // Reset search function
+  const resetSearch = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
+  };
+
+  // Handle page change
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  // Generate pagination items
+  const getPaginationItems = () => {
+    const items = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) items.push(i);
+        items.push("...");
+        items.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        items.push(1);
+        items.push("...");
+        for (let i = totalPages - 3; i <= totalPages; i++) items.push(i);
+      } else {
+        items.push(1);
+        items.push("...");
+        items.push(currentPage - 1);
+        items.push(currentPage);
+        items.push(currentPage + 1);
+        items.push("...");
+        items.push(totalPages);
+      }
+    }
+    
+    return items;
   };
 
   // Load statistics
@@ -154,46 +396,21 @@ export default function QuotationModal() {
     fetchStatistics();
   }, []);
 
-  // Fetch companies with error handling
+  // Fetch companies when company modal opens
   useEffect(() => {
-    if (!modalOpen) return;
+    if (!showCompanyModal) return;
     
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       setCompanyError(null);
       try {
-        console.log("📡 Fetching companies from API...");
-        
-        const endpoints = [
-          `${API_BASE_URL}/api/company`,
-          "http://localhost:5000/api/company",
-          "http://127.0.0.1:5000/company"
-        ];
-        
-        let response = null;
-        let lastError = null;
-        
-        for (const endpoint of endpoints) {
-          try {
-            console.log(`Trying endpoint: ${endpoint}`);
-            response = await axios.get(endpoint, {
-              timeout: 5000,
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-              }
-            });
-            console.log(`✅ Success with endpoint: ${endpoint}`);
-            break;
-          } catch (err) {
-            lastError = err;
-            console.log(`❌ Failed with endpoint: ${endpoint}`, err.message);
+        const response = await axios.get(`${API_BASE_URL}/api/company`, {
+          timeout: 5000,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
           }
-        }
-        
-        if (!response) {
-          throw new Error(lastError?.message || "All endpoints failed");
-        }
+        });
         
         let companiesData = [];
         
@@ -212,44 +429,24 @@ export default function QuotationModal() {
         if (companiesData.length > 0) {
           setCompanies(companiesData);
           setCompanyError(null);
-          
-          if (companiesData.length === 1) {
-            const company = companiesData[0];
-            setSelectedCompanyId(company.id || company.ID || "");
-            setSelectedCompany(company);
-            setBillTo(company.company_name || company.companyName || "");
-            setCompanyAddress(company.company_address || company.companyAddress || "");
-            setCompanyGstin(company.gstin || company.gst_no || "");
-            setContactPerson(company.customer_name || company.customerName || "");
-            setContactMob(company.customer_mobile || company.customerMobile || "");
-            setContactEmail(company.customer_email || company.customerEmail || "");
-          }
         } else {
           setCompanies([]);
           setCompanyError("No companies found in database.");
         }
         
       } catch (err) {
-        console.error("❌ Fetch companies failed:", err);
+        console.error("Fetch companies failed:", err);
         
         const mockCompanies = [
           {
             id: 1,
-            company_name: "ABC Corporation",
-            company_address: "123 Main St, Chennai",
-            gstin: "33AAAAA0000A1Z5",
-            customer_name: "John Doe",
-            customer_mobile: "9876543210",
-            customer_email: "john@abccorp.com"
-          },
-          {
-            id: 2,
-            company_name: "XYZ Industries",
-            company_address: "456 Park Ave, Bangalore",
-            gstin: "29BBBBB0000B1Z5",
-            customer_name: "Jane Smith",
-            customer_mobile: "9876543211",
-            customer_email: "jane@xyzind.com"
+            companyName: "ABC Corporation",
+            companyAddress: "123 Main St, Chennai - 600001",
+            pinCode: "600001",
+            gstNumber: "33AAAAA0000A1Z5",
+            customerName: "John Doe",
+            customerMobile: "9876543210",
+            customerEmail: "john@abccorp.com"
           }
         ];
         
@@ -261,46 +458,23 @@ export default function QuotationModal() {
     };
     
     fetchCompanies();
-  }, [modalOpen]);
+  }, [showCompanyModal]);
 
-  // Fetch stock items when modal opens
+  // Fetch stock items when items modal opens
   useEffect(() => {
-    if (!modalOpen) return;
+    if (!showItemsModal) return;
     
     const fetchStockItems = async () => {
       setLoadingStock(true);
       setStockError(null);
       try {
-        console.log("📦 Fetching stock items...");
-        
-        const endpoints = [
-          `${API_BASE_URL}/api/stock/all`,
-          "http://localhost:5000/api/stock/all",
-          "http://127.0.0.1:5000/stock/all"
-        ];
-        
-        let response = null;
-        
-        for (const endpoint of endpoints) {
-          try {
-            response = await axios.get(endpoint, {
-              timeout: 5000,
-              headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-              }
-            });
-            break;
-          } catch (err) {
-            console.log(`Failed with endpoint: ${endpoint}`, err.message);
+        const response = await axios.get(`${API_BASE_URL}/api/stock/all`, {
+          timeout: 5000,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
           }
-        }
-        
-        if (!response) {
-          throw new Error("Stock API endpoints failed");
-        }
-        
-        console.log("📦 Stock API response:", response.data);
+        });
         
         let stockData = [];
         
@@ -310,11 +484,13 @@ export default function QuotationModal() {
           stockData = response.data;
         }
         
-        console.log(`✅ Loaded ${stockData.length} stock items`);
-        setStockItems(stockData);
+        const uniqueStockData = Array.from(
+          new Map(stockData.map(item => [item["Brand Code"], item])).values()
+        );
         
-        // Provide mock data if API fails
-        if (stockData.length === 0) {
+        setStockItems(uniqueStockData);
+        
+        if (uniqueStockData.length === 0) {
           const mockStock = [
             {
               "id": 1,
@@ -328,38 +504,7 @@ export default function QuotationModal() {
               "Buy Price": 850.00,
               "Width": 10,
               "Length": 200,
-              "Unit": "pcs",
-              "GST": 18.0
-            },
-            {
-              "id": 2,
-              "Item Name": "Steel Cutting Disc",
-              "Brand": "Makita",
-              "Brand Code": "MAK-SCD-102",
-              "Brand Description": "4.5 inch cutting disc for steel and metal",
-              "HSN": "84659320",
-              "Batch Code": "BATCH-2024-002",
-              "MRP": 890.00,
-              "Buy Price": 620.00,
-              "Width": 4.5,
-              "Length": 1.2,
-              "Unit": "pcs",
-              "GST": 18.0
-            },
-            {
-              "id": 3,
-              "Item Name": "Diamond Core Bit",
-              "Brand": "Hilti",
-              "Brand Code": "HIL-DCB-205",
-              "Brand Description": "Wet diamond core bit for concrete drilling",
-              "HSN": "84641010",
-              "Batch Code": "BATCH-2024-003",
-              "MRP": 4200.00,
-              "Buy Price": 3150.00,
-              "Width": 100,
-              "Length": 450,
-              "Unit": "pcs",
-              "GST": 18.0
+              "Unit": "pcs"
             }
           ];
           
@@ -368,9 +513,8 @@ export default function QuotationModal() {
         }
         
       } catch (err) {
-        console.error("❌ Fetch stock failed:", err);
+        console.error("Fetch stock failed:", err);
         
-        // Provide comprehensive mock data
         const mockStock = [
           {
             "id": 1,
@@ -384,23 +528,7 @@ export default function QuotationModal() {
             "Buy Price": 850.00,
             "Width": 10,
             "Length": 200,
-            "Unit": "pcs",
-            "GST": 18.0
-          },
-          {
-            "id": 2,
-            "Item Name": "Steel Cutting Disc",
-            "Brand": "Makita",
-            "Brand Code": "MAK-SCD-102",
-            "Brand Description": "4.5 inch cutting disc for steel and metal",
-            "HSN": "84659320",
-            "Batch Code": "BATCH-2024-002",
-            "MRP": 890.00,
-            "Buy Price": 620.00,
-            "Width": 4.5,
-            "Length": 1.2,
-            "Unit": "pcs",
-            "GST": 18.0
+            "Unit": "pcs"
           }
         ];
         
@@ -412,29 +540,112 @@ export default function QuotationModal() {
     };
     
     fetchStockItems();
-  }, [modalOpen]);
+  }, [showItemsModal]);
 
-  // When company selected, autofill data
+  // Handle bill to search (company name search)
+  const handleBillToSearch = (searchTerm) => {
+    setBillTo(searchTerm);
+    
+    if (searchTerm.trim() === "") {
+      setFilteredCompanies([]);
+      setShowCompanyDropdown(false);
+      return;
+    }
+    
+    const term = searchTerm.toLowerCase();
+    const results = companies.filter(company => {
+      const companyName = (company.companyName || company.company_name || "").toLowerCase();
+      const customerName = (company.customerName || company.customer_name || "").toLowerCase();
+      const customerMobile = (company.customerMobile || company.customer_mobile || "").toString().toLowerCase();
+      const companyGst = (company.gstNumber || company.gst_number || "").toLowerCase();
+      const companyAddress = (company.companyAddress || company.company_address || "").toLowerCase();
+      
+      return (
+        companyName.includes(term) ||
+        customerName.includes(term) ||
+        customerMobile.includes(term) ||
+        companyGst.includes(term) ||
+        companyAddress.includes(term)
+      );
+    }).slice(0, 5);
+    
+    setFilteredCompanies(results);
+    setShowCompanyDropdown(results.length > 0);
+  };
+
+  // Handle contact mobile number input - lookup company details
+  const handleContactMobChange = (mobile) => {
+    setContactMob(mobile);
+    
+    if (mobile.length >= 10) {
+      const foundCompany = companies.find(company => {
+        const customerMobile = (company.customerMobile || company.customer_mobile || "").toString();
+        return customerMobile.includes(mobile) || mobile.includes(customerMobile);
+      });
+      
+      if (foundCompany) {
+        selectCompanyFromSearch(foundCompany);
+      }
+    }
+  };
+
+  // Select company from search results - UPDATED TO MATCH BACKEND FIELDS
+  const selectCompanyFromSearch = (company) => {
+    const companyId = company.id || company.ID || company.company_id || "";
+    const companyName = company.companyName || company.company_name || "";
+    const companyAddr = company.companyAddress || company.company_address || "";
+    const companyPincode = company.pinCode || company.pin_code || "";
+    const companyGst = company.gstNumber || company.gst_number || "";
+    const customerName = company.customerName || company.customer_name || company.contact_person || "";
+    const customerMobile = company.customerMobile || company.customer_mobile || company.contact_mobile || "";
+    const customerEmail = company.customerEmail || company.customer_email || company.contact_email || "";
+    
+    setSelectedCompanyId(companyId.toString());
+    setSelectedCompany(company);
+    setBillTo(companyName);
+    setCompanyAddress(companyAddr);
+    setCompanyPincode(companyPincode); // NEW: Set pincode
+    setCompanyGstin(companyGst);
+    setContactPerson(customerName);
+    setContactMob(customerMobile);
+    if (!contactEmailSame) {
+      setContactEmail(customerEmail);
+    }
+    
+    setShowCompanyDropdown(false);
+    setFilteredCompanies([]);
+  };
+
+  // Extract pincode from address (fallback function)
+  const extractPincode = (address) => {
+    if (!address) return "";
+    const pincodeMatch = address.match(/\b\d{6}\b/);
+    return pincodeMatch ? pincodeMatch[0] : "";
+  };
+
+  // When company selected from dropdown, autofill data - UPDATED
   useEffect(() => {
     if (!selectedCompanyId) return;
     
     const company = companies.find(c => {
-      const id = c.id || c.ID || c.Id;
+      const id = c.id || c.ID || c.company_id;
       return id && id.toString() === selectedCompanyId.toString();
     });
     
     if (!company) return;
     
     setSelectedCompany(company);
-    const companyName = company.company_name || company.companyName || "";
-    const companyAddr = company.company_address || company.companyAddress || "";
-    const companyGst = company.gstin || company.gst_no || "";
-    const customerName = company.customer_name || company.customerName || "";
-    const customerMobile = company.customer_mobile || company.customerMobile || "";
-    const customerEmail = company.customer_email || company.customerEmail || "";
+    const companyName = company.companyName || company.company_name || "";
+    const companyAddr = company.companyAddress || company.company_address || "";
+    const companyPincode = company.pinCode || company.pin_code || "";
+    const companyGst = company.gstNumber || company.gst_number || "";
+    const customerName = company.customerName || company.customer_name || "";
+    const customerMobile = company.customerMobile || company.customer_mobile || "";
+    const customerEmail = company.customerEmail || company.customer_email || "";
     
     setBillTo(companyName);
     setCompanyAddress(companyAddr);
+    setCompanyPincode(companyPincode); // NEW: Set pincode
     setCompanyGstin(companyGst);
     setContactPerson(customerName);
     setContactMob(customerMobile);
@@ -451,27 +662,47 @@ export default function QuotationModal() {
     }
   }, [contactEmailSame]);
 
-  // Reset form when modal opens
-  useEffect(() => {
-    if (modalOpen) {
-      setItems([createEmptyItem(1)]);
-      setSelectedCompanyId("");
-      setSelectedCompany(null);
-      setBillTo("");
-      setCompanyAddress("");
-      setCompanyGstin("");
-      setContactPerson("");
-      setContactMob("");
-      setContactEmail("");
-      setContactEmailSame(false);
-      // Reset typeahead states
-      setTypeaheadSuggestions({});
-      setActiveTypeaheadIndex({});
-      setShowTypeahead({});
-      // Generate new quote number
-      setQuoteNo(`Q-${Date.now().toString().slice(-8)}`);
-    }
-  }, [modalOpen]);
+  // Start new quotation flow
+  const startNewQuotation = () => {
+    setItems([]);
+    setSelectedCompanyId("");
+    setSelectedCompany(null);
+    setBillTo("");
+    setCompanyAddress("");
+    setCompanyGstin("");
+    setCompanyPincode(""); // NEW: Reset pincode
+    setContactPerson("");
+    setContactMob("");
+    setContactEmail("");
+    setContactEmailSame(false);
+    setCcEmail(""); // Reset CC email
+    
+    setFilteredCompanies([]);
+    setShowCompanyDropdown(false);
+    
+    setShowItemPopup(false);
+    setItemSearchTerm("");
+    setSearchResults([]);
+    setShowResults(false);
+    setSelectedStockItem(null);
+    setNewItemCutWidth("");
+    setNewItemLength("");
+    setNewItemCount("1");
+    setNewItemQuantity("1");
+    setNewItemBatchCode("");
+    setAvailableBatchCodes([]);
+    setNewItemDiscount("0");
+    setNewItemDiscountType("amount");
+    setNewItemPackingCharges("0");
+    setNewItemOtherCharges("0");
+    setNewItemCustomerDescription("");
+    setNewItemSupplierPartNo("");
+    setNewItemBrandCode("");
+    
+    setQuoteNo(`Q-${Date.now().toString().slice(-8)}`);
+    
+    setShowCompanyModal(true);
+  };
 
   // Handle item field changes including status
   function handleItemChange(index, field, value) {
@@ -479,7 +710,7 @@ export default function QuotationModal() {
       const updatedItems = [...prevItems];
       let newValue = value;
       
-      if (["cut_width", "length", "mrp", "quantity", "discount", "tax_rate"].includes(field)) {
+      if (["cut_width", "length", "count", "mrp", "buy_price", "quantity", "discount", "tax_rate", "packing_charges", "other_charges"].includes(field)) {
         newValue = parseFloat(value) || 0;
       }
       
@@ -488,150 +719,43 @@ export default function QuotationModal() {
         [field]: newValue
       };
       
-      // If item name changes, update typeahead suggestions
-      if (field === "item_name") {
-        handleItemNameChange(index, newValue);
+      // Remove auto-calculation of quantity from cut_width, length, count
+      // Quantity is now a text edit field (user input)
+      if (["cut_width", "length", "count"].includes(field)) {
+        // Only update if quantity is not already set
+        if (!updatedItems[index].quantity || updatedItems[index].quantity === 0) {
+          const width = updatedItems[index].cut_width || 1;
+          const length = updatedItems[index].length || 1;
+          const count = updatedItems[index].count || 1;
+          updatedItems[index].quantity = width * length * count;
+        }
       }
       
       return updatedItems;
     });
   }
 
-  // Handle item status change
-  function handleItemStatusChange(index, status) {
-    setItems(prevItems => {
-      const updatedItems = [...prevItems];
-      updatedItems[index] = {
-        ...updatedItems[index],
-        item_status: status
-      };
-      return updatedItems;
-    });
-  }
-
-  // Handle item name change with typeahead
-  function handleItemNameChange(index, value) {
-    if (!value || value.trim().length < 1) {
-      setTypeaheadSuggestions(prev => ({...prev, [index]: []}));
-      setShowTypeahead(prev => ({...prev, [index]: false}));
-      return;
-    }
-    
-    const searchTerm = value.toLowerCase();
-    const suggestions = stockItems
-      .filter(item => 
-        item["Item Name"]?.toLowerCase().includes(searchTerm) ||
-        item["Brand Code"]?.toLowerCase().includes(searchTerm) ||
-        item["Brand Description"]?.toLowerCase().includes(searchTerm)
-      )
-      .slice(0, 5); // Limit to 5 suggestions
-    
-    setTypeaheadSuggestions(prev => ({...prev, [index]: suggestions}));
-    setActiveTypeaheadIndex(prev => ({...prev, [index]: -1}));
-    setShowTypeahead(prev => ({...prev, [index]: true}));
-  }
-
-  // Handle item selection from typeahead
-  function handleItemSelect(index, stockItem) {
-    if (!stockItem) return;
-    
-    setItems(prevItems => {
-      const updatedItems = [...prevItems];
-      updatedItems[index] = {
-        ...updatedItems[index],
-        item_name: stockItem["Item Name"] || "",
-        hsn_sac: stockItem["HSN"] || "",
-        supplier_part_no: stockItem["Brand Code"] || "",
-        description: stockItem["Brand Description"] || "",
-        mrp: parseFloat(stockItem["MRP"]) || 0,
-        // Use width if available, otherwise keep existing
-        cut_width: stockItem["Width"] ? parseFloat(stockItem["Width"]) : updatedItems[index].cut_width,
-        // Use length if available, otherwise keep existing
-        length: stockItem["Length"] ? parseFloat(stockItem["Length"]) : updatedItems[index].length,
-        unit: stockItem["Unit"] || "pcs",
-        tax_rate: stockItem["GST"] || 18.0
-      };
-      return updatedItems;
-    });
-    
-    // Hide typeahead
-    setShowTypeahead(prev => ({...prev, [index]: false}));
-    setTypeaheadSuggestions(prev => ({...prev, [index]: []}));
-  }
-
-  // Handle keyboard navigation in typeahead
-  function handleTypeaheadKeyDown(index, e) {
-    const suggestions = typeaheadSuggestions[index] || [];
-    const activeIndex = activeTypeaheadIndex[index] || -1;
-    
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      const nextIndex = (activeIndex + 1) % suggestions.length;
-      setActiveTypeaheadIndex(prev => ({...prev, [index]: nextIndex}));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      const prevIndex = activeIndex <= 0 ? suggestions.length - 1 : activeIndex - 1;
-      setActiveTypeaheadIndex(prev => ({...prev, [index]: prevIndex}));
-    } else if (e.key === "Enter" && activeIndex >= 0 && suggestions[activeIndex]) {
-      e.preventDefault();
-      handleItemSelect(index, suggestions[activeIndex]);
-    } else if (e.key === "Escape") {
-      setShowTypeahead(prev => ({...prev, [index]: false}));
-    }
-  }
-
-  // Close typeahead when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e) {
-      Object.keys(typeaheadRefs.current).forEach(index => {
-        const ref = typeaheadRefs.current[index];
-        if (ref && !ref.contains(e.target)) {
-          setShowTypeahead(prev => ({...prev, [index]: false}));
-        }
-      });
-    }
-    
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  // Add new item
-  function addItem() {
-    setItems(prevItems => [...prevItems, createEmptyItem(prevItems.length + 1)]);
+  // Add new item using popup
+  function addItemViaPopup() {
+    setShowItemPopup(true);
   }
 
   // Remove item
   function removeItem(index) {
-    if (items.length > 1) {
-      setItems(prevItems => prevItems.filter((_, i) => i !== index));
-      // Clean up typeahead refs
-      delete typeaheadRefs.current[index];
-      setTypeaheadSuggestions(prev => {
-        const newSuggestions = {...prev};
-        delete newSuggestions[index];
-        return newSuggestions;
-      });
-      setShowTypeahead(prev => {
-        const newShow = {...prev};
-        delete newShow[index];
-        return newShow;
-      });
-    } else {
-      setItems([createEmptyItem(1)]);
-    }
+    setItems(prevItems => prevItems.filter((_, i) => i !== index));
   }
 
-  // Calculate price per unit (MRP × Cut Width)
+  // Calculate price per unit (MRP × Length × Width × Count)
   const pricePerUnit = (item) => {
     const mrp = parseFloat(item.mrp) || 0;
-    const cut_width = parseFloat(item.cut_width) || 0;
-    const price = mrp * cut_width;
+    const length = parseFloat(item.length) || 0;
+    const width = parseFloat(item.cut_width) || 0;
+    const count = parseFloat(item.count) || 0;
+    const price = mrp * length * width * count;
     return parseFloat(price.toFixed(2)) || 0;
   };
 
-  // Calculate amount before discount
+  // Calculate amount before discount (Price/Unit × Qty)
   const amountBeforeDiscount = (item) => {
     const price = pricePerUnit(item);
     const quantity = parseFloat(item.quantity) || 0;
@@ -639,12 +763,19 @@ export default function QuotationModal() {
     return parseFloat(amount.toFixed(2)) || 0;
   };
 
-  // Calculate discount amount (assuming discount is in rupees, not percentage)
+  // Calculate discount amount
   const discountAmount = (item) => {
-    return parseFloat(item.discount) || 0;
+    const amount = amountBeforeDiscount(item);
+    const discount = parseFloat(item.discount) || 0;
+    
+    if (item.discount_type === "percentage") {
+      return parseFloat((amount * discount / 100).toFixed(2));
+    } else {
+      return parseFloat(discount.toFixed(2));
+    }
   };
 
-  // Calculate amount after discount
+  // Calculate amount after discount (Price/Unit × Qty - Discount)
   const amountAfterDiscount = (item) => {
     const amount = amountBeforeDiscount(item);
     const discount = discountAmount(item);
@@ -652,31 +783,45 @@ export default function QuotationModal() {
     return parseFloat(finalAmount.toFixed(2)) || 0;
   };
 
-  // Calculate GST amount (based on tax_rate)
-  const gstAmount = (item) => {
+  // Calculate item total (Total + Packing + Others)
+  const itemTotalBeforeGST = (item) => {
     const amount = amountAfterDiscount(item);
+    const packing = parseFloat(item.packing_charges) || 0;
+    const other = parseFloat(item.other_charges) || 0;
+    return parseFloat((amount + packing + other).toFixed(2));
+  };
+
+  // Calculate GST amount (GST% of itemTotalBeforeGST)
+  const gstAmount = (item) => {
+    const taxableAmount = itemTotalBeforeGST(item);
     const tax_rate = parseFloat(item.tax_rate) || 18.0;
-    const gst = amount * (tax_rate / 100);
+    const gst = taxableAmount * (tax_rate / 100);
     return parseFloat(gst.toFixed(2));
   };
 
-  // Calculate item total (amount after discount + GST)
+  // Calculate item total with GST
   const itemTotal = (item) => {
-    const amount = amountAfterDiscount(item);
+    const taxableAmount = itemTotalBeforeGST(item);
     const gst = gstAmount(item);
-    return parseFloat((amount + gst).toFixed(2));
+    return parseFloat((taxableAmount + gst).toFixed(2));
   };
 
   // Calculate all totals
   const calculateTotals = () => {
     const subtotal = items.reduce((sum, item) => sum + amountBeforeDiscount(item), 0);
     const totalDiscount = items.reduce((sum, item) => sum + discountAmount(item), 0);
+    const totalPacking = items.reduce((sum, item) => sum + (parseFloat(item.packing_charges) || 0), 0);
+    const totalOther = items.reduce((sum, item) => sum + (parseFloat(item.other_charges) || 0), 0);
+    const totalBeforeGST = items.reduce((sum, item) => sum + itemTotalBeforeGST(item), 0);
     const totalGST = items.reduce((sum, item) => sum + gstAmount(item), 0);
     const grandTotal = items.reduce((sum, item) => sum + itemTotal(item), 0);
     
     return {
       subtotal: parseFloat(subtotal.toFixed(2)),
       totalDiscount: parseFloat(totalDiscount.toFixed(2)),
+      totalPacking: parseFloat(totalPacking.toFixed(2)),
+      totalOther: parseFloat(totalOther.toFixed(2)),
+      totalBeforeGST: parseFloat(totalBeforeGST.toFixed(2)),
       totalGST: parseFloat(totalGST.toFixed(2)),
       grandTotal: parseFloat(grandTotal.toFixed(2))
     };
@@ -710,7 +855,7 @@ export default function QuotationModal() {
     }
   }
 
-  // Save quotation to backend with item status
+  // Save quotation to backend with item status - UPDATED WITH PINCODE
   async function saveQuotation() {
     if (!selectedCompanyId) {
       alert("Please select a company first!");
@@ -722,33 +867,52 @@ export default function QuotationModal() {
       return;
     }
     
+    if (items.length === 0) {
+      alert("Please add at least one item!");
+      return;
+    }
+    
     setSaving(true);
     
     const totals = calculateTotals();
     
     // Prepare items with calculated fields and status
-    const preparedItems = items.map(item => ({
-      item_name: item.item_name,
-      hsn_sac: item.hsn_sac,
-      supplier_part_no: item.supplier_part_no,
-      description: item.description,
-      cut_width: item.cut_width,
-      length: item.length,
-      batch_no: item.batch_no,
-      mrp: item.mrp,
-      quantity: item.quantity,
-      unit: item.unit,
-      discount: item.discount,
-      discount_type: item.discount_type,
-      tax_rate: item.tax_rate,
-      item_status: item.item_status, // Include item status
-      price_per_unit: pricePerUnit(item),
-      amount_before_discount: amountBeforeDiscount(item),
-      discount_amount: discountAmount(item),
-      amount_after_discount: amountAfterDiscount(item),
-      tax_amount: gstAmount(item),
-      item_total: itemTotal(item)
-    }));
+    const preparedItems = items.map(item => {
+      const enhancedDescription = [
+        item.description || "",
+        item.customer_description ? `[CUSTOMER_DESC:${item.customer_description}]` : "",
+        item.brand_code ? `[BRAND_CODE:${item.brand_code}]` : ""
+      ]
+        .filter(part => part.trim() !== "")
+        .join(" ");
+      
+      return {
+        item_name: item.item_name,
+        hsn_sac: item.hsn_sac,
+        supplier_part_no: item.supplier_part_no || item.brand_code || "",
+        description: enhancedDescription,
+        cut_width: item.cut_width,
+        length: item.length,
+        count: item.count,
+        batch_no: item.batch_no,
+        mrp: item.mrp,
+        quantity: item.quantity,
+        unit: item.unit,
+        discount: item.discount,
+        discount_type: item.discount_type,
+        tax_rate: item.tax_rate,
+        item_status: item.item_status,
+        price_per_unit: pricePerUnit(item),
+        amount_before_discount: amountBeforeDiscount(item),
+        discount_amount: discountAmount(item),
+        amount_after_discount: amountAfterDiscount(item),
+        packing_charges: item.packing_charges || 0,
+        other_charges: item.other_charges || 0,
+        taxable_amount: itemTotalBeforeGST(item),
+        tax_amount: gstAmount(item),
+        item_total: itemTotal(item)
+      };
+    });
     
     const quotationData = {
       quote_number: quoteNo,
@@ -758,20 +922,25 @@ export default function QuotationModal() {
       company_id: selectedCompanyId,
       company_name: billTo,
       company_address: companyAddress,
+      company_pincode: companyPincode, // NEW: Include pincode
       company_gstin: companyGstin,
       contact_person: contactPerson,
       contact_mobile: contactMob,
       contact_email: contactEmail,
+      cc_email: ccEmail, // NEW: Save CC email
       subtotal: totals.subtotal,
       total_discount: totals.totalDiscount,
+      total_packing: totals.totalPacking,
+      total_other: totals.totalOther,
+      total_before_gst: totals.totalBeforeGST,
       total_tax: totals.totalGST,
       grand_total: totals.grandTotal,
       notes: `Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`,
       status: "draft",
-      items: preparedItems
+      items: preparedItems,
+      created_by: "User",
+      updated_by: "User"
     };
-    
-    console.log("💾 Saving quotation to backend:", quotationData);
     
     try {
       const response = await axios.post(`${API_BASE_URL}/api/quotations`, quotationData, {
@@ -781,12 +950,19 @@ export default function QuotationModal() {
       });
       
       if (response.data.success) {
-        alert(`✅ Quotation saved successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}`);
+        // Show CC email in alert if provided
+        const successMessage = ccEmail 
+          ? `✅ Quotation saved successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nCC: ${ccEmail}`
+          : `✅ Quotation saved successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}`;
         
-        // Refresh quotations list
+        alert(successMessage);
+        
         await fetchQuotations();
+        await fetchQuotationCounts();
         
-        setModalOpen(false);
+        setShowPreviewModal(false);
+        setShowCompanyModal(false);
+        setShowItemsModal(false);
       } else {
         throw new Error(response.data.message || "Failed to save quotation");
       }
@@ -794,35 +970,335 @@ export default function QuotationModal() {
     } catch (err) {
       console.error("Save quotation failed:", err);
       
-      // Fallback to localStorage if API fails
-      const quotationData = {
+      const quotationToSave = {
+        ...quotationData,
         id: Date.now(),
-        quoteNo,
-        date,
-        time,
-        issuer,
-        companyId: selectedCompanyId,
-        billTo,
-        contactPerson,
-        contactMob,
-        contactEmail,
-        items: preparedItems,
-        totals,
-        createdAt: new Date().toISOString(),
-        status: "draft"
+        quoteNo: quoteNo,
+        billTo: billTo,
+        contactPerson: contactPerson,
+        contactMob: contactMob,
+        contactEmail: contactEmail,
+        company_pincode: companyPincode, // NEW: Save pincode to localStorage
+        ccEmail: ccEmail, // NEW: Save to localStorage
+        totals: totals,
+        items: items.map(item => ({
+          ...item,
+          price_per_unit: pricePerUnit(item),
+          amount_before_discount: amountBeforeDiscount(item),
+          discount_amount: discountAmount(item),
+          amount_after_discount: amountAfterDiscount(item),
+          packing_charges: item.packing_charges || 0,
+          other_charges: item.other_charges || 0,
+          taxable_amount: itemTotalBeforeGST(item),
+          tax_amount: gstAmount(item),
+          item_total: itemTotal(item)
+        }))
       };
       
-      const updatedQuotations = [quotationData, ...savedQuotations];
-      setSavedQuotations(updatedQuotations);
+      const saved = localStorage.getItem("savedQuotations");
+      const existingQuotations = saved ? JSON.parse(saved) : [];
+      const updatedQuotations = [quotationToSave, ...existingQuotations];
       localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
       
-      alert(`✅ Quotation saved to local storage!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\n\nNote: Backend API failed, using local storage.`);
+      loadFromLocalStorage();
+      fetchQuotationCounts();
       
-      setModalOpen(false);
+      const localMessage = ccEmail 
+        ? `✅ Quotation saved to local storage!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nCC: ${ccEmail}\n\nNote: Backend API failed, using local storage.`
+        : `✅ Quotation saved to local storage!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\n\nNote: Backend API failed, using local storage.`;
+      
+      alert(localMessage);
+      
+      setShowPreviewModal(false);
+      setShowCompanyModal(false);
+      setShowItemsModal(false);
     } finally {
       setSaving(false);
     }
   }
+
+  // Edit quotation - open edit modal for requote status only - UPDATED WITH PINCODE
+  const editQuotation = async (quotation) => {
+    if (quotation.status !== 'requote') {
+      alert("Only quotations with 'requote' status can be edited.");
+      return;
+    }
+    
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/quotations/${quotation.id}`);
+      if (response.data.success) {
+        const quoteData = response.data.data;
+        
+        const parsedItems = (quoteData.items || []).map(item => {
+          let brand_code = "";
+          let customer_description = "";
+          let description = item.description || "";
+          
+          if (description) {
+            try {
+              if (description.includes('[BRAND_CODE:') && description.includes('[CUSTOMER_DESC:')) {
+                const brandCodeMatch = description.match(/\[BRAND_CODE:(.*?)\]/);
+                const customerDescMatch = description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+                
+                if (brandCodeMatch) brand_code = brandCodeMatch[1];
+                if (customerDescMatch) customer_description = customerDescMatch[1];
+                
+                description = description
+                  .replace(/\[BRAND_CODE:.*?\]/, '')
+                  .replace(/\[CUSTOMER_DESC:.*?\]/, '')
+                  .trim();
+              }
+            } catch (e) {
+              console.error("Error parsing description:", e);
+            }
+          }
+          
+          return {
+            ...item,
+            brand_code: brand_code || "",
+            customer_description: customer_description || "",
+            description: description,
+            count: item.count || 1,
+            packing_charges: item.packing_charges || 0,
+            other_charges: item.other_charges || 0,
+            buy_price: 0
+          };
+        });
+        
+        setEditingQuotation({
+          ...quoteData,
+          items: parsedItems
+        });
+        
+        setSelectedCompanyId(quoteData.company_id || "");
+        setSelectedCompany(null);
+        setBillTo(quoteData.company_name || "");
+        setCompanyAddress(quoteData.company_address || "");
+        setCompanyPincode(quoteData.company_pincode || ""); // NEW: Load pincode
+        setCompanyGstin(quoteData.company_gstin || "");
+        setContactPerson(quoteData.contact_person || "");
+        setContactMob(quoteData.contact_mobile || "");
+        setContactEmail(quoteData.contact_email || "");
+        setCcEmail(quoteData.cc_email || ""); // NEW: Load CC email
+        setQuoteNo(quoteData.quote_number || "");
+        setItems(parsedItems);
+        
+        setIsEditing(true);
+        setShowEditModal(true);
+      } else {
+        throw new Error(response.data.message || "Failed to load quotation");
+      }
+    } catch (err) {
+      console.error("Error loading quotation for edit:", err);
+      alert("Failed to load quotation for editing. Using local data.");
+      
+      setEditingQuotation(quotation);
+      setSelectedCompanyId("");
+      setBillTo(quotation.company_name || quotation.billTo || "");
+      setCompanyAddress(quotation.company_address || "");
+      setCompanyPincode(quotation.company_pincode || ""); // NEW: Load from local
+      setCompanyGstin(quotation.company_gstin || "");
+      setContactPerson(quotation.contact_person || quotation.contactPerson || "");
+      setContactMob(quotation.contact_mobile || quotation.contactMob || "");
+      setContactEmail(quotation.contact_email || quotation.contactEmail || "");
+      setCcEmail(quotation.cc_email || quotation.ccEmail || ""); // NEW: Load from local
+      setQuoteNo(quotation.quote_number || quotation.quoteNo || "");
+      setItems(quotation.items || []);
+      
+      setIsEditing(true);
+      setShowEditModal(true);
+    }
+  };
+
+  // Update quotation after editing - UPDATED WITH PINCODE
+  const updateQuotation = async () => {
+    if (!editingQuotation) return;
+    
+    if (items.length === 0) {
+      alert("Please add at least one item!");
+      return;
+    }
+    
+    setSaving(true);
+    
+    const totals = calculateTotals();
+    
+    const preparedItems = items.map(item => {
+      const enhancedDescription = [
+        item.description || "",
+        item.customer_description ? `[CUSTOMER_DESC:${item.customer_description}]` : "",
+        item.brand_code ? `[BRAND_CODE:${item.brand_code}]` : ""
+      ]
+        .filter(part => part.trim() !== "")
+        .join(" ");
+      
+      return {
+        id: item.id,
+        item_name: item.item_name,
+        hsn_sac: item.hsn_sac,
+        supplier_part_no: item.supplier_part_no || item.brand_code || "",
+        description: enhancedDescription,
+        cut_width: item.cut_width,
+        length: item.length,
+        count: item.count,
+        batch_no: item.batch_no,
+        mrp: item.mrp,
+        quantity: item.quantity,
+        unit: item.unit,
+        discount: item.discount,
+        discount_type: item.discount_type,
+        tax_rate: item.tax_rate,
+        item_status: item.item_status,
+        price_per_unit: pricePerUnit(item),
+        amount_before_discount: amountBeforeDiscount(item),
+        discount_amount: discountAmount(item),
+        amount_after_discount: amountAfterDiscount(item),
+        packing_charges: item.packing_charges || 0,
+        other_charges: item.other_charges || 0,
+        taxable_amount: itemTotalBeforeGST(item),
+        tax_amount: gstAmount(item),
+        item_total: itemTotal(item)
+      };
+    });
+    
+    const quotationData = {
+      quote_number: quoteNo,
+      date: date,
+      time: time,
+      issuer_details: issuer,
+      company_id: selectedCompanyId,
+      company_name: billTo,
+      company_address: companyAddress,
+      company_pincode: companyPincode, // NEW: Include pincode
+      company_gstin: companyGstin,
+      contact_person: contactPerson,
+      contact_mobile: contactMob,
+      contact_email: contactEmail,
+      cc_email: ccEmail, // NEW: Include CC in update
+      subtotal: totals.subtotal,
+      total_discount: totals.totalDiscount,
+      total_packing: totals.totalPacking,
+      total_other: totals.totalOther,
+      total_before_gst: totals.totalBeforeGST,
+      total_tax: totals.totalGST,
+      grand_total: totals.grandTotal,
+      notes: `Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`,
+      status: "draft",
+      items: preparedItems,
+      updated_by: "User"
+    };
+    
+    try {
+      const response = await axios.put(`${API_BASE_URL}/api/quotations/${editingQuotation.id}`, quotationData, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data.success) {
+        const successMessage = ccEmail 
+          ? `✅ Quotation updated successfully!\n\nQuote: ${quoteNo}\nStatus changed to: draft\nCC: ${ccEmail}`
+          : `✅ Quotation updated successfully!\n\nQuote: ${quoteNo}\nStatus changed to: draft`;
+        
+        alert(successMessage);
+        
+        await fetchQuotations();
+        await fetchQuotationCounts();
+        
+        setShowEditModal(false);
+        setEditingQuotation(null);
+        setIsEditing(false);
+        
+        setItems([]);
+        setSelectedCompanyId("");
+        setBillTo("");
+        setCompanyAddress("");
+        setCompanyGstin("");
+        setCompanyPincode(""); // NEW: Reset pincode
+        setContactPerson("");
+        setContactMob("");
+        setContactEmail("");
+        setCcEmail(""); // NEW: Reset CC
+        setQuoteNo("");
+      } else {
+        throw new Error(response.data.message || "Failed to update quotation");
+      }
+      
+    } catch (err) {
+      console.error("Update quotation failed:", err);
+      
+      const saved = localStorage.getItem("savedQuotations");
+      if (saved) {
+        try {
+          const existingQuotations = JSON.parse(saved);
+          const updatedQuotations = existingQuotations.map(quote => {
+            if (quote.id === editingQuotation.id) {
+              return {
+                ...quote,
+                ...quotationData,
+                quoteNo: quoteNo,
+                billTo: billTo,
+                contactPerson: contactPerson,
+                contactMob: contactMob,
+                contactEmail: contactEmail,
+                company_pincode: companyPincode, // NEW: Update pincode
+                ccEmail: ccEmail, // NEW: Update CC in localStorage
+                totals: totals,
+                items: items.map(item => ({
+                  ...item,
+                  price_per_unit: pricePerUnit(item),
+                  amount_before_discount: amountBeforeDiscount(item),
+                  discount_amount: discountAmount(item),
+                  amount_after_discount: amountAfterDiscount(item),
+                  packing_charges: item.packing_charges || 0,
+                  other_charges: item.other_charges || 0,
+                  taxable_amount: itemTotalBeforeGST(item),
+                  tax_amount: gstAmount(item),
+                  item_total: itemTotal(item)
+                })),
+                status: "draft",
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return quote;
+          });
+          localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
+          
+          loadFromLocalStorage();
+          fetchQuotationCounts();
+          
+          const localMessage = ccEmail 
+            ? `✅ Quotation updated in local storage!\n\nQuote: ${quoteNo}\nStatus changed to: draft\nCC: ${ccEmail}`
+            : `✅ Quotation updated in local storage!\n\nQuote: ${quoteNo}\nStatus changed to: draft`;
+          
+          alert(localMessage);
+          
+          setShowEditModal(false);
+          setEditingQuotation(null);
+          setIsEditing(false);
+          
+          setItems([]);
+          setSelectedCompanyId("");
+          setBillTo("");
+          setCompanyAddress("");
+          setCompanyGstin("");
+          setCompanyPincode(""); // NEW: Reset pincode
+          setContactPerson("");
+          setContactMob("");
+          setContactEmail("");
+          setCcEmail(""); // NEW: Reset CC
+          setQuoteNo("");
+        } catch (e) {
+          console.error("Error updating localStorage:", e);
+          alert("Failed to update quotation in local storage.");
+        }
+      } else {
+        alert("No saved quotations found in local storage.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Delete saved quotation
   async function deleteQuotation(quoteId) {
@@ -831,892 +1307,2086 @@ export default function QuotationModal() {
         const response = await axios.delete(`${API_BASE_URL}/api/quotations/${quoteId}`);
         
         if (response.data.success) {
-          // Refresh quotations list
           await fetchQuotations();
+          await fetchQuotationCounts();
         }
       } catch (err) {
         console.error("Delete failed, using localStorage:", err);
-        const updatedQuotations = savedQuotations.filter(quote => quote.id !== quoteId);
-        setSavedQuotations(updatedQuotations);
-        localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
+        const saved = localStorage.getItem("savedQuotations");
+        if (saved) {
+          const existingQuotations = JSON.parse(saved);
+          const updatedQuotations = existingQuotations.filter(quote => quote.id !== quoteId);
+          localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
+          loadFromLocalStorage();
+          fetchQuotationCounts();
+        }
       }
     }
   }
 
-  // Update item status in a quotation
-  async function updateItemStatus(quotationId, itemId, newStatus) {
-    try {
-      // Get the quotation
-      const quotation = savedQuotations.find(q => q.id === quotationId);
-      if (!quotation) return;
-
-      // Update the item status locally
-      const updatedItems = quotation.items.map(item => 
-        item.id === itemId ? { ...item, item_status: newStatus } : item
-      );
-
-      // Update the quotation
-      const updatedQuotation = { ...quotation, items: updatedItems };
-      
-      // Send to backend
-      const response = await axios.put(`${API_BASE_URL}/api/quotations/${quotationId}`, updatedQuotation);
-      
-      if (response.data.success) {
-        // Refresh quotations list
-        await fetchQuotations();
-        alert(`Item status updated to ${newStatus}`);
-      }
-    } catch (err) {
-      console.error("Error updating item status:", err);
-      alert("Could not update item status. Please try again.");
-    }
+  // View quotation details in modal
+  function viewQuotation(quotation) {
+    setSelectedQuotation(quotation);
+    setShowViewModal(true);
   }
 
-  // Print quotation
+  // Print quotation - UPDATED with pincode and CC
   function printQuotation(quotation) {
     const printWindow = window.open('', '_blank');
+    
+    const items = quotation.items || [];
+    const totals = {
+      subtotal: quotation.subtotal || quotation.totals?.subtotal || 0,
+      totalDiscount: quotation.total_discount || quotation.totals?.totalDiscount || 0,
+      totalPacking: quotation.total_packing || quotation.totals?.totalPacking || 0,
+      totalOther: quotation.total_other || quotation.totals?.totalOther || 0,
+      totalBeforeGST: quotation.total_before_gst || quotation.totals?.totalBeforeGST || 0,
+      totalGST: quotation.total_tax || quotation.totals?.totalGST || 0,
+      grandTotal: quotation.grand_total || quotation.totals?.grandTotal || 0
+    };
+    
+    // Calculate tax summary
+    const taxSummary = {};
+    items.forEach(item => {
+      const taxRate = item.tax_rate || 18;
+      const taxAmount = item.tax_amount || 0;
+      if (!taxSummary[taxRate]) {
+        taxSummary[taxRate] = 0;
+      }
+      taxSummary[taxRate] += taxAmount;
+    });
+    
+    // Use stored pincode or extract from address
+    const companyPincode = quotation.company_pincode || extractPincode(quotation.company_address || "");
+    
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
         <title>Quotation ${quotation.quote_number || quotation.quoteNo}</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-          .company-info { margin-bottom: 30px; }
-          .totals { margin-top: 30px; border-top: 2px solid #333; padding-top: 20px; }
-          table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-          th { background-color: #f2f2f2; }
           @media print {
-            body { padding: 0; }
+            body { padding: 10px; }
             .no-print { display: none; }
+            .table { font-size: 11px; }
+            .summary-table { font-size: 11px; }
           }
+          .invoice-header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+          .total-row { font-weight: bold; }
+          .table th { background-color: #f8f9fa; font-size: 11px; padding: 5px 8px; }
+          .table td { padding: 5px 8px; font-size: 11px; }
+          .text-primary { color: #0d6efd !important; }
+          .text-danger { color: #dc3545 !important; }
+          .text-success { color: #198754 !important; }
+          .summary-table th, .summary-table td { padding: 3px 5px; }
+          h1 { font-size: 24px; }
+          h2 { font-size: 20px; }
+          h5 { font-size: 14px; }
+          p { font-size: 12px; margin-bottom: 3px; }
+          .container { max-width: 100%; }
+          .company-logo { max-width: 120px; max-height: 120px; object-fit: contain; }
+          .pincode-badge { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+          .cc-badge { background-color: #d1ecf1; color: #0c5460; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
         </style>
       </head>
       <body>
-        <div class="header">
-          <h1>QUOTATION</h1>
-          <h3>${quotation.quote_number || quotation.quoteNo}</h3>
-          <p>Date: ${quotation.date} | Time: ${quotation.time}</p>
-        </div>
-        
-        <div class="company-info">
-          <h3>Issuer:</h3>
-          <p>${quotation.issuer_details?.name || 'Lakhotia'}</p>
-          <p>${quotation.issuer_details?.address || '64/3A Sidco Industrial Estate, Ambatur, Chennai'}</p>
+        <div class="container mt-3">
+          <div class="invoice-header">
+            <div class="row">
+              <div class="col-2">
+                <img src="${companyLogo}" alt="Company Logo" class="company-logo">
+              </div>
+              <div class="col-5">
+                <h1 class="mb-1">${issuer.name}</h1>
+                <p class="mb-1">${issuer.address}</p>
+                <p class="mb-1">Phone: ${issuer.phone} | Email: ${issuer.email}</p>
+                <p class="mb-1">GSTIN: ${issuer.gstin} | State: ${issuer.stateCode}</p>
+              </div>
+              <div class="col-5 text-end">
+                <h2 class="text-primary mb-2">QUOTATION</h2>
+                <p class="mb-1"><strong>Quote No:</strong> ${quotation.quote_number || quotation.quoteNo}</p>
+                <p class="mb-1"><strong>Date:</strong> ${quotation.date || quotation.date}</p>
+                <p class="mb-1"><strong>Time:</strong> ${quotation.time || quotation.time}</p>
+              </div>
+            </div>
+          </div>
           
-          <h3>Bill To:</h3>
-          <p>${quotation.company_name || quotation.billTo}</p>
-          <p>${quotation.company_address || ''}</p>
+          <div class="row mb-3">
+            <div class="col-6">
+              <h5>Bill To:</h5>
+              <p class="mb-1"><strong>${quotation.company_name || quotation.billTo}</strong></p>
+              <p class="mb-1">${quotation.company_address || ''}</p>
+              ${companyPincode ? `<p class="mb-1">Pincode: <span class="pincode-badge">${companyPincode}</span></p>` : ''}
+              <p class="mb-1">GSTIN: ${quotation.company_gstin || ''}</p>
+            </div>
+            <div class="col-6">
+              <h5>Contact Details:</h5>
+              <p class="mb-1"><strong>${quotation.contact_person || quotation.contactPerson}</strong></p>
+              <p class="mb-1">Phone: ${quotation.contact_mobile || quotation.contactMob}</p>
+              <p class="mb-1">Email: ${quotation.contact_email || quotation.contactEmail}</p>
+              ${quotation.cc_email || quotation.ccEmail ? `
+                <p class="mb-1">CC: ${quotation.cc_email || quotation.ccEmail} <span class="cc-badge">CC</span></p>
+              ` : ''}
+            </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table table-bordered table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Item Name</th>
+                  <th>Brand Code</th>
+                  <th>Cut Width</th>
+                  <th>Cut Length</th>
+                  <th>Count</th>
+                  <th>Customer Part No</th>
+                  <th>Customer Description</th>
+                  <th>Batch No</th>
+                  <th>Qty</th>
+                  <th>UoM</th>
+                  <th>Price/Unit</th>
+                  <th>GST %</th>
+                  <th>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map((item, index) => {
+                  let brand_code = "";
+                  let customer_description = "";
+                  let display_description = item.description || "";
+                  
+                  if (display_description) {
+                    try {
+                      if (display_description.includes('[BRAND_CODE:') && display_description.includes('[CUSTOMER_DESC:')) {
+                        const brandCodeMatch = display_description.match(/\[BRAND_CODE:(.*?)\]/);
+                        const customerDescMatch = display_description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+                        
+                        if (brandCodeMatch) brand_code = brandCodeMatch[1];
+                        if (customerDescMatch) customer_description = customerDescMatch[1];
+                        
+                        display_description = display_description
+                          .replace(/\[BRAND_CODE:.*?\]/, '')
+                          .replace(/\[CUSTOMER_DESC:.*?\]/, '')
+                          .trim();
+                      }
+                    } catch (e) {
+                      console.error("Error parsing description:", e);
+                    }
+                  }
+                  
+                  // Calculate price per unit according to new formula
+                  const pricePerUnit = (item) => {
+                    const mrp = parseFloat(item.mrp) || 0;
+                    const length = parseFloat(item.length) || 0;
+                    const width = parseFloat(item.cut_width) || 0;
+                    const count = parseFloat(item.count) || 0;
+                    return parseFloat((mrp * length * width * count).toFixed(2)) || 0;
+                  };
+                  
+                  const itemPricePerUnit = pricePerUnit(item);
+                  
+                  return `
+                    <tr>
+                      <td>${index + 1}</td>
+                      <td><strong>${item.item_name}</strong></td>
+                      <td>${brand_code || item.brand_code || ''}</td>
+                      <td>${item.cut_width || ''}</td>
+                      <td>${item.length || ''}</td>
+                      <td>${item.count || ''}</td>
+                      <td>${item.supplier_part_no || ''}</td>
+                      <td>${customer_description || item.customer_description || ''}</td>
+                      <td>${item.batch_no || ''}</td>
+                      <td>${item.quantity || ''}</td>
+                      <td>${item.unit || ''}</td>
+                      <td>₹${itemPricePerUnit.toFixed(2)}</td>
+                      <td>${item.tax_rate || 18}%</td>
+                      <td><strong>₹${(item.amount_after_discount || 0).toFixed(2)}</strong></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="row mt-3">
+            <div class="col-7">
+              <h5 class="mb-2">Tax Summary:</h5>
+              <table class="table table-bordered table-sm summary-table">
+                <thead class="table-light">
+                  <tr>
+                    <th>GST %</th>
+                    <th>Taxable Amount</th>
+                    <th>Tax Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(taxSummary).map(([rate, amount]) => `
+                    <tr>
+                      <td>${rate}%</td>
+                      <td>₹${(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                      <td>₹${amount.toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="col-5">
+              <div class="card border-0">
+                <div class="card-body p-2">
+                  <h5 class="card-title mb-2">Total Summary</h5>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Subtotal:</span>
+                    <strong>₹${totals.subtotal.toFixed(2)}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Discount:</span>
+                    <strong class="text-danger">- ₹${totals.totalDiscount.toFixed(2)}</strong>
+                  </div>
+                  ${totals.totalPacking > 0 ? `
+                    <div class="d-flex justify-content-between mb-1">
+                      <span>Packing:</span>
+                      <strong>₹${totals.totalPacking.toFixed(2)}</strong>
+                    </div>
+                  ` : ''}
+                  ${totals.totalOther > 0 ? `
+                    <div class="d-flex justify-content-between mb-1">
+                      <span>Other Charges:</span>
+                      <strong>₹${totals.totalOther.toFixed(2)}</strong>
+                    </div>
+                  ` : ''}
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Taxable Amount:</span>
+                    <strong>₹${totals.totalBeforeGST.toFixed(2)}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Total Tax:</span>
+                    <strong>₹${totals.totalGST.toFixed(2)}</strong>
+                  </div>
+                  <hr class="my-1"/>
+                  <div class="d-flex justify-content-between total-row">
+                    <span>Grand Total:</span>
+                    <strong class="text-primary">₹${totals.grandTotal.toFixed(2)}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-3 p-2 bg-light rounded">
+            <h5>Notes:</h5>
+            <p class="mb-0">${quotation.notes || 'Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.'}</p>
+            <p class="mb-0 mt-1"><strong>Valid for 30 days from the date of issue.</strong></p>
+          </div>
+          
+          <div class="no-print mt-3 text-center">
+            <button onclick="window.print()" class="btn btn-primary btn-sm me-2">
+              <i class="bi bi-printer me-1"></i>Print
+            </button>
+            <button onclick="window.close()" class="btn btn-secondary btn-sm">
+              <i class="bi bi-x-circle me-1"></i>Close
+            </button>
+          </div>
         </div>
         
-        <table>
-          <thead>
-            <tr>
-              <th>Item Name</th>
-              <th>Qty</th>
-              <th>Price</th>
-              <th>Total</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${(quotation.items || []).map(item => `
-              <tr>
-                <td>${item.item_name}</td>
-                <td>${item.quantity} ${item.unit}</td>
-                <td>₹${item.price_per_unit || 0}</td>
-                <td>₹${item.item_total || 0}</td>
-                <td>${item.item_status || 'pending'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-        
-        <div class="totals">
-          <h3>Summary</h3>
-          <p>Subtotal: ₹${quotation.subtotal || quotation.totals?.subtotal || 0}</p>
-          <p>Tax: ₹${quotation.total_tax || quotation.totals?.totalGST || 0}</p>
-          <p><strong>Grand Total: ₹${quotation.grand_total || quotation.totals?.grandTotal || 0}</strong></p>
-        </div>
-        
-        <div class="no-print">
-          <button onclick="window.print()">Print</button>
-          <button onclick="window.close()">Close</button>
-        </div>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
       </body>
       </html>
     `);
     printWindow.document.close();
   }
 
-  // Get status badge style for items
-  const getItemStatusBadgeStyle = (status) => {
-    switch(status.toLowerCase()) {
-      case 'pending': return { background: "#f39c12", color: "white" };
-      case 'approved': return { background: "#2ecc71", color: "white" };
-      case 'rejected': return { background: "#e74c3c", color: "white" };
-      case 'dispatched': return { background: "#3498db", color: "white" };
-      case 'delivered': return { background: "#9b59b6", color: "white" };
-      default: return { background: "#95a5a6", color: "white" };
+  // Navigation functions
+  const goToItems = () => {
+    if (!billTo.trim()) {
+      alert("Please enter Bill To information!");
+      return;
+    }
+    setShowCompanyModal(false);
+    setShowItemsModal(true);
+  };
+
+  const goToPreview = () => {
+    if (items.length === 0) {
+      alert("Please add at least one item!");
+      return;
+    }
+    if (items.some(item => !item.item_name.trim())) {
+      alert("Please add item name for all items!");
+      return;
+    }
+    setShowItemsModal(false);
+    setShowPreviewModal(true);
+  };
+
+  const goBackToCompany = () => {
+    setShowItemsModal(false);
+    setShowCompanyModal(true);
+  };
+
+  const goBackToItems = () => {
+    setShowPreviewModal(false);
+    setShowItemsModal(true);
+  };
+
+  const cancelQuotation = () => {
+    if (window.confirm("Are you sure you want to cancel this quotation? All unsaved data will be lost.")) {
+      setShowCompanyModal(false);
+      setShowItemsModal(false);
+      setShowPreviewModal(false);
+      setShowItemPopup(false);
+      setShowViewModal(false);
+      setShowEditModal(false);
+      setIsEditing(false);
+      setEditingQuotation(null);
     }
   };
 
-  // STYLES
-  const styles = {
-    root: { fontFamily: "Arial, Helvetica, sans-serif", padding: 18, color: "#222" },
-    topActions: { 
-      display: "flex", 
-      gap: 8, 
-      marginBottom: 12,
-      alignItems: "center"
-    },
-    btn: { 
-      background: "#f0f0f0", 
-      border: "1px solid #ccc", 
-      padding: "8px 12px", 
-      borderRadius: 4, 
-      cursor: "pointer", 
-      fontSize: 14,
-      transition: "all 0.2s",
-      display: "flex",
-      alignItems: "center",
-      gap: 6
-    },
-    primaryBtn: { background: "#1f6feb", color: "#fff", borderColor: "#165ec7" },
-    dangerBtn: { background: "#e74c3c", color: "#fff", borderColor: "#c0392b" },
-    successBtn: { background: "#2ecc71", color: "#fff", borderColor: "#27ae60" },
-    infoBtn: { background: "#3498db", color: "#fff", borderColor: "#2980b9" },
-    modalBackdrop: {
-      position: "fixed",
-      inset: 0,
-      background: "rgba(0,0,0,0.45)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: 2000,
-    },
-    modal: {
-      width: "94%",
-      maxWidth: 1120,
-      maxHeight: "92vh",
-      overflow: "auto",
-      background: "#fff",
-      borderRadius: 8,
-      boxShadow: "0 12px 30px rgba(0,0,0,0.25)",
-      padding: 18,
-    },
-    modalHeader: { 
-      display: "flex", 
-      justifyContent: "space-between", 
-      alignItems: "center", 
-      marginBottom: 12,
-      paddingBottom: 12,
-      borderBottom: "2px solid #eee"
-    },
-    modalBody: { padding: "6px 0" },
-    card: { border: "1px solid #e6e6e6", padding: 12, borderRadius: 6, background: "#fafafa", marginBottom: 12 },
-    label: { display: "block", marginTop: 8, marginBottom: 6, fontWeight: 600, fontSize: 13 },
-    input: { 
-      width: "100%", 
-      boxSizing: "border-box", 
-      padding: 8, 
-      border: "1px solid #d6d6d6", 
-      borderRadius: 4, 
-      fontSize: 14, 
-      marginBottom: 6 
-    },
-    select: {
-      width: "100%",
-      boxSizing: "border-box",
-      padding: 8,
-      border: "1px solid #d6d6d6",
-      borderRadius: 4,
-      fontSize: 14,
-      marginBottom: 6,
-      background: "#fff"
-    },
-    textarea: { width: "100%", boxSizing: "border-box", padding: 8, border: "1px solid #d6d6d6", borderRadius: 4, fontSize: 14 },
-    itemsTable: { 
-      width: "100%", 
-      borderCollapse: "collapse", 
-      fontSize: 13,
-      tableLayout: "fixed"
-    },
-    thtd: { 
-      border: "1px solid #ddd", 
-      padding: 6, 
-      verticalAlign: "middle", 
-      textAlign: "left",
-      minWidth: "80px"
-    },
-    totalsBox: { 
-      width: 320, 
-      border: "1px solid #e3e3e3", 
-      padding: 12, 
-      borderRadius: 6, 
-      background: "#fff",
-      boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
-    },
-    small: { fontSize: 12, color: "#444" },
-    note: { marginTop: 14, color: "#666", fontSize: 14 },
-    error: { color: "#e74c3c", fontSize: 12, marginTop: 4, padding: 8, background: "#ffe6e6", borderRadius: 4 },
-    success: { color: "#2ecc71", fontSize: 12, marginTop: 4, padding: 8, background: "#e6ffe6", borderRadius: 4 },
-    loading: { color: "#3498db", fontSize: 12, marginTop: 4, padding: 8, background: "#e6f3ff", borderRadius: 4 },
-    sectionTitle: { 
-      fontSize: 16, 
-      fontWeight: "bold", 
-      marginBottom: 12, 
-      color: "#2c3e50",
-      borderBottom: "2px solid #3498db",
-      paddingBottom: 4
-    },
-    amountCell: { textAlign: "right", fontFamily: "'Courier New', monospace", fontWeight: "bold" },
-    deleteBtn: { 
-      padding: "4px 8px", 
-      fontSize: 12,
-      background: "#e74c3c",
-      color: "white",
-      border: "none",
-      borderRadius: 3,
-      cursor: "pointer"
-    },
-    actionBtn: {
-      padding: "4px 8px",
-      fontSize: 12,
-      background: "#3498db",
-      color: "white",
-      border: "none",
-      borderRadius: 3,
-      cursor: "pointer",
-      margin: "0 2px"
-    },
-    savedQuotationsTable: {
-      width: "100%",
-      borderCollapse: "collapse",
-      marginTop: 20,
-      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-      fontSize: 14
-    },
-    tableHeader: {
-      background: "#2c3e50",
-      color: "white",
-      fontWeight: "bold",
-      padding: "10px",
-      textAlign: "left"
-    },
-    tableRow: {
-      borderBottom: "1px solid #ddd",
-      transition: "background 0.2s"
-    },
-    tableCell: {
-      padding: "10px",
-      verticalAlign: "middle"
-    },
-    emptyState: {
-      textAlign: "center",
-      padding: "40px 20px",
-      color: "#7f8c8d",
-      fontSize: 16
-    },
-    statusBadge: {
-      display: "inline-block",
-      padding: "3px 8px",
-      borderRadius: 12,
-      fontSize: 12,
-      fontWeight: "bold"
-    },
-    typeaheadContainer: {
-      position: "relative",
-      width: "100%"
-    },
-    typeaheadList: {
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
-      backgroundColor: "white",
-      border: "1px solid #ddd",
-      borderTop: "none",
-      borderRadius: "0 0 4px 4px",
-      boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
-      zIndex: 1000,
-      maxHeight: "200px",
-      overflowY: "auto",
-      marginTop: "-6px"
-    },
-    typeaheadItem: {
-      padding: "8px 12px",
-      cursor: "pointer",
-      borderBottom: "1px solid #f0f0f0",
-      fontSize: "13px",
-      transition: "background-color 0.2s"
-    },
-    typeaheadItemHover: {
-      backgroundColor: "#f0f7ff"
-    },
-    typeaheadItemActive: {
-      backgroundColor: "#e3f2fd",
-      fontWeight: "bold"
-    },
-    typeaheadItemName: {
-      fontWeight: "bold",
-      color: "#333",
-      marginBottom: "2px"
-    },
-    typeaheadItemDetails: {
-      fontSize: "11px",
-      color: "#666",
-      display: "flex",
-      justifyContent: "space-between"
-    },
-    statsContainer: {
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-      gap: "12px",
-      marginBottom: "20px"
-    },
-    statCard: {
-      background: "white",
-      border: "1px solid #e0e0e0",
-      borderRadius: "8px",
-      padding: "15px",
-      boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
-    },
-    statValue: {
-      fontSize: "24px",
-      fontWeight: "bold",
-      color: "#2c3e50",
-      marginBottom: "5px"
-    },
-    statLabel: {
-      fontSize: "14px",
-      color: "#7f8c8d",
-      textTransform: "uppercase",
-      letterSpacing: "0.5px"
-    },
-    itemStatusSelect: {
-      padding: "2px 6px",
-      fontSize: "12px",
-      borderRadius: "3px",
-      border: "1px solid #ddd",
-      cursor: "pointer",
-      width: "100%"
-    }
+  // Handle search for quotations
+  const handleSearch = (term) => {
+    setSearchTerm(term);
+    setCurrentPage(1);
+  };
+
+  // Handle status filter change
+  const handleStatusFilter = (status) => {
+    setStatusFilter(status);
+    setCurrentPage(1);
   };
 
   const totals = calculateTotals();
 
-  // Helper function to get display text for company
-  const getCompanyDisplayText = (company) => {
-    if (!company) return "";
-    
-    const name = company.company_name || company.companyName || "Unnamed Company";
-    const customer = company.customer_name || company.customerName || "Unknown Contact";
-    const mobile = company.customer_mobile || company.customerMobile || "No Mobile";
-    
-    return `${name} (${customer}) - ${mobile}`;
-  };
-
   return (
-    <div style={styles.root}>
-      <div style={styles.topActions}>
+    <div className="container-fluid py-4">
+      {/* Header with New Quotation Button */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 className="h2 mb-1">Quotation Management</h1>
+          <p className="text-muted mb-0">Create, manage, and track your quotations</p>
+        </div>
         <button
-          style={{ ...styles.btn, ...styles.primaryBtn }}
-          onClick={() => setModalOpen(true)}
+          className="btn btn-primary"
+          onClick={startNewQuotation}
         >
-          <span>📄</span> New Quotation
+          <i className="bi bi-file-earmark-plus me-2"></i>New Quotation
         </button>
-        
-        <button
-          style={styles.btn}
-          onClick={fetchQuotations}
-          title="Refresh quotations"
-        >
-          <span>🔄</span> Refresh
-        </button>
-        
-        {statistics && (
-          <div style={{ marginLeft: "auto", fontSize: 14, color: "#666", display: "flex", gap: "15px" }}>
-            <span>📋 Total: {statistics.total}</span>
-            <span>📤 Sent: {statistics.status_counts?.sent || 0}</span>
-            <span>✅ Accepted: {statistics.status_counts?.accepted || 0}</span>
-            <span>💰 Paid: {statistics.status_counts?.paid || 0}</span>
-          </div>
-        )}
       </div>
 
       {/* Statistics Cards */}
-      {statistics && (
-        <div style={styles.statsContainer}>
-          <div style={styles.statCard}>
-            <div style={styles.statValue}>{statistics.total || 0}</div>
-            <div style={styles.statLabel}>Total Quotations</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.statValue}>{statistics.status_counts?.draft || 0}</div>
-            <div style={styles.statLabel}>Draft</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.statValue}>{statistics.status_counts?.sent || 0}</div>
-            <div style={styles.statLabel}>Sent</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.statValue}>{statistics.status_counts?.accepted || 0}</div>
-            <div style={styles.statLabel}>Accepted</div>
-          </div>
-          <div style={styles.statCard}>
-            <div style={styles.statValue}>{statistics.status_counts?.paid || 0}</div>
-            <div style={styles.statLabel}>Paid</div>
+      <div className="row mb-4">
+        <div className="col-12 mb-3">
+          <div className="card">
+            <div className="card-body p-3">
+              <h6 className="card-title mb-3">Quotation Overview</h6>
+              <div className="row">
+                <div className="col-md mb-2">
+                  <div className="d-flex align-items-center">
+                    <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
+                      <i className="bi bi-files"></i>
+                    </div>
+                    <div>
+                      <div className="text-muted small">Total Quotations</div>
+                      <div className="h4 mb-0">{quotationCounts.all}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md mb-2">
+                  <div className="d-flex align-items-center">
+                    <div className="rounded-circle bg-warning d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
+                      <i className="bi bi-pencil"></i>
+                    </div>
+                    <div>
+                      <div className="text-muted small">Draft</div>
+                      <div className="h4 mb-0">{quotationCounts.draft}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md mb-2">
+                  <div className="d-flex align-items-center">
+                    <div className="rounded-circle bg-info d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
+                      <i className="bi bi-arrow-repeat"></i>
+                    </div>
+                    <div>
+                      <div className="text-muted small">Re-quote</div>
+                      <div className="h4 mb-0">{quotationCounts.requote}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md mb-2">
+                  <div className="d-flex align-items-center">
+                    <div className="rounded-circle bg-success d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
+                      <i className="bi bi-check-circle"></i>
+                    </div>
+                    <div>
+                      <div className="text-muted small">Completed</div>
+                      <div className="h4 mb-0">{quotationCounts.completed}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {!modalOpen && (
-        <div style={styles.note}>
-          Click <strong>New Quotation</strong> to create a new quotation. Saved quotations will appear below.
-        </div>
-      )}
-
-      {/* Modal */}
-      {modalOpen && (
-        <div style={styles.modalBackdrop} role="dialog" aria-modal="true">
-          <div style={styles.modal}>
-            <div style={styles.modalHeader}>
-              <h2 style={{ margin: 0, color: "#2c3e50" }}>Create Quotation</h2>
-              <div>
-                <button
-                  style={{ ...styles.btn, ...styles.primaryBtn }}
-                  onClick={exportPdf}
+      {/* Status Filter Buttons */}
+      <div className="row mb-4">
+        <div className="col-12">
+          <div className="card">
+            <div className="card-body p-3">
+              <h6 className="card-title mb-3">Filter by Status</h6>
+              <div className="d-flex flex-wrap gap-2">
+                <button 
+                  className={`btn btn-sm ${statusFilter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => handleStatusFilter('all')}
                 >
-                  Export PDF
+                  All ({quotationCounts.all})
                 </button>
-                <button
-                  style={styles.btn}
-                  onClick={() => setModalOpen(false)}
+                <button 
+                  className={`btn btn-sm ${statusFilter === 'draft' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => handleStatusFilter('draft')}
                 >
-                  Close
+                  Draft ({quotationCounts.draft})
+                </button>
+                <button 
+                  className={`btn btn-sm ${statusFilter === 'requote' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => handleStatusFilter('requote')}
+                >
+                  Re-quote ({quotationCounts.requote})
+                </button>
+                <button 
+                  className={`btn btn-sm ${statusFilter === 'completed' ? 'btn-success' : 'btn-outline-success'}`}
+                  onClick={() => handleStatusFilter('completed')}
+                >
+                  Completed ({quotationCounts.completed})
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
 
-            <div style={styles.modalBody} ref={quotationRef}>
-              {/* Issuer + Meta Section */}
-              <div style={styles.card}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div style={{ maxWidth: 520 }}>
-                    <h2 style={{ margin: 0, color: "#2980b9" }}>{issuer.name}</h2>
-                    <div style={styles.small}>{issuer.address}</div>
-                    <div style={styles.small}>Phone: {issuer.phone} | Email: {issuer.email}</div>
-                    <div style={styles.small}>GSTIN: {issuer.gstin}</div>
-                    <div style={styles.small}>State: {issuer.stateCode}</div>
-                  </div>
-
-                  <div style={{ textAlign: "right" }}>
-                    <div><strong>Quote No:</strong> {quoteNo}</div>
-                    <div><strong>Date:</strong> {date}</div>
-                    <div><strong>Time:</strong> {time}</div>
-                    <div><strong>Place of Supply:</strong> {issuer.placeOfSupply}</div>
-                  </div>
-                </div>
+      {/* Company Details Modal - UPDATED WITH PINCODE FIELD */}
+      {showCompanyModal && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">Step 1: Company Details</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
               </div>
-
-              {/* Company & Contact Section */}
-              <div style={styles.card}>
-                <div style={styles.sectionTitle}>Company & Contact Details</div>
-                
-                <div style={{ display: "flex", gap: 18 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={styles.label}>Select Company</label>
-                    <select
-                      style={styles.select}
-                      value={selectedCompanyId}
-                      onChange={(e) => {
-                        console.log("Dropdown changed to:", e.target.value);
-                        setSelectedCompanyId(e.target.value);
-                      }}
-                    >
-                      <option value="">-- Choose company --</option>
-                      {loadingCompanies && <option disabled>Loading companies...</option>}
-                      {companies.map((company, index) => {
-                        const companyId = company.id || company.ID || index + 1;
-                        return (
-                          <option key={companyId} value={companyId}>
-                            {getCompanyDisplayText(company)}
-                          </option>
-                        );
-                      })}
-                    </select>
-
-                    {loadingCompanies && <div style={styles.loading}>⏳ Loading companies from database...</div>}
-                    {companyError && <div style={styles.error}>⚠️ {companyError}</div>}
-                    {!loadingCompanies && !companyError && companies.length === 0 && (
-                      <div style={styles.error}>❌ No companies found. Please add companies first.</div>
-                    )}
-                    {!loadingCompanies && !companyError && companies.length > 0 && (
-                      <div style={styles.success}>✅ {companies.length} company(s) loaded</div>
-                    )}
-
-                    <label style={styles.label}>Contact Person</label>
-                    <input 
-                      style={styles.input} 
-                      value={contactPerson} 
-                      onChange={(e) => setContactPerson(e.target.value)}
-                    />
-
-                    <label style={styles.label}>Contact Mobile</label>
-                    <input 
-                      style={styles.input} 
-                      value={contactMob} 
-                      onChange={(e) => setContactMob(e.target.value)}
-                    />
-
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                      <input 
-                        type="checkbox" 
-                        id="sameEmail" 
-                        checked={contactEmailSame} 
-                        onChange={(e) => setContactEmailSame(e.target.checked)}
-                      />
-                      <label htmlFor="sameEmail" style={styles.small}>
-                        Use issuer email for contact
-                      </label>
+              
+              <div className="modal-body">
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <div className={`d-flex align-items-center ${billTo.trim() ? 'text-success' : ''}`}>
+                    <div className={`rounded-circle ${billTo.trim() ? 'bg-success' : 'bg-primary'} text-white d-flex align-items-center justify-content-center`} style={{ width: '30px', height: '30px' }}>
+                      {billTo.trim() ? <i className="bi bi-check"></i> : '1'}
                     </div>
-
-                    <label style={styles.label}>Contact Email</label>
-                    <input 
-                      style={styles.input} 
-                      value={contactEmail} 
-                      onChange={(e) => {
-                        setContactEmail(e.target.value);
-                        if (e.target.value !== issuer.email) {
-                          setContactEmailSame(false);
-                        }
-                      }}
-                      type="email"
-                    />
+                    <span className="ms-2">Company Details</span>
                   </div>
-
-                  <div style={{ flex: 1 }}>
-                    <label style={styles.label}>Bill To (Company)</label>
-                    <input 
-                      style={styles.input} 
-                      value={billTo} 
-                      onChange={(e) => setBillTo(e.target.value)}
-                    />
-
-                    <label style={styles.label}>Company Address</label>
-                    <textarea 
-                      style={{ ...styles.textarea, height: 60 }} 
-                      value={companyAddress} 
-                      onChange={(e) => setCompanyAddress(e.target.value)}
-                    />
-
-                    <label style={styles.label}>Company GSTIN</label>
-                    <input 
-                      style={styles.input} 
-                      value={companyGstin} 
-                      onChange={(e) => setCompanyGstin(e.target.value)}
-                    />
-
-                    <label style={styles.label}>Notes</label>
-                    <textarea 
-                      style={{ ...styles.textarea, height: 60 }} 
-                      defaultValue={`Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`}
-                    />
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-muted">
+                    <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
+                    <span className="ms-2">Add Items</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-muted">
+                    <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
+                    <span className="ms-2">Preview</span>
                   </div>
                 </div>
-              </div>
 
-              {/* Items Table Section */}
-              <div style={styles.card}>
-                <div style={styles.sectionTitle}>Items & Pricing</div>
-                
-                {loadingStock && (
-                  <div style={styles.loading}>
-                    ⏳ Loading stock items from database...
+                <div className="mb-3">
+                  <label className="form-label">Search Company</label>
+                  <div className="position-relative">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Type company name or contact..."
+                      value={billTo}
+                      onChange={(e) => handleBillToSearch(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                    />
+                    
+                    {showCompanyDropdown && filteredCompanies.length > 0 && (
+                      <div className="position-absolute w-100 bg-white border rounded shadow-sm" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
+                        {filteredCompanies.map((company, index) => (
+                          <div
+                            key={company.id || index}
+                            className={`p-2 border-bottom ${selectedCompanyId === (company.id || company.ID)?.toString() ? 'bg-light' : ''}`}
+                            style={{ cursor: 'pointer' }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              selectCompanyFromSearch(company);
+                            }}
+                          >
+                            <div className="fw-bold">{company.companyName || company.company_name}</div>
+                            <div className="text-muted small">
+                              {company.customerName || company.customer_name} • {company.customerMobile || company.customer_mobile}
+                            </div>
+                            {(company.pinCode || company.pin_code) && (
+                              <div className="text-muted small mt-1">
+                                <span className="badge bg-info text-white me-1">Pincode: {company.pinCode || company.pin_code}</span>
+                                {company.gstNumber || company.gst_number ? (
+                                  <span className="badge bg-secondary">GST: {company.gstNumber || company.gst_number}</span>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
-                
-                {stockError && (
-                  <div style={styles.error}>
-                    ⚠️ {stockError}
+                  
+                  {loadingCompanies && <div className="alert alert-info mt-2 py-2">Loading companies...</div>}
+                  {companyError && <div className="alert alert-warning mt-2 py-2">{companyError}</div>}
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Contact Person</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={contactPerson}
+                        onChange={(e) => setContactPerson(e.target.value)}
+                      />
+                    </div>
                   </div>
-                )}
-                
-                {!loadingStock && stockItems.length > 0 && (
-                  <div style={styles.success}>
-                    ✅ {stockItems.length} stock items loaded for autocomplete
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Contact Mobile</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={contactMob}
+                        onChange={(e) => handleContactMobChange(e.target.value)}
+                        placeholder="Type mobile to auto-fill"
+                      />
+                    </div>
                   </div>
-                )}
-                
-                <div style={{ overflowX: "auto", marginTop: 6 }}>
-                  <table style={styles.itemsTable}>
-                    <thead>
-                      <tr>
-                        <th style={{...styles.thtd, width: "30px"}}>#</th>
-                        <th style={styles.thtd}>Item Name</th>
-                        <th style={styles.thtd}>HSN/SAC</th>
-                        <th style={styles.thtd}>Supplier Part No</th>
-                        <th style={styles.thtd}>Description</th>
-                        <th style={styles.thtd}>Cut Width</th>
-                        <th style={styles.thtd}>Length</th>
-                        <th style={styles.thtd}>MRP</th>
-                        <th style={styles.thtd}>Qty</th>
-                        <th style={styles.thtd}>Status</th>
-                        <th style={styles.thtd}>Price/Unit</th>
-                        <th style={styles.thtd}>Discount</th>
-                        <th style={styles.thtd}>Amount</th>
-                        <th style={styles.thtd}>GST(%)</th>
-                        <th style={styles.thtd}>Tax Amt</th>
-                        <th style={styles.thtd}>Total</th>
-                        <th style={{...styles.thtd, width: "70px"}}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {items.map((item, index) => (
-                        <tr key={item.id}>
-                          <td style={styles.thtd}>{index + 1}</td>
-                          
-                          <td style={{...styles.thtd, position: "relative"}}>
-                            <div 
-                              ref={el => typeaheadRefs.current[index] = el}
-                              style={styles.typeaheadContainer}
-                            >
-                              <input 
-                                style={styles.input} 
-                                value={item.item_name} 
-                                onChange={(e) => handleItemChange(index, "item_name", e.target.value)}
-                                onKeyDown={(e) => handleTypeaheadKeyDown(index, e)}
-                                onFocus={() => {
-                                  if (item.item_name && stockItems.length > 0) {
-                                    handleItemNameChange(index, item.item_name);
-                                  }
-                                }}
-                                placeholder="Start typing for suggestions..."
-                              />
-                              
-                              {showTypeahead[index] && (typeaheadSuggestions[index] || []).length > 0 && (
-                                <div style={styles.typeaheadList}>
-                                  {(typeaheadSuggestions[index] || []).map((suggestion, sIndex) => (
-                                    <div
-                                      key={`${suggestion.id || sIndex}-${index}`}
-                                      style={{
-                                        ...styles.typeaheadItem,
-                                        ...(sIndex === (activeTypeaheadIndex[index] || -1) ? styles.typeaheadItemActive : {}),
-                                        ...styles.typeaheadItemHover
-                                      }}
-                                      onClick={() => handleItemSelect(index, suggestion)}
-                                      onMouseEnter={() => setActiveTypeaheadIndex(prev => ({...prev, [index]: sIndex}))}
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Company Address</label>
+                      <textarea
+                        className="form-control"
+                        rows="3"
+                        value={companyAddress}
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Pincode</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={companyPincode}
+                        onChange={(e) => setCompanyPincode(e.target.value)}
+                        placeholder="Enter pincode"
+                      />
+                      {extractPincode(companyAddress) && companyPincode !== extractPincode(companyAddress) && (
+                        <div className="form-text text-info">
+                          <i className="bi bi-info-circle me-1"></i>
+                          Found pincode in address: {extractPincode(companyAddress)}. Click to copy:
+                          <button 
+                            type="button" 
+                            className="btn btn-sm btn-outline-info ms-2"
+                            onClick={() => setCompanyPincode(extractPincode(companyAddress))}
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Company GSTIN</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={companyGstin}
+                        onChange={(e) => setCompanyGstin(e.target.value)}
+                        placeholder="Enter GST number"
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Contact Email</label>
+                      <div className="input-group">
+                        <input
+                          type="email"
+                          className="form-control"
+                          value={contactEmail}
+                          onChange={(e) => {
+                            setContactEmail(e.target.value);
+                            if (e.target.value !== issuer.email) {
+                              setContactEmailSame(false);
+                            }
+                          }}
+                        />
+                        <div className="input-group-text">
+                          <input
+                            className="form-check-input me-1"
+                            type="checkbox"
+                            id="sameEmail"
+                            checked={contactEmailSame}
+                            onChange={(e) => setContactEmailSame(e.target.checked)}
+                          />
+                          <label className="form-check-label small" htmlFor="sameEmail">
+                            Use issuer email
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* NEW: CC Email Field */}
+                <div className="mb-3">
+                  <label className="form-label">
+                    <i className="bi bi-person-badge me-1"></i>
+                    CC Email (Carbon Copy)
+                    <span className="text-muted ms-1 small">- Optional, for additional recipients</span>
+                  </label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    value={ccEmail}
+                    onChange={(e) => setCcEmail(e.target.value)}
+                    placeholder="cc@example.com (comma-separated for multiple)"
+                  />
+                  <div className="form-text">
+                    Enter email addresses to send a carbon copy of this quotation. Separate multiple emails with commas.
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={cancelQuotation}>
+                    <i className="bi bi-x-circle me-1"></i>Cancel
+                  </button>
+                  <button type="button" className="btn btn-primary" onClick={goToItems} disabled={!billTo.trim()}>
+                    Next: Add Items <i className="bi bi-arrow-right ms-1"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Items Modal */}
+      {showItemsModal && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">Step 2: Add Items</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <div className="d-flex align-items-center text-success">
+                    <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
+                      <i className="bi bi-check"></i>
+                    </div>
+                    <span className="ms-2">Company Details</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-primary">
+                    <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
+                    <span className="ms-2">Add Items</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-muted">
+                    <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
+                    <span className="ms-2">Preview</span>
+                  </div>
+                </div>
+
+                <div className="card mb-4">
+                  <div className="card-header bg-light">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
+                      <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
+                        <i className="bi bi-plus-circle me-1"></i>Add Item
+                      </button>
+                    </div>
+                  </div>
+                  <div className="card-body p-0">
+                    {items.length === 0 ? (
+                      <div className="text-center py-5">
+                        <i className="bi bi-box display-1 text-muted mb-3"></i>
+                        <h5 className="text-muted">No items added</h5>
+                        <p className="text-muted">Click "Add Item" to start adding items to your quotation</p>
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table table-hover mb-0">
+                          <thead className="table-light">
+                            <tr>
+                              <th width="50">#</th>
+                              <th>Item Name</th>
+                              <th width="120">Brand Code</th>
+                              <th width="120">Part No</th>
+                              <th width="80">Width</th>
+                              <th width="80">Length</th>
+                              <th width="80">Count</th>
+                              <th width="80">Qty</th>
+                              <th width="80">Unit</th>
+                              <th width="100">Price/Unit</th>
+                              <th width="120">Discount</th>
+                              <th width="100">Total</th>
+                              <th width="80">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item, index) => (
+                              <tr key={item.id}>
+                                <td>{index + 1}</td>
+                                <td>
+                                  <div className="fw-bold">{item.item_name}</div>
+                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
+                                </td>
+                                <td>{item.brand_code || ''}</td>
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={item.supplier_part_no}
+                                    onChange={(e) => handleItemChange(index, "supplier_part_no", e.target.value)}
+                                    placeholder="Part No"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.cut_width}
+                                    onChange={(e) => handleItemChange(index, "cut_width", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.length}
+                                    onChange={(e) => handleItemChange(index, "length", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    value={item.count}
+                                    onChange={(e) => handleItemChange(index, "count", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                    placeholder="Enter quantity"
+                                  />
+                                </td>
+                                <td>{item.unit}</td>
+                                <td className="text-end">₹{pricePerUnit(item).toFixed(2)}</td>
+                                <td>
+                                  <div className="input-group input-group-sm">
+                                    <input
+                                      type="number"
+                                      className="form-control"
+                                      min="0"
+                                      step="0.01"
+                                      value={item.discount}
+                                      onChange={(e) => handleItemChange(index, "discount", e.target.value)}
+                                    />
+                                    <select
+                                      className="form-select"
+                                      style={{ width: '80px' }}
+                                      value={item.discount_type}
+                                      onChange={(e) => handleItemChange(index, "discount_type", e.target.value)}
                                     >
-                                      <div style={styles.typeaheadItemName}>
-                                        {suggestion["Item Name"]}
-                                      </div>
-                                      <div style={styles.typeaheadItemDetails}>
-                                        <span>Part: {suggestion["Brand Code"]}</span>
-                                        <span>MRP: ₹{parseFloat(suggestion["MRP"] || 0).toFixed(2)}</span>
-                                      </div>
-                                      <div style={{...styles.typeaheadItemDetails, fontSize: "10px"}}>
-                                        <span>{suggestion["Brand Description"]?.substring(0, 50)}...</span>
-                                      </div>
-                                    </div>
-                                  ))}
+                                      <option value="amount">₹</option>
+                                      <option value="percentage">%</option>
+                                    </select>
+                                  </div>
+                                </td>
+                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
+                                <td>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => removeItem(index)}
+                                    title="Delete"
+                                  >
+                                    <i className="bi bi-trash"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">Quick Summary</h6>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Items:</span>
+                          <strong>{items.length}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Subtotal:</span>
+                          <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Discount:</span>
+                          <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between">
+                          <span>Tax (18%):</span>
+                          <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                        </div>
+                        <hr />
+                        <div className="d-flex justify-content-between fw-bold">
+                          <span>Grand Total:</span>
+                          <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={goBackToCompany}>
+                    <i className="bi bi-arrow-left me-1"></i>Back to Company
+                  </button>
+                  <button type="button" className="btn btn-primary" onClick={goToPreview} disabled={items.length === 0 || items.some(item => !item.item_name.trim())}>
+                    Next: Preview <i className="bi bi-arrow-right ms-1"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Item Selection Popup Modal - REMOVED HSN AND GST COLUMNS */}
+      {showItemPopup && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header bg-info text-white">
+                <h5 className="modal-title">Add Item from Stock</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowItemPopup(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <label className="form-label">Search Stock Items</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search by item name, brand code, or description..."
+                    value={itemSearchTerm}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setItemSearchTerm(value);
+                      if (value.trim().length > 1) {
+                        const searchTerm = value.toLowerCase();
+                        const filtered = stockItems.filter(item =>
+                          item["Item Name"]?.toLowerCase().includes(searchTerm) ||
+                          item["Brand Code"]?.toLowerCase().includes(searchTerm) ||
+                          item["Brand Description"]?.toLowerCase().includes(searchTerm)
+                        ).slice(0, 10);
+                        setSearchResults(filtered);
+                        setShowResults(true);
+                      } else {
+                        setSearchResults([]);
+                        setShowResults(false);
+                      }
+                    }}
+                  />
+                  
+                  {showResults && searchResults.length > 0 && (
+                    <div className="border rounded mt-1 bg-white" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                      {searchResults.map((item, idx) => (
+                        <div
+                          key={item.id || idx}
+                          className={`p-3 border-bottom ${selectedStockItem?.id === item.id ? 'bg-light' : ''}`}
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => {
+                            setSelectedStockItem(item);
+                            setItemSearchTerm(item["Item Name"] || "");
+                            setNewItemBrandCode(item["Brand Code"] || "");
+                            setShowResults(false);
+                            const allBatchCodes = stockItems
+                              .filter(stockItem => stockItem["Brand Code"] === item["Brand Code"])
+                              .map(stockItem => stockItem["Batch Code"])
+                              .filter(Boolean);
+                            setAvailableBatchCodes(Array.from(new Set(allBatchCodes)));
+                            setNewItemSupplierPartNo(item["Brand Code"] || "");
+                          }}
+                        >
+                          <div className="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                              <div className="fw-bold mb-1">{item["Item Name"]}</div>
+                              <div className="mb-1">
+                                <span className="badge bg-primary me-1">Brand</span>
+                                <strong>{item["Brand"] || "N/A"}</strong>
+                              </div>
+                              <div className="mb-1">
+                                <span className="badge bg-secondary me-1">Code</span>
+                                <strong className="text-dark">{item["Brand Code"]}</strong>
+                              </div>
+                            </div>
+                            <div className="text-end">
+                              <div className="fw-bold text-success mb-1">MRP: ₹{parseFloat(item["MRP"] || 0).toFixed(2)}</div>
+                              <div className="fw-bold text-info">Buy: ₹{parseFloat(item["Buy Price"] || 0).toFixed(2)}</div>
+                            </div>
+                          </div>
+                          
+                          <div className="row mb-2">
+                            <div className="col-6">
+                              {item["Width"] && item["Length"] && (
+                                <div className="mb-1">
+                                  <span className="badge bg-light text-dark me-1">Dimensions</span>
+                                  {item["Width"]} × {item["Length"]} {item["Unit"] || "pcs"}
                                 </div>
                               )}
                             </div>
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              style={styles.input} 
-                              value={item.hsn_sac} 
-                              onChange={(e) => handleItemChange(index, "hsn_sac", e.target.value)}
-                              placeholder="HSN/SAC"
-                            />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              style={styles.input} 
-                              value={item.supplier_part_no} 
-                              onChange={(e) => handleItemChange(index, "supplier_part_no", e.target.value)}
-                              placeholder="Supplier Part No"
-                            />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              style={styles.input} 
-                              value={item.description} 
-                              onChange={(e) => handleItemChange(index, "description", e.target.value)}
-                              placeholder="Description"
-                            />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              type="number" 
-                              min="0.1"
-                              step="0.1"
-                              style={styles.input} 
-                              value={item.cut_width} 
-                              onChange={(e) => handleItemChange(index, "cut_width", e.target.value)}
-                            />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              type="number" 
-                              min="1"
-                              style={styles.input} 
-                              value={item.length} 
-                              onChange={(e) => handleItemChange(index, "length", e.target.value)}
-                            />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              type="number" 
-                              min="0"
-                              step="0.01"
-                              style={styles.input} 
-                              value={item.mrp} 
-                              onChange={(e) => handleItemChange(index, "mrp", e.target.value)}
-                            />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              type="number" 
-                              min="1"
-                              style={styles.input} 
-                              value={item.quantity} 
-                              onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                            />
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <select
-                              style={styles.itemStatusSelect}
-                              value={item.item_status}
-                              onChange={(e) => handleItemStatusChange(index, e.target.value)}
-                            >
-                              <option value="pending">Pending</option>
-                              <option value="approved">Approved</option>
-                              <option value="rejected">Rejected</option>
-                              <option value="dispatched">Dispatched</option>
-                              <option value="delivered">Delivered</option>
-                            </select>
-                          </td>
-
-                          <td style={styles.amountCell}>
-                            ₹{pricePerUnit(item).toFixed(2)}
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              type="number" 
-                              min="0"
-                              step="0.01"
-                              style={styles.input} 
-                              value={item.discount} 
-                              onChange={(e) => handleItemChange(index, "discount", e.target.value)}
-                              placeholder="Discount"
-                            />
-                          </td>
-
-                          <td style={styles.amountCell}>
-                            ₹{amountAfterDiscount(item).toFixed(2)}
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <input 
-                              type="number" 
-                              min="0"
-                              step="0.1"
-                              style={styles.input} 
-                              value={item.tax_rate} 
-                              onChange={(e) => handleItemChange(index, "tax_rate", e.target.value)}
-                              placeholder="Tax %"
-                            />
-                          </td>
-
-                          <td style={styles.amountCell}>
-                            ₹{gstAmount(item).toFixed(2)}
-                          </td>
-
-                          <td style={styles.amountCell}>
-                            <strong>₹{itemTotal(item).toFixed(2)}</strong>
-                          </td>
-
-                          <td style={styles.thtd}>
-                            <button 
-                              style={styles.deleteBtn}
-                              onClick={() => removeItem(index)}
-                              title="Delete item"
-                            >
-                              Delete
-                            </button>
-                          </td>
-                        </tr>
+                            <div className="col-6">
+                              {item["Batch Code"] && (
+                                <div className="mb-1">
+                                  <span className="badge bg-light text-dark me-1">Batch</span>
+                                  {item["Batch Code"]}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {item["Brand Description"] && (
+                            <div className="small text-muted" style={{ fontSize: '0.8rem', lineHeight: '1.3' }}>
+                              <span className="badge bg-light text-dark me-1"> Brand Description</span>
+                              {item["Brand Description"]}
+                            </div>
+                          )}
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, alignItems: "flex-start" }}>
-                  <div>
-                    <button 
-                      style={{ ...styles.btn, ...styles.successBtn }}
-                      onClick={addItem}
-                    >
-                      + Add Item
-                    </button>
-                  </div>
+                {selectedStockItem && (
+                  <div className="card mt-3">
+                    <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                      <h6 className="mb-0">Item Details</h6>
+                      <div className="text-end">
+                        <span className="badge bg-success me-2">MRP: ₹{parseFloat(selectedStockItem["MRP"] || 0).toFixed(2)}</span>
+                        <span className="badge bg-info">Buy: ₹{parseFloat(selectedStockItem["Buy Price"] || 0).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <div className="card-body">
+                      <div className="row">
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Item Name</label>
+                            <input type="text" className="form-control" value={selectedStockItem["Item Name"] || ""} readOnly />
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="mb-3">
+                            <label className="form-label">Brand</label>
+                            <input type="text" className="form-control" value={selectedStockItem["Brand"] || ""} readOnly />
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="mb-3">
+                            <label className="form-label">Brand Code</label>
+                            <input type="text" className="form-control" value={selectedStockItem["Brand Code"] || ""} readOnly />
+                          </div>
+                        </div>
+                      </div>
 
-                  <div style={styles.totalsBox}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span>Subtotal:</span>
-                      <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                      <div className="row">
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Batch Code</label>
+                            <select className="form-select" value={newItemBatchCode} onChange={(e) => setNewItemBatchCode(e.target.value)}>
+                              <option value="">-- Select --</option>
+                              {availableBatchCodes.map((code, idx) => (
+                                <option key={idx} value={code}>{code}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Unit</label>
+                            <input type="text" className="form-control" value={selectedStockItem["Unit"] || "pcs"} readOnly />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="row">
+                        <div className="col-md-12">
+                          <div className="mb-3">
+                            <label className="form-label">Customer Part No</label>
+                            <textarea
+                              className="form-control"
+                              rows="2"
+                              value={newItemSupplierPartNo}
+                              onChange={(e) => setNewItemSupplierPartNo(e.target.value)}
+                              placeholder="Enter supplier part number..."
+                            />
+                            <div className="form-text">
+                              This will be displayed as "Part No" in the quotation
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="row">
+                        <div className="col-md-3">
+                          <div className="mb-3">
+                            <label className="form-label">Cut Width</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              step="0.1"
+                              value={newItemCutWidth}
+                              onChange={(e) => setNewItemCutWidth(e.target.value)}
+                              placeholder="Width"
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="mb-3">
+                            <label className="form-label">Cut Length</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              step="0.1"
+                              value={newItemLength}
+                              onChange={(e) => setNewItemLength(e.target.value)}
+                              placeholder="Length"
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="mb-3">
+                            <label className="form-label">Count</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              min="1"
+                              value={newItemCount}
+                              onChange={(e) => setNewItemCount(e.target.value)}
+                              placeholder="Count"
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="mb-3">
+                            <label className="form-label">MRP</label>
+                            <input type="text" className="form-control" value={`₹${parseFloat(selectedStockItem["MRP"] || 0).toFixed(2)}`} readOnly />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="row">
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Quantity</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              min="1"
+                              value={newItemQuantity}
+                              onChange={(e) => setNewItemQuantity(e.target.value)}
+                              placeholder="Enter quantity"
+                            />
+                            <small className="text-muted">User input field (not auto-calculated)</small>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Price/Unit (Calculated)</label>
+                            <input 
+                              type="text" 
+                              className="form-control" 
+                              value={`₹${((parseFloat(selectedStockItem["MRP"] || 0) * (parseFloat(newItemLength) || 0) * (parseFloat(newItemCutWidth) || 0) * (parseFloat(newItemCount) || 0)) || 0).toFixed(2)}`} 
+                              readOnly 
+                            />
+                            <small className="text-muted">MRP × Length × Width × Count</small>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="row">
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Discount</label>
+                            <div className="input-group">
+                              <input
+                                type="number"
+                                className="form-control"
+                                min="0"
+                                step="0.01"
+                                value={newItemDiscount}
+                                onChange={(e) => setNewItemDiscount(e.target.value)}
+                                placeholder="Discount"
+                              />
+                              <select
+                                className="form-select"
+                                style={{ width: '100px' }}
+                                value={newItemDiscountType}
+                                onChange={(e) => setNewItemDiscountType(e.target.value)}
+                              >
+                                <option value="amount">₹</option>
+                                <option value="percentage">%</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Customer Description</label>
+                            <textarea
+                              className="form-control"
+                              rows="2"
+                              value={newItemCustomerDescription}
+                              onChange={(e) => setNewItemCustomerDescription(e.target.value)}
+                              placeholder="Enter customer description here..."
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="row">
+                        <div className="col-md-4">
+                          <div className="mb-3">
+                            <label className="form-label">Packing Charges</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              min="0"
+                              step="0.01"
+                              value={newItemPackingCharges}
+                              onChange={(e) => setNewItemPackingCharges(e.target.value)}
+                              placeholder="Packing charges"
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="mb-3">
+                            <label className="form-label">Other Charges</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              min="0"
+                              step="0.01"
+                              value={newItemOtherCharges}
+                              onChange={(e) => setNewItemOtherCharges(e.target.value)}
+                              placeholder="Other charges"
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="mb-3">
+                            <label className="form-label">Tax Rate (GST%)</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value="18"
+                              readOnly
+                            />
+                            <small className="text-muted">Default GST rate</small>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span>Total Discount:</span>
-                      <strong style={{ color: "#e74c3c" }}>- ₹{totals.totalDiscount.toFixed(2)}</strong>
+                    <div className="card-footer">
+                      <div className="d-flex justify-content-end gap-2">
+                        <button type="button" className="btn btn-secondary" onClick={() => setShowItemPopup(false)}>
+                          <i className="bi bi-x-circle me-1"></i>Cancel
+                        </button>
+                        <button type="button" className="btn btn-primary" onClick={() => {
+                          if (!selectedStockItem) {
+                            alert("Please select an item first!");
+                            return;
+                          }
+                          
+                          const newItem = {
+                            id: idRef.current + 1,
+                            item_name: selectedStockItem["Item Name"] || "",
+                            brand_code: newItemBrandCode || selectedStockItem["Brand Code"] || "",
+                            hsn_sac: selectedStockItem["HSN"] || "", // Still stored but not displayed
+                            supplier_part_no: newItemSupplierPartNo || "",
+                            description: selectedStockItem["Brand Description"] || "",
+                            cut_width: parseFloat(newItemCutWidth) || parseFloat(selectedStockItem["Width"]) || 1,
+                            length: parseFloat(newItemLength) || parseFloat(selectedStockItem["Length"]) || 1,
+                            count: parseFloat(newItemCount) || 1,
+                            batch_no: newItemBatchCode || `B-${Date.now().toString().slice(-6)}-${items.length + 1}`,
+                            mrp: parseFloat(selectedStockItem["MRP"]) || 0,
+                            buy_price: parseFloat(selectedStockItem["Buy Price"]) || 0,
+                            quantity: parseFloat(newItemQuantity) || 1,
+                            unit: selectedStockItem["Unit"] || "pcs",
+                            discount: parseFloat(newItemDiscount) || 0,
+                            discount_type: newItemDiscountType,
+                            tax_rate: 18.0, // Default GST
+                            packing_charges: parseFloat(newItemPackingCharges) || 0,
+                            other_charges: parseFloat(newItemOtherCharges) || 0,
+                            customer_description: newItemCustomerDescription,
+                            item_status: "pending"
+                          };
+                          
+                          setItems(prev => [...prev, newItem]);
+                          idRef.current = idRef.current + 1;
+                          setSelectedStockItem(null);
+                          setItemSearchTerm("");
+                          setNewItemCutWidth("");
+                          setNewItemLength("");
+                          setNewItemCount("1");
+                          setNewItemBatchCode("");
+                          setNewItemDiscount("0");
+                          setNewItemPackingCharges("0");
+                          setNewItemOtherCharges("0");
+                          setNewItemCustomerDescription("");
+                          setNewItemSupplierPartNo("");
+                          setNewItemBrandCode("");
+                          setShowItemPopup(false);
+                          setShowResults(false);
+                        }}>
+                          <i className="bi bi-plus-circle me-1"></i>Add to Quotation
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <span>Total Tax:</span>
-                      <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal - UPDATED WITH CC AND PINCODE */}
+      {showPreviewModal && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">Step 3: Preview & Save</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+              </div>
+              <div className="modal-body">
+                <div ref={quotationRef}>
+                  <div className="container">
+                    <div className="invoice-header border-bottom pb-3 mb-3">
+                      <div className="row">
+                        <div className="col-2">
+                          <img 
+                            src={companyLogo} 
+                            alt="Company Logo" 
+                            className="img-fluid"
+                            style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                        <div className="col-5">
+                          <h1 className="mb-1">{issuer.name}</h1>
+                          <p className="mb-1">{issuer.address}</p>
+                          <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                          <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                        </div>
+                        <div className="col-5 text-end">
+                          <h2 className="text-primary mb-3">QUOTATION</h2>
+                          <p className="mb-1"><strong>Quote No:</strong> {quoteNo}</p>
+                          <p className="mb-1"><strong>Date:</strong> {date}</p>
+                          <p className="mb-1"><strong>Time:</strong> {time}</p>
+                        </div>
+                      </div>
                     </div>
-                    <hr style={{ border: "none", borderTop: "2px solid #eee", margin: "10px 0" }} />
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: "bold" }}>
-                      <span>Grand Total:</span>
-                      <strong style={{ color: "#2980b9" }}>₹{totals.grandTotal.toFixed(2)}</strong>
+                    
+                    <div className="row mb-4">
+                      <div className="col-6">
+                        <h5>Bill To:</h5>
+                        <p className="mb-1"><strong>{billTo}</strong></p>
+                        <p className="mb-1">{companyAddress}</p>
+                        {companyPincode && (
+                          <p className="mb-1">
+                            Pincode: <span className="badge bg-info text-white">{companyPincode}</span>
+                          </p>
+                        )}
+                        <p className="mb-1">GSTIN: {companyGstin}</p>
+                      </div>
+                      <div className="col-6">
+                        <h5>Contact Details:</h5>
+                        <p className="mb-1"><strong>{contactPerson}</strong></p>
+                        <p className="mb-1">Phone: {contactMob}</p>
+                        <p className="mb-1">Email: {contactEmail}</p>
+                        {ccEmail && (
+                          <p className="mb-1">
+                            CC: {ccEmail} <span className="badge bg-secondary">CC</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="table-responsive">
+                      <table className="table table-bordered">
+                        <thead className="table-light">
+                          <tr>
+                            <th>#</th>
+                            <th>Item Name</th>
+                            <th>Brand Code</th>
+                            <th>Cut Width</th>
+                            <th>Cut Length</th>
+                            <th>Count</th>
+                            <th>Customer Part No</th>
+                            <th>Customer Description</th>
+                            <th>Batch No</th>
+                            <th>Qty</th>
+                            <th>UoM</th>
+                            <th>Price/Unit</th>
+                            <th>GST %</th>
+                            <th>Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, index) => (
+                            <tr key={item.id}>
+                              <td>{index + 1}</td>
+                              <td><strong>{item.item_name}</strong></td>
+                              <td>{item.brand_code || ''}</td>
+                              <td>{item.cut_width}</td>
+                              <td>{item.length}</td>
+                              <td>{item.count}</td>
+                              <td>{item.supplier_part_no}</td>
+                              <td>{item.customer_description || ''}</td>
+                              <td>{item.batch_no}</td>
+                              <td>{item.quantity}</td>
+                              <td>{item.unit}</td>
+                              <td>₹{pricePerUnit(item).toFixed(2)}</td>
+                              <td>{item.tax_rate}%</td>
+                              <td><strong>₹{amountAfterDiscount(item).toFixed(2)}</strong></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <div className="row mt-4">
+                      <div className="col-7">
+                        <h5 className="mb-2">Tax Summary:</h5>
+                        <table className="table table-bordered table-sm">
+                          <thead className="table-light">
+                            <tr>
+                              <th>GST %</th>
+                              <th>Taxable Amount</th>
+                              <th>Tax Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const taxSummary = {};
+                              items.forEach(item => {
+                                const taxRate = item.tax_rate || 18;
+                                const taxAmount = gstAmount(item);
+                                if (!taxSummary[taxRate]) {
+                                  taxSummary[taxRate] = 0;
+                                }
+                                taxSummary[taxRate] += taxAmount;
+                              });
+                              
+                              return Object.entries(taxSummary).map(([rate, amount]) => (
+                                <tr key={rate}>
+                                  <td>{rate}%</td>
+                                  <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                                  <td>₹{amount.toFixed(2)}</td>
+                                </tr>
+                              ));
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="col-5">
+                        <div className="card border-0">
+                          <div className="card-body">
+                            <h5 className="card-title">Total Summary</h5>
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Subtotal:</span>
+                              <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                            </div>
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Discount:</span>
+                              <strong className="text-danger">- ₹{totals.totalDiscount.toFixed(2)}</strong>
+                            </div>
+                            {totals.totalPacking > 0 && (
+                              <div className="d-flex justify-content-between mb-2">
+                                <span>Packing:</span>
+                                <strong>₹{totals.totalPacking.toFixed(2)}</strong>
+                              </div>
+                            )}
+                            {totals.totalOther > 0 && (
+                              <div className="d-flex justify-content-between mb-2">
+                                <span>Other Charges:</span>
+                                <strong>₹{totals.totalOther.toFixed(2)}</strong>
+                              </div>
+                            )}
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Taxable Amount:</span>
+                              <strong>₹{totals.totalBeforeGST.toFixed(2)}</strong>
+                            </div>
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Total Tax:</span>
+                              <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                            </div>
+                            <hr/>
+                            <div className="d-flex justify-content-between total-row">
+                              <span>Grand Total:</span>
+                              <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-4 p-3 bg-light rounded">
+                      <h5>Notes:</h5>
+                      <p className="mb-0">Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.</p>
+                      <p className="mb-0 mt-2"><strong>Valid for 30 days from the date of issue.</strong></p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="modal-footer mt-3">
+                  <button type="button" className="btn btn-secondary" onClick={goBackToItems}>
+                    <i className="bi bi-arrow-left me-1"></i>Back to Items
+                  </button>
+                  <button type="button" className="btn btn-info" onClick={exportPdf}>
+                    <i className="bi bi-file-pdf me-1"></i>Export PDF
+                  </button>
+                  <button type="button" className="btn btn-success" onClick={saveQuotation} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-save me-1"></i>Save Quotation
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Quotation Modal - UPDATED WITH CC AND PINCODE */}
+      {showEditModal && editingQuotation && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-warning text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-pencil me-2"></i>
+                  Edit Quotation - {editingQuotation.quote_number || editingQuotation.quoteNo}
+                  <span className="badge bg-info ms-2">Re-quote → Draft</span>
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => {
+                  setShowEditModal(false);
+                  setEditingQuotation(null);
+                  setIsEditing(false);
+                  setItems([]);
+                }}></button>
+              </div>
+              <div className="modal-body">
+                <div className="alert alert-info">
+                  <i className="bi bi-info-circle me-2"></i>
+                  You are editing a quotation with "requote" status. After saving, it will be changed to "draft" status.
+                </div>
+
+                <div className="card mb-4">
+                  <div className="card-header bg-light">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <h6 className="mb-0">Company Details</h6>
+                      <span className="badge bg-warning">Editing</span>
+                    </div>
+                  </div>
+                  <div className="card-body">
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Company Name</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={billTo}
+                            onChange={(e) => setBillTo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Contact Person</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={contactPerson}
+                            onChange={(e) => setContactPerson(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Contact Mobile</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={contactMob}
+                            onChange={(e) => setContactMob(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Contact Email</label>
+                          <input
+                            type="email"
+                            className="form-control"
+                            value={contactEmail}
+                            onChange={(e) => setContactEmail(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Company Address</label>
+                          <textarea
+                            className="form-control"
+                            rows="2"
+                            value={companyAddress}
+                            onChange={(e) => setCompanyAddress(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Pincode</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={companyPincode}
+                            onChange={(e) => setCompanyPincode(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Company GSTIN</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={companyGstin}
+                            onChange={(e) => setCompanyGstin(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Quote Number</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={quoteNo}
+                            onChange={(e) => setQuoteNo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {/* NEW: CC Field in Edit Modal */}
+                    <div className="mb-3">
+                      <label className="form-label">
+                        <i className="bi bi-person-badge me-1"></i>
+                        CC Email (Carbon Copy)
+                      </label>
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={ccEmail}
+                        onChange={(e) => setCcEmail(e.target.value)}
+                        placeholder="cc@example.com"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card mb-4">
+                  <div className="card-header bg-light">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
+                      <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
+                        <i className="bi bi-plus-circle me-1"></i>Add Item
+                      </button>
+                    </div>
+                  </div>
+                  <div className="card-body p-0">
+                    {items.length === 0 ? (
+                      <div className="text-center py-5">
+                        <i className="bi bi-box display-1 text-muted mb-3"></i>
+                        <h5 className="text-muted">No items added</h5>
+                        <p className="text-muted">Click "Add Item" to start adding items to your quotation</p>
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table table-hover mb-0">
+                          <thead className="table-light">
+                            <tr>
+                              <th width="50">#</th>
+                              <th>Item Name</th>
+                              <th width="120">Brand Code</th>
+                              <th width="120">Part No</th>
+                              <th width="80">Width</th>
+                              <th width="80">Length</th>
+                              <th width="80">Count</th>
+                              <th width="80">Qty</th>
+                              <th width="80">Unit</th>
+                              <th width="100">Price/Unit</th>
+                              <th width="120">Discount</th>
+                              <th width="100">Total</th>
+                              <th width="80">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item, index) => (
+                              <tr key={item.id}>
+                                <td>{index + 1}</td>
+                                <td>
+                                  <div className="fw-bold">{item.item_name}</div>
+                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
+                                </td>
+                                <td>{item.brand_code || ''}</td>
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={item.supplier_part_no}
+                                    onChange={(e) => handleItemChange(index, "supplier_part_no", e.target.value)}
+                                    placeholder="Part No"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.cut_width}
+                                    onChange={(e) => handleItemChange(index, "cut_width", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.length}
+                                    onChange={(e) => handleItemChange(index, "length", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    value={item.count}
+                                    onChange={(e) => handleItemChange(index, "count", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                    placeholder="Enter quantity"
+                                  />
+                                </td>
+                                <td>{item.unit}</td>
+                                <td className="text-end">₹{pricePerUnit(item).toFixed(2)}</td>
+                                <td>
+                                  <div className="input-group input-group-sm">
+                                    <input
+                                      type="number"
+                                      className="form-control"
+                                      min="0"
+                                      step="0.01"
+                                      value={item.discount}
+                                      onChange={(e) => handleItemChange(index, "discount", e.target.value)}
+                                    />
+                                    <select
+                                      className="form-select"
+                                      style={{ width: '80px' }}
+                                      value={item.discount_type}
+                                      onChange={(e) => handleItemChange(index, "discount_type", e.target.value)}
+                                    >
+                                      <option value="amount">₹</option>
+                                      <option value="percentage">%</option>
+                                    </select>
+                                  </div>
+                                </td>
+                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
+                                <td>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => removeItem(index)}
+                                    title="Delete"
+                                  >
+                                    <i className="bi bi-trash"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">Quick Summary</h6>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Items:</span>
+                          <strong>{items.length}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Subtotal:</span>
+                          <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Discount:</span>
+                          <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between">
+                          <span>Tax (18%):</span>
+                          <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                        </div>
+                        <hr />
+                        <div className="d-flex justify-content-between fw-bold">
+                          <span>Grand Total:</span>
+                          <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="modal-footer mt-3">
+                  <button type="button" className="btn btn-secondary" onClick={() => {
+                    setShowEditModal(false);
+                    setEditingQuotation(null);
+                    setIsEditing(false);
+                    setItems([]);
+                  }}>
+                    <i className="bi bi-x-circle me-1"></i>Cancel
+                  </button>
+                  <button type="button" className="btn btn-warning" onClick={updateQuotation} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-save me-1"></i>Update Quotation (Change to Draft)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Quotation Modal - UPDATED WITH PINCODE AND CC */}
+      {showViewModal && selectedQuotation && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-info text-white">
+                <h5 className="modal-title">Quotation Details</h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowViewModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="container">
+                  <div className="invoice-header border-bottom pb-3 mb-3">
+                    <div className="row">
+                      <div className="col-2">
+                        <img 
+                          src={companyLogo} 
+                          alt="Company Logo" 
+                          className="img-fluid"
+                          style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <div className="col-5">
+                        <h1 className="mb-1">{issuer.name}</h1>
+                        <p className="mb-1">{issuer.address}</p>
+                        <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                        <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                      </div>
+                      <div className="col-5 text-end">
+                        <h2 className="text-info mb-3">QUOTATION</h2>
+                        <p className="mb-1"><strong>Quote No:</strong> {selectedQuotation.quote_number || selectedQuotation.quoteNo}</p>
+                        <p className="mb-1"><strong>Date:</strong> {selectedQuotation.date || selectedQuotation.date}</p>
+                        <p className="mb-1"><strong>Time:</strong> {selectedQuotation.time || selectedQuotation.time}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="row mb-4">
+                    <div className="col-6">
+                      <h5>Bill To:</h5>
+                      <p className="mb-1"><strong>{selectedQuotation.company_name || selectedQuotation.billTo}</strong></p>
+                      <p className="mb-1">{selectedQuotation.company_address || ''}</p>
+                      {(selectedQuotation.company_pincode || extractPincode(selectedQuotation.company_address || '')) && (
+                        <p className="mb-1">
+                          Pincode: <span className="badge bg-info text-white">{selectedQuotation.company_pincode || extractPincode(selectedQuotation.company_address || '')}</span>
+                        </p>
+                      )}
+                      <p className="mb-1">GSTIN: {selectedQuotation.company_gstin || ''}</p>
+                    </div>
+                    <div className="col-6">
+                      <h5>Contact Details:</h5>
+                      <p className="mb-1"><strong>{selectedQuotation.contact_person || selectedQuotation.contactPerson}</strong></p>
+                      <p className="mb-1">Phone: {selectedQuotation.contact_mobile || selectedQuotation.contactMob}</p>
+                      <p className="mb-1">Email: {selectedQuotation.contact_email || selectedQuotation.contactEmail}</p>
+                      {(selectedQuotation.cc_email || selectedQuotation.ccEmail) && (
+                        <p className="mb-1">
+                          CC: {selectedQuotation.cc_email || selectedQuotation.ccEmail} <span className="badge bg-secondary">CC</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="table-responsive">
+                    <table className="table table-bordered">
+                      <thead className="table-light">
+                        <tr>
+                          <th>#</th>
+                          <th>Item Name</th>
+                          <th>Brand Code</th>
+                          <th>Cut Width</th>
+                          <th>Cut Length</th>
+                          <th>Count</th>
+                          <th>Customer Part No</th>
+                          <th>Customer Description</th>
+                          <th>Batch No</th>
+                          <th>Qty</th>
+                          <th>UoM</th>
+                          <th>Price/Unit</th>
+                          <th>GST %</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(selectedQuotation.items || []).map((item, index) => {
+                          let brand_code = "";
+                          let customer_description = "";
+                          let display_description = item.description || "";
+                          
+                          if (display_description) {
+                            try {
+                              if (display_description.includes('[BRAND_CODE:') && display_description.includes('[CUSTOMER_DESC:')) {
+                                const brandCodeMatch = display_description.match(/\[BRAND_CODE:(.*?)\]/);
+                                const customerDescMatch = display_description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+                                
+                                if (brandCodeMatch) brand_code = brandCodeMatch[1];
+                                if (customerDescMatch) customer_description = customerDescMatch[1];
+                                
+                                display_description = display_description
+                                  .replace(/\[BRAND_CODE:.*?\]/, '')
+                                  .replace(/\[CUSTOMER_DESC:.*?\]/, '')
+                                  .trim();
+                              }
+                            } catch (e) {
+                              console.error("Error parsing description:", e);
+                            }
+                          }
+                          
+                          // Calculate price per unit according to new formula
+                          const pricePerUnit = (item) => {
+                            const mrp = parseFloat(item.mrp) || 0;
+                            const length = parseFloat(item.length) || 0;
+                            const width = parseFloat(item.cut_width) || 0;
+                            const count = parseFloat(item.count) || 0;
+                            return parseFloat((mrp * length * width * count).toFixed(2)) || 0;
+                          };
+                          
+                          const itemPricePerUnit = pricePerUnit(item);
+                          
+                          return (
+                            <tr key={index}>
+                              <td>{index + 1}</td>
+                              <td><strong>{item.item_name}</strong></td>
+                              <td>{brand_code || item.brand_code || ''}</td>
+                              <td>{item.cut_width || ''}</td>
+                              <td>{item.length || ''}</td>
+                              <td>{item.count || ''}</td>
+                              <td>{item.supplier_part_no}</td>
+                              <td>{customer_description || item.customer_description || ''}</td>
+                              <td>{item.batch_no}</td>
+                              <td>{item.quantity}</td>
+                              <td>{item.unit}</td>
+                              <td>₹{itemPricePerUnit.toFixed(2)}</td>
+                              <td>{item.tax_rate || 18}%</td>
+                              <td><strong>₹{(item.amount_after_discount || 0).toFixed(2)}</strong></td>
+                              <td>
+                                <span className={`badge ${item.item_status === 'pending' ? 'bg-warning' : item.item_status === 'approved' ? 'bg-success' : 'bg-danger'}`}>
+                                  {item.item_status || 'pending'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="row mt-4">
+                    <div className="col-7">
+                      <h5 className="mb-2">Tax Summary:</h5>
+                      <table className="table table-bordered table-sm">
+                        <thead className="table-light">
+                          <tr>
+                            <th>GST %</th>
+                            <th>Taxable Amount</th>
+                            <th>Tax Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const taxSummary = {};
+                            (selectedQuotation.items || []).forEach(item => {
+                              const taxRate = item.tax_rate || 18;
+                              const taxAmount = item.tax_amount || 0;
+                              if (!taxSummary[taxRate]) {
+                                taxSummary[taxRate] = 0;
+                              }
+                              taxSummary[taxRate] += taxAmount;
+                            });
+                            
+                            return Object.entries(taxSummary).map(([rate, amount]) => (
+                              <tr key={rate}>
+                                <td>{rate}%</td>
+                                <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                                <td>₹{amount.toFixed(2)}</td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="col-5">
+                      <div className="card border-0">
+                        <div className="card-body">
+                          <h5 className="card-title">Total Summary</h5>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Subtotal:</span>
+                            <strong>₹{(selectedQuotation.subtotal || selectedQuotation.totals?.subtotal || 0).toFixed(2)}</strong>
+                          </div>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Discount:</span>
+                            <strong className="text-danger">- ₹{(selectedQuotation.total_discount || selectedQuotation.totals?.totalDiscount || 0).toFixed(2)}</strong>
+                          </div>
+                          {(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0) > 0 && (
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Packing:</span>
+                              <strong>₹{(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0).toFixed(2)}</strong>
+                            </div>
+                          )}
+                          {(selectedQuotation.total_other || selectedQuotation.totals?.totalOther || 0) > 0 && (
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Other Charges:</span>
+                              <strong>₹{(selectedQuotation.total_other || selectedQuotation.totals?.totalOther || 0).toFixed(2)}</strong>
+                            </div>
+                          )}
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Taxable Amount:</span>
+                            <strong>₹{(selectedQuotation.total_before_gst || selectedQuotation.totals?.totalBeforeGST || 0).toFixed(2)}</strong>
+                          </div>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total Tax:</span>
+                            <strong>₹{(selectedQuotation.total_tax || selectedQuotation.totals?.totalGST || 0).toFixed(2)}</strong>
+                          </div>
+                          <hr/>
+                          <div className="d-flex justify-content-between total-row">
+                            <span>Grand Total:</span>
+                            <strong className="text-primary">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</strong>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                <button 
-                  style={{ ...styles.btn, ...styles.primaryBtn }} 
-                  onClick={exportPdf}
-                >
-                  Export PDF
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowViewModal(false)}>
+                  <i className="bi bi-x-circle me-1"></i>Close
                 </button>
-                <button 
-                  style={{ ...styles.btn, ...styles.successBtn }} 
-                  onClick={saveQuotation}
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : "Save Quotation"}
-                </button>
-                <button 
-                  style={styles.btn} 
-                  onClick={() => setModalOpen(false)}
-                >
-                  Cancel
+                <button type="button" className="btn btn-primary" onClick={() => printQuotation(selectedQuotation)}>
+                  <i className="bi bi-printer me-1"></i>Print
                 </button>
               </div>
             </div>
@@ -1724,128 +3394,196 @@ export default function QuotationModal() {
         </div>
       )}
 
-      {/* Saved Quotations Table */}
-      <div style={{ marginTop: 30 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <h3 style={styles.sectionTitle}>Saved Quotations</h3>
-          <button
-            style={styles.btn}
-            onClick={fetchQuotations}
-            disabled={loadingQuotations}
-          >
-            {loadingQuotations ? "Refreshing..." : "🔄 Refresh"}
-          </button>
+      {/* Saved Quotations Section */}
+      <div className="card">
+        <div className="card-header bg-light">
+          <div className="d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">
+              Saved Quotations 
+              <span className="ms-2">
+                <span className="badge bg-primary">Total: {totalItems}</span>
+                {statusFilter !== 'all' && (
+                  <span className="badge bg-info ms-1">Filtered: {savedQuotations.length}</span>
+                )}
+              </span>
+            </h5>
+            <div className="d-flex gap-2">
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ width: '250px' }}
+                placeholder="Search quotations..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+              {searchTerm && (
+                <button className="btn btn-sm btn-outline-danger" onClick={resetSearch} title="Clear search">
+                  <i className="bi bi-x-circle"></i>
+                </button>
+              )}
+              <button className="btn btn-sm btn-outline-primary" onClick={fetchQuotations} disabled={loadingQuotations} title="Refresh">
+                <i className="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+          </div>
         </div>
-        
-        {loadingQuotations ? (
-          <div style={{ textAlign: "center", padding: "40px", color: "#3498db" }}>
-            Loading quotations...
-          </div>
-        ) : savedQuotations.length > 0 ? (
-          <div style={{ overflowX: "auto" }}>
-            <table style={styles.savedQuotationsTable}>
-              <thead>
-                <tr>
-                  <th style={styles.tableHeader}>Quote No</th>
-                  <th style={styles.tableHeader}>Date</th>
-                  <th style={styles.tableHeader}>Company</th>
-                  <th style={styles.tableHeader}>Contact Person</th>
-                  <th style={styles.tableHeader}>Items</th>
-                  <th style={styles.tableHeader}>Item Status</th>
-                  <th style={styles.tableHeader}>Grand Total</th>
-                  <th style={styles.tableHeader}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {savedQuotations.map((quote) => {
-                  const items = quote.items || [];
-                  const pendingItems = items.filter(item => item.item_status === 'pending').length;
-                  const approvedItems = items.filter(item => item.item_status === 'approved').length;
-                  const deliveredItems = items.filter(item => item.item_status === 'delivered').length;
-                  
-                  return (
-                    <tr key={quote.id} style={styles.tableRow}>
-                      <td style={styles.tableCell}>
-                        <strong>{quote.quote_number || quote.quoteNo}</strong>
-                      </td>
-                      <td style={styles.tableCell}>
-                        {quote.date || quote.date}<br/>
-                        <span style={styles.small}>{quote.time || quote.time}</span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        {quote.company_name || quote.billTo}<br/>
-                        <span style={styles.small}>{quote.contact_email || quote.contactEmail}</span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        {quote.contact_person || quote.contactPerson}<br/>
-                        <span style={styles.small}>{quote.contact_mobile || quote.contactMob}</span>
-                      </td>
-                      <td style={styles.tableCell}>
-                        {items.length} items
-                      </td>
-                      <td style={styles.tableCell}>
-                        <div style={{ fontSize: "12px" }}>
-                          <div>✅ Approved: {approvedItems}</div>
-                          <div>⏳ Pending: {pendingItems}</div>
-                          <div>🚚 Delivered: {deliveredItems}</div>
-                        </div>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <strong style={{ color: "#2980b9" }}>
-                          ₹{((quote.grand_total || quote.totals?.grandTotal) || 0).toFixed(2)}
-                        </strong>
-                      </td>
-                      <td style={styles.tableCell}>
-                        <button 
-                          style={styles.actionBtn}
-                          onClick={() => {
-                            alert(`Quotation Details:\n\n` +
-                                  `Quote No: ${quote.quote_number || quote.quoteNo}\n` +
-                                  `Date: ${quote.date} Time: ${quote.time}\n` +
-                                  `Company: ${quote.company_name || quote.billTo}\n` +
-                                  `Address: ${quote.company_address || ''}\n` +
-                                  `GSTIN: ${quote.company_gstin || ''}\n` +
-                                  `Contact: ${quote.contact_person || quote.contactPerson} (${quote.contact_mobile || quote.contactMob})\n` +
-                                  `Email: ${quote.contact_email || quote.contactEmail}\n` +
-                                  `Items: ${items.length}\n` +
-                                  `Subtotal: ₹${quote.subtotal || quote.totals?.subtotal || 0}\n` +
-                                  `Discount: ₹${quote.total_discount || quote.totals?.totalDiscount || 0}\n` +
-                                  `Tax: ₹${quote.total_tax || quote.totals?.totalGST || 0}\n` +
-                                  `Grand Total: ₹${quote.grand_total || quote.totals?.grandTotal || 0}\n` +
-                                  `Created: ${new Date(quote.created_at || quote.createdAt).toLocaleDateString()}`);
-                          }}
-                          title="View Details"
-                        >
-                          👁️ View
-                        </button>
-                        <button 
-                          style={{ ...styles.actionBtn, ...styles.primaryBtn }}
-                          onClick={() => printQuotation(quote)}
-                          title="Print"
-                        >
-                          🖨️ Print
-                        </button>
-                        <button 
-                          style={{ ...styles.actionBtn, ...styles.dangerBtn }}
-                          onClick={() => deleteQuotation(quote.id)}
-                          title="Delete"
-                        >
-                          🗑️ Delete
-                        </button>
-                      </td>
+        <div className="card-body p-0">
+          {loadingQuotations ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <p className="mt-2 text-muted">Loading quotations...</p>
+            </div>
+          ) : savedQuotations.length > 0 ? (
+            <>
+              <div className="table-responsive">
+                <table className="table table-hover mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th width="50">#</th>
+                      <th>Quote No</th>
+                      <th>Date</th>
+                      <th>Company</th>
+                      <th>Contact Person</th>
+                      <th>Items</th>
+                      <th>Grand Total</th>
+                      <th>Status</th>
+                      <th width="180">Actions</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div style={styles.emptyState}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-            <div style={{ marginBottom: 8 }}>No saved quotations yet</div>
-            <div style={styles.small}>Create and save your first quotation to see it here</div>
-          </div>
-        )}
+                  </thead>
+                  <tbody>
+                    {savedQuotations.map((quote, index) => (
+                      <tr key={quote.id}>
+                        <td>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
+                        <td>
+                          <strong>{quote.quote_number || quote.quoteNo}</strong>
+                        </td>
+                        <td>
+                          {quote.date || quote.date}<br/>
+                          <small className="text-muted">{quote.time || quote.time}</small>
+                        </td>
+                        <td>
+                          {quote.company_name || quote.billTo}<br/>
+                          <small className="text-muted">{quote.contact_email || quote.contactEmail}</small>
+                          {(quote.cc_email || quote.ccEmail) && (
+                            <small className="text-muted d-block">
+                              <i className="bi bi-person-badge me-1"></i>
+                              CC: {quote.cc_email || quote.ccEmail}
+                            </small>
+                          )}
+                        </td>
+                        <td>
+                          {quote.contact_person || quote.contactPerson}<br/>
+                          <small className="text-muted">{quote.contact_mobile || quote.contactMob}</small>
+                        </td>
+                        <td>{(quote.items || []).length} items</td>
+                        <td>
+                          <strong className="text-primary">
+                            ₹{((quote.grand_total || quote.totals?.grandTotal) || 0).toFixed(2)}
+                          </strong>
+                        </td>
+                        <td>
+                          <span className={`badge ${quote.status === 'draft' ? 'bg-warning' : 
+                                           quote.status === 'requote' ? 'bg-info' : 
+                                           quote.status === 'completed' ? 'bg-success' : 'bg-secondary'}`}>
+                            {quote.status || 'draft'}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="btn-group btn-group-sm">
+                            <button
+                              className="btn btn-outline-info"
+                              onClick={() => viewQuotation(quote)}
+                              title="View"
+                            >
+                              <i className="bi bi-eye"></i>
+                            </button>
+                            {quote.status === 'requote' && (
+                              <button
+                                className="btn btn-outline-warning"
+                                onClick={() => editQuotation(quote)}
+                                title="Edit (Re-quote only)"
+                              >
+                                <i className="bi bi-pencil"></i>
+                              </button>
+                            )}
+                            <button
+                              className="btn btn-outline-primary"
+                              onClick={() => printQuotation(quote)}
+                              title="Print"
+                            >
+                              <i className="bi bi-printer"></i>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* PAGINATION */}
+              {totalPages > 1 && (
+                <div className="d-flex justify-content-between align-items-center p-3 border-top">
+                  <div className="text-muted">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+                  </div>
+                  <nav aria-label="Page navigation">
+                    <ul className="pagination pagination-sm mb-0">
+                      <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                        <button 
+                          className="page-link" 
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                        >
+                          <i className="bi bi-chevron-left"></i>
+                        </button>
+                      </li>
+                      
+                      {getPaginationItems().map((pageNum, index) => (
+                        <li key={index} className={`page-item ${pageNum === currentPage ? 'active' : ''} ${pageNum === '...' ? 'disabled' : ''}`}>
+                          {pageNum === '...' ? (
+                            <span className="page-link">...</span>
+                          ) : (
+                            <button 
+                              className="page-link" 
+                              onClick={() => handlePageChange(pageNum)}
+                            >
+                              {pageNum}
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                      
+                      <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                        <button 
+                          className="page-link" 
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                        >
+                          <i className="bi bi-chevron-right"></i>
+                        </button>
+                      </li>
+                    </ul>
+                  </nav>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-5">
+              <div className="mb-3">
+                <i className="bi bi-file-earmark-text display-1 text-muted"></i>
+              </div>
+              <h5 className="text-muted">No quotations found</h5>
+              <p className="text-muted">
+                {searchTerm ? 'Try a different search term or ' : ''}
+                {statusFilter !== 'all' ? 'Try a different status filter or ' : ''}
+                Create your first quotation to get started
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

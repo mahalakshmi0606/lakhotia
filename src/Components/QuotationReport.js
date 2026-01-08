@@ -1,378 +1,3206 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import { FaEye, FaTrash, FaEdit, FaSearch } from "react-icons/fa";
-import { ToastContainer, toast } from "react-toastify";
-import "bootstrap/dist/css/bootstrap.min.css";
-import "react-toastify/dist/ReactToastify.css";
+import dayjs from "dayjs";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
-const API_QUOTATIONS = "http://localhost:5000/api/quotations";
+// Bootstrap CSS and Icons
+import 'bootstrap/dist/css/bootstrap.min.css';
+import 'bootstrap-icons/font/bootstrap-icons.css';
 
-export default function QuotationReportPage() {
-  const [quotations, setQuotations] = useState([]);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
-  const [page, setPage] = useState(1);
-  const [perPage] = useState(20);
-  const [pagination, setPagination] = useState({});
-  const [loading, setLoading] = useState(false);
+export default function QuotationModal() {
+  const idRef = useRef(1000);
 
-  // VIEW POPUP STATES
-  const [viewData, setViewData] = useState(null);
-  const [reviewStatus, setReviewStatus] = useState("No");
-  const [itemStatuses, setItemStatuses] = useState({});
+  // Helper to create item
+  function createEmptyItem(seq) {
+    idRef.current += 1;
+    return {
+      id: idRef.current,
+      item_name: "",
+      hsn_sac: "",
+      supplier_part_no: "",
+      description: "",
+      cut_width: 1,
+      length: 1,
+      count: 1,
+      batch_no: `B-${Date.now().toString().slice(-6)}-${seq}`,
+      mrp: 0,
+      buy_price: 0,
+      quantity: 1,
+      unit: "pcs",
+      discount: 0,
+      discount_type: "amount",
+      tax_rate: 18.0,
+      packing_charges: 0,
+      other_charges: 0,
+      customer_description: "",
+      brand_code: ""
+    };
+  }
 
-  const userName = localStorage.getItem("user_name") || "Unknown User";
+  // Current action mode
+  const [actionMode, setActionMode] = useState('view');
+  const [currentQuotationId, setCurrentQuotationId] = useState(null);
 
-  // Fetch quotations
-  const loadQuotations = async () => {
+  // Quote metadata
+  const [quoteNo, setQuoteNo] = useState("");
+  const [date] = useState(() => dayjs().format("YYYY-MM-DD"));
+  const [time] = useState(() => dayjs().format("HH:mm:ss"));
+
+  // Issuer static details
+  const issuer = {
+    name: "Lakhotia",
+    address: "64/3A Sidco Industrial Estate, Ambatur, Chennai",
+    phone: "7845663338",
+    email: "vivek@lakhotia.net",
+    gstin: "33AABFL9981E1Z7",
+    stateCode: "33-Tamil Nadu",
+    placeOfSupply: "33-Tamil Nadu",
+  };
+
+  // Logo path - UPDATE THIS TO MATCH YOUR PUBLIC FOLDER STRUCTURE
+  const companyLogo = "/Asset/Name1.jpg"; // Assuming the image is in public/Asset folder
+
+  // State variables
+  const [companies, setCompanies] = useState([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(true);
+  const [companyError, setCompanyError] = useState(null);
+  
+  const [selectedCompanyId, setSelectedCompanyId] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [billTo, setBillTo] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
+  const [companyGstin, setCompanyGstin] = useState("");
+  const [contactPerson, setContactPerson] = useState("");
+  const [contactMob, setContactMob] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactEmailSame, setContactEmailSame] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [requoteNote, setRequoteNote] = useState("");
+
+  // Company search dropdown state
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [filteredCompanies, setFilteredCompanies] = useState([]);
+
+  // Items state
+  const [items, setItems] = useState(() => []);
+
+  // Stock items for autocomplete
+  const [stockItems, setStockItems] = useState([]);
+  const [loadingStock, setLoadingStock] = useState(false);
+  const [stockError, setStockError] = useState(null);
+  
+  // Popup modal states for item selection
+  const [showItemPopup, setShowItemPopup] = useState(false);
+  const [itemSearchTerm, setItemSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showResults, setShowResults] = useState(false);
+  const [selectedStockItem, setSelectedStockItem] = useState(null);
+  const [newItemCutWidth, setNewItemCutWidth] = useState("");
+  const [newItemLength, setNewItemLength] = useState("");
+  const [newItemCount, setNewItemCount] = useState("1");
+  const [newItemQuantity, setNewItemQuantity] = useState("1");
+  const [newItemBatchCode, setNewItemBatchCode] = useState("");
+  const [availableBatchCodes, setAvailableBatchCodes] = useState([]);
+  const [newItemDiscount, setNewItemDiscount] = useState("0");
+  const [newItemDiscountType, setNewItemDiscountType] = useState("amount");
+  const [newItemPackingCharges, setNewItemPackingCharges] = useState("0");
+  const [newItemOtherCharges, setNewItemOtherCharges] = useState("0");
+  const [newItemCustomerDescription, setNewItemCustomerDescription] = useState("");
+  const [newItemSupplierPartNo, setNewItemSupplierPartNo] = useState("");
+  const [newItemBrandCode, setNewItemBrandCode] = useState("");
+
+  // View quotation modal state
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState(null);
+
+  // Modal states for multi-step flow
+  const [showCompanyModal, setShowCompanyModal] = useState(false);
+  const [showItemsModal, setShowItemsModal] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
+  // Saved quotations state
+  const [savedQuotations, setSavedQuotations] = useState([]);
+  const [loadingQuotations, setLoadingQuotations] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Statistics
+  const [statistics, setStatistics] = useState(null);
+
+  // Stock cache for buy prices
+  const [stockCache, setStockCache] = useState({});
+
+  // DOM ref for quotation content
+  const quotationRef = useRef(null);
+
+  // API base URL
+  const API_BASE_URL = "http://127.0.0.1:5000";
+
+  // Helper functions for extracting data from description
+  const extractBrandCode = (description) => {
+    if (!description) return "";
     try {
-      setLoading(true);
-      const res = await axios.get(API_QUOTATIONS, {
-        params: { status, page, per_page: perPage },
-      });
-
-      if (res.data.success) {
-        setQuotations(res.data.data);
-        setPagination(res.data.pagination);
+      if (description.includes('[BRAND_CODE:')) {
+        const match = description.match(/\[BRAND_CODE:(.*?)\]/);
+        return match ? match[1] : "";
       }
-      setLoading(false);
-    } catch (err) {
-      setLoading(false);
-      toast.error("Error loading quotations");
+    } catch (e) {
+      console.error("Error extracting brand code:", e);
+    }
+    return "";
+  };
+
+  const extractCustomerDescription = (description) => {
+    if (!description) return "";
+    try {
+      if (description.includes('[CUSTOMER_DESC:')) {
+        const match = description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+        return match ? match[1] : "";
+      }
+    } catch (e) {
+      console.error("Error extracting customer description:", e);
+    }
+    return "";
+  };
+
+  const cleanDescription = (description) => {
+    if (!description) return "";
+    try {
+      return description
+        .replace(/\[BRAND_CODE:.*?\]/g, '')
+        .replace(/\[CUSTOMER_DESC:.*?\]/g, '')
+        .trim();
+    } catch (e) {
+      console.error("Error cleaning description:", e);
+      return description;
     }
   };
 
-  // Search quotations
-  const handleSearch = async () => {
-    if (search.trim() === "") {
-      loadQuotations();
+  // Fetch bulk buy prices
+  const fetchBulkBuyPrices = async (brandCodes) => {
+    if (!brandCodes || brandCodes.length === 0) return {};
+    
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/stock/bulk-buy-prices`, {
+        brand_codes: brandCodes
+      });
+      
+      if (response.data.success) {
+        const priceMap = {};
+        response.data.data.forEach(item => {
+          priceMap[item.brand_code] = parseFloat(item.buy_price) || 0;
+        });
+        
+        // Update cache
+        setStockCache(prev => ({ ...prev, ...priceMap }));
+        
+        return priceMap;
+      }
+    } catch (err) {
+      console.error("Error fetching bulk buy prices:", err);
+    }
+    return {};
+  };
+
+  // Fetch saved quotations from backend on component mount
+  useEffect(() => {
+    fetchQuotations();
+    fetchStatistics();
+  }, [currentPage, searchTerm]);
+
+  // Fetch statistics
+  const fetchStatistics = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`);
+      if (response.data.success) {
+        setStatistics(response.data.data);
+      }
+    } catch (err) {
+      console.error("Error loading statistics:", err);
+    }
+  };
+
+  // Fetch saved quotations with pagination
+  const fetchQuotations = async () => {
+    setLoadingQuotations(true);
+    try {
+      const params = {
+        page: currentPage,
+        per_page: itemsPerPage
+      };
+      
+      if (searchTerm.trim()) {
+        params.q = searchTerm.trim();
+      }
+      
+      const response = await axios.get(`${API_BASE_URL}/api/quotations`, {
+        params
+      });
+      
+      if (response.data.success) {
+        const fetchedQuotations = response.data.data || [];
+        const pagination = response.data.pagination || {};
+        
+        // Extract all unique brand codes for buy price lookup
+        const allBrandCodes = [];
+        fetchedQuotations.forEach(quotation => {
+          (quotation.items || []).forEach(item => {
+            const brandCode = extractBrandCode(item.description || "");
+            if (brandCode) {
+              allBrandCodes.push(brandCode);
+            }
+          });
+        });
+        
+        // Fetch buy prices in bulk for all brand codes
+        const buyPriceMap = await fetchBulkBuyPrices([...new Set(allBrandCodes)]);
+        
+        // Transform quotations with buy prices
+        const transformedQuotations = fetchedQuotations.map(quotation => {
+          const transformedItems = (quotation.items || []).map(item => {
+            const brandCode = extractBrandCode(item.description || "");
+            const customerDescription = extractCustomerDescription(item.description || "");
+            const cleanDesc = cleanDescription(item.description || "");
+            
+            const buyPrice = brandCode ? (buyPriceMap[brandCode] || 0) : 0;
+            
+            return {
+              ...item,
+              brand_code: brandCode || "",
+              customer_description: customerDescription || "",
+              description: cleanDesc,
+              buy_price: buyPrice,
+              count: item.count || 1,
+              packing_charges: item.packing_charges || 0,
+              other_charges: item.other_charges || 0
+            };
+          });
+          
+          return {
+            ...quotation,
+            items: transformedItems
+          };
+        });
+        
+        setSavedQuotations(transformedQuotations);
+        setTotalItems(pagination.total || fetchedQuotations.length);
+        setTotalPages(pagination.pages || Math.ceil((pagination.total || fetchedQuotations.length) / itemsPerPage) || 1);
+      } else {
+        throw new Error(response.data.message || "API response unsuccessful");
+      }
+    } catch (err) {
+      console.error("Error loading quotations from API:", err);
+      loadFromLocalStorage();
+    } finally {
+      setLoadingQuotations(false);
+    }
+  };
+
+  // Load from localStorage with pagination
+  const loadFromLocalStorage = () => {
+    const saved = localStorage.getItem("savedQuotations");
+    if (saved) {
+      try {
+        const allQuotations = JSON.parse(saved);
+        
+        allQuotations.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.date || 0);
+          const dateB = new Date(b.createdAt || b.date || 0);
+          return dateB - dateA;
+        });
+        
+        let filteredData = allQuotations;
+        if (searchTerm.trim()) {
+          const term = searchTerm.toLowerCase();
+          filteredData = allQuotations.filter(quote => {
+            const quoteNo = (quote.quote_number || quote.quoteNo || "").toLowerCase();
+            const companyName = (quote.company_name || quote.billTo || "").toLowerCase();
+            const contactPersonName = (quote.contact_person || quote.contactPerson || "").toLowerCase();
+            const contactEmail = (quote.contact_email || quote.contactEmail || "").toLowerCase();
+            
+            return quoteNo.includes(term) ||
+                   companyName.includes(term) ||
+                   contactPersonName.includes(term) ||
+                   contactEmail.includes(term);
+          });
+        }
+        
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedData = filteredData.slice(startIndex, endIndex);
+        
+        setSavedQuotations(paginatedData);
+        setTotalItems(filteredData.length);
+        setTotalPages(Math.ceil(filteredData.length / itemsPerPage));
+      } catch (e) {
+        console.error("Error loading from localStorage:", e);
+        setSavedQuotations([]);
+        setTotalItems(0);
+        setTotalPages(1);
+      }
+    } else {
+      setSavedQuotations([]);
+      setTotalItems(0);
+      setTotalPages(1);
+    }
+  };
+
+  // Reset search function
+  const resetSearch = () => {
+    setSearchTerm("");
+    setCurrentPage(1);
+  };
+
+  // Handle page change
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
+  // Generate pagination items
+  const getPaginationItems = () => {
+    const items = [];
+    const maxVisiblePages = 5;
+    
+    if (totalPages <= maxVisiblePages) {
+      for (let i = 1; i <= totalPages; i++) {
+        items.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) items.push(i);
+        items.push("...");
+        items.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        items.push(1);
+        items.push("...");
+        for (let i = totalPages - 3; i <= totalPages; i++) items.push(i);
+      } else {
+        items.push(1);
+        items.push("...");
+        items.push(currentPage - 1);
+        items.push(currentPage);
+        items.push(currentPage + 1);
+        items.push("...");
+        items.push(totalPages);
+      }
+    }
+    
+    return items;
+  };
+
+  // Fetch companies when company modal opens
+  useEffect(() => {
+    if (!showCompanyModal) return;
+    
+    const fetchCompanies = async () => {
+      setLoadingCompanies(true);
+      setCompanyError(null);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/company`, {
+          timeout: 5000,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        let companiesData = [];
+        
+        if (Array.isArray(response.data)) {
+          companiesData = response.data;
+        } else if (response.data && typeof response.data === 'object') {
+          if (Array.isArray(response.data.data)) {
+            companiesData = response.data.data;
+          } else if (response.data.companies) {
+            companiesData = response.data.companies;
+          } else {
+            companiesData = Object.values(response.data);
+          }
+        }
+        
+        if (companiesData.length > 0) {
+          setCompanies(companiesData);
+          setCompanyError(null);
+        } else {
+          setCompanies([]);
+          setCompanyError("No companies found in database.");
+        }
+        
+      } catch (err) {
+        console.error("Fetch companies failed:", err);
+        
+        const mockCompanies = [
+          {
+            id: 1,
+            company_name: "ABC Corporation",
+            company_address: "123 Main St, Chennai",
+            gstin: "33AAAAA0000A1Z5",
+            customer_name: "John Doe",
+            customer_mobile: "9876543210",
+            customer_email: "john@abccorp.com"
+          }
+        ];
+        
+        setCompanies(mockCompanies);
+        setCompanyError("Using mock data. API Error: " + (err.message || "Connection failed"));
+      } finally {
+        setLoadingCompanies(false);
+      }
+    };
+    
+    fetchCompanies();
+  }, [showCompanyModal]);
+
+  // Fetch stock items when items modal opens
+  useEffect(() => {
+    if (!showItemsModal) return;
+    
+    const fetchStockItems = async () => {
+      setLoadingStock(true);
+      setStockError(null);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/stock/all`, {
+          timeout: 5000,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        let stockData = [];
+        
+        if (response.data.success && Array.isArray(response.data.data)) {
+          stockData = response.data.data;
+        } else if (Array.isArray(response.data)) {
+          stockData = response.data;
+        }
+        
+        const uniqueStockData = Array.from(
+          new Map(stockData.map(item => [item["Brand Code"], item])).values()
+        );
+        
+        setStockItems(uniqueStockData);
+        
+        if (uniqueStockData.length === 0) {
+          const mockStock = [
+            {
+              "id": 1,
+              "Item Name": "Premium Cutter Blade",
+              "Brand": "Bosch",
+              "Brand Code": "BOS-PCB-001",
+              "Brand Description": "High precision cutting blade for metal",
+              "HSN": "84659310",
+              "Batch Code": "BATCH-2024-001",
+              "MRP": 1250.00,
+              "Buy Price": 850.00,
+              "Width": 10,
+              "Length": 200,
+              "Unit": "pcs",
+              "GST": 18.0
+            }
+          ];
+          
+          setStockItems(mockStock);
+          setStockError("Using mock stock data. Real API failed.");
+        }
+        
+      } catch (err) {
+        console.error("Fetch stock failed:", err);
+        
+        const mockStock = [
+          {
+            "id": 1,
+            "Item Name": "Premium Cutter Blade",
+            "Brand": "Bosch",
+            "Brand Code": "BOS-PCB-001",
+            "Brand Description": "High precision cutting blade for metal",
+            "HSN": "84659310",
+            "Batch Code": "BATCH-2024-001",
+            "MRP": 1250.00,
+            "Buy Price": 850.00,
+            "Width": 10,
+            "Length": 200,
+            "Unit": "pcs",
+            "GST": 18.0
+          }
+        ];
+        
+        setStockItems(mockStock);
+        setStockError("Using mock stock data. API Error: " + (err.message || "Connection failed"));
+      } finally {
+        setLoadingStock(false);
+      }
+    };
+    
+    fetchStockItems();
+  }, [showItemsModal]);
+
+  // Handle bill to search (company name search)
+  const handleBillToSearch = (searchTerm) => {
+    setBillTo(searchTerm);
+    
+    if (searchTerm.trim() === "") {
+      setFilteredCompanies([]);
+      setShowCompanyDropdown(false);
       return;
     }
-    try {
-      const res = await axios.get(`${API_QUOTATIONS}/search?q=${search}`);
-      if (res.data.success) {
-        setQuotations(res.data.data);
-        setPagination({});
-      }
-    } catch (err) {
-      toast.error("Search failed");
-    }
-  };
-
-  // Delete
-  const deleteQuotation = async (id) => {
-    if (!window.confirm("Delete this quotation?")) return;
-
-    try {
-      const res = await axios.delete(`${API_QUOTATIONS}/${id}`);
-      if (res.data.success) {
-        toast.success("Deleted successfully");
-        loadQuotations();
-      }
-    } catch (err) {
-      toast.error("Delete failed");
-    }
-  };
-
-  // View quotation
-  const viewQuotation = async (id) => {
-    try {
-      const res = await axios.get(`${API_QUOTATIONS}/${id}`);
-      if (res.data.success) {
-        setViewData(res.data.data);
-
-        // load current item statuses
-        const itemState = {};
-        res.data.data.items.forEach((it) => {
-          itemState[it.id] = it.item_status === "approved";
-        });
-
-        setItemStatuses(itemState);
-
-        setReviewStatus(res.data.data.review_status || "No");
-      }
-    } catch (err) {
-      toast.error("Unable to load details");
-    }
-  };
-
-  // Save updates
-  const saveUpdates = async () => {
-    try {
-      const payload = {
-        review_status: reviewStatus,
-        items: Object.keys(itemStatuses).map((id) => ({
-          id,
-          item_status: itemStatuses[id] ? "approved" : "pending",
-        })),
-        updated_by: userName,
-      };
-
-      const res = await axios.put(
-        `${API_QUOTATIONS}/${viewData.id}/review`,
-        payload
+    
+    const term = searchTerm.toLowerCase();
+    const results = companies.filter(company => {
+      const companyName = (company.company_name || company.companyName || "").toLowerCase();
+      const customerName = (company.customer_name || company.customerName || "").toLowerCase();
+      const customerMobile = (company.customer_mobile || company.customerMobile || "").toString().toLowerCase();
+      const companyGst = (company.gstin || company.gst_no || "").toLowerCase();
+      const companyAddress = (company.company_address || company.companyAddress || "").toLowerCase();
+      
+      return (
+        companyName.includes(term) ||
+        customerName.includes(term) ||
+        customerMobile.includes(term) ||
+        companyGst.includes(term) ||
+        companyAddress.includes(term)
       );
+    }).slice(0, 5);
+    
+    setFilteredCompanies(results);
+    setShowCompanyDropdown(results.length > 0);
+  };
 
-      if (res.data.success) {
-        toast.success("Quotation updated!");
-        setViewData(null);
-        loadQuotations();
+  // Handle contact mobile number input - lookup company details
+  const handleContactMobChange = (mobile) => {
+    setContactMob(mobile);
+    
+    if (mobile.length >= 10) {
+      const foundCompany = companies.find(company => {
+        const customerMobile = (company.customer_mobile || company.customerMobile || "").toString();
+        return customerMobile.includes(mobile) || mobile.includes(customerMobile);
+      });
+      
+      if (foundCompany) {
+        selectCompanyFromSearch(foundCompany);
       }
-    } catch (err) {
-      toast.error("Update failed");
     }
   };
 
+  // Select company from search results
+  const selectCompanyFromSearch = (company) => {
+    const companyId = company.id || company.ID || company.company_id || "";
+    const companyName = company.company_name || company.companyName || "";
+    const companyAddr = company.company_address || company.companyAddress || "";
+    const companyGst = company.gstin || company.gst_no || company.company_gstin || "";
+    const customerName = company.customer_name || company.customerName || company.contact_person || "";
+    const customerMobile = company.customer_mobile || company.customerMobile || company.contact_mobile || "";
+    const customerEmail = company.customer_email || company.customerEmail || company.contact_email || "";
+    
+    setSelectedCompanyId(companyId.toString());
+    setSelectedCompany(company);
+    setBillTo(companyName);
+    setCompanyAddress(companyAddr);
+    setCompanyGstin(companyGst);
+    setContactPerson(customerName);
+    setContactMob(customerMobile);
+    if (!contactEmailSame) {
+      setContactEmail(customerEmail);
+    }
+    
+    setShowCompanyDropdown(false);
+    setFilteredCompanies([]);
+  };
+
+  // When company selected from dropdown, autofill data
   useEffect(() => {
-    loadQuotations();
-  }, [status, page]);
+    if (!selectedCompanyId) return;
+    
+    const company = companies.find(c => {
+      const id = c.id || c.ID || c.company_id;
+      return id && id.toString() === selectedCompanyId.toString();
+    });
+    
+    if (!company) return;
+    
+    setSelectedCompany(company);
+    const companyName = company.company_name || company.companyName || "";
+    const companyAddr = company.company_address || company.companyAddress || "";
+    const companyGst = company.gstin || company.gst_no || "";
+    const customerName = company.customer_name || company.customerName || "";
+    const customerMobile = company.customer_mobile || company.customerMobile || "";
+    const customerEmail = company.customer_email || company.customerEmail || "";
+    
+    setBillTo(companyName);
+    setCompanyAddress(companyAddr);
+    setCompanyGstin(companyGst);
+    setContactPerson(customerName);
+    setContactMob(customerMobile);
+    if (!contactEmailSame) {
+      setContactEmail(customerEmail);
+    }
+    
+  }, [selectedCompanyId, companies, contactEmailSame]);
 
-  return (
-    <div className="container py-3">
-      <ToastContainer />
-      <h3 className="mb-3">Quotation Report</h3>
+  // Handle contact email same toggle
+  useEffect(() => {
+    if (contactEmailSame) {
+      setContactEmail(issuer.email);
+    }
+  }, [contactEmailSame]);
 
-      {/* Filters */}
-      <div className="row g-3 mb-3">
-        <div className="col-md-3">
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Search company / quote / item..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          />
-        </div>
+  // ============================================
+  // EDIT QUOTATION FUNCTIONS
+  // ============================================
+  
+  // Start editing a quotation
+  const startEditQuotation = async (quotation) => {
+    setActionMode('edit');
+    setCurrentQuotationId(quotation.id);
+    
+    // Extract brand codes from items for buy price lookup
+    const brandCodes = [];
+    (quotation.items || []).forEach(item => {
+      const brandCode = extractBrandCode(item.description || "");
+      if (brandCode) {
+        brandCodes.push(brandCode);
+      }
+    });
+    
+    // Fetch buy prices in bulk for brand codes
+    const buyPriceMap = await fetchBulkBuyPrices([...new Set(brandCodes)]);
+    
+    // Load quotation data into form
+    setQuoteNo(quotation.quote_number || quotation.quoteNo || "");
+    setSelectedCompanyId(quotation.company_id || "");
+    setBillTo(quotation.company_name || quotation.billTo || "");
+    setCompanyAddress(quotation.company_address || "");
+    setCompanyGstin(quotation.company_gstin || "");
+    setContactPerson(quotation.contact_person || quotation.contactPerson || "");
+    setContactMob(quotation.contact_mobile || quotation.contactMob || "");
+    setContactEmail(quotation.contact_email || quotation.contactEmail || "");
+    setNotes(quotation.notes || "");
+    setRequoteNote(quotation.requote_note || "");
+    
+    // Load items with extracted data and buy prices
+    const loadedItems = (quotation.items || []).map(item => {
+      const brandCode = extractBrandCode(item.description || "");
+      const customerDescription = extractCustomerDescription(item.description || "");
+      const cleanDesc = cleanDescription(item.description || "");
+      
+      const buyPrice = brandCode ? (buyPriceMap[brandCode] || 0) : 0;
+      
+      return {
+        ...item,
+        id: item.id || Date.now() + Math.random(),
+        brand_code: brandCode || "",
+        customer_description: customerDescription || "",
+        description: cleanDesc,
+        buy_price: buyPrice,
+        count: item.count || 1,
+        packing_charges: item.packing_charges || 0,
+        other_charges: item.other_charges || 0
+      };
+    });
+    setItems(loadedItems);
+    
+    // Start with company modal
+    setShowCompanyModal(true);
+  };
 
-        <div className="col-md-2">
-          <button className="btn btn-primary w-100" onClick={handleSearch}>
-            <FaSearch /> Search
-          </button>
-        </div>
+  // UPDATED: Create re-quote - SIMPLE UPDATE, NOT CREATE NEW
+  const startCreateReQuote = async (quotation) => {
+    try {
+      // Ask for re-quote note
+      const requoteNote = prompt(
+        "Enter re-quote reason:",
+        `Re-quote created on ${new Date().toLocaleDateString()}`
+      );
+      
+      if (!requoteNote) {
+        alert("Re-quote cancelled!");
+        return;
+      }
+      
+      // Generate new quote number with -R suffix
+      const originalQuoteNumber = quotation.quote_number || quotation.quoteNo || "";
+      let newQuoteNumber = "";
+      
+      if (originalQuoteNumber.includes('-R')) {
+        const parts = originalQuoteNumber.split('-R');
+        if (parts.length > 1) {
+          const base = parts[0];
+          const currentCount = parseInt(parts[1]) || 0;
+          newQuoteNumber = `${base}-R${currentCount + 1}`;
+        } else {
+          newQuoteNumber = `${originalQuoteNumber}-R1`;
+        }
+      } else {
+        newQuoteNumber = `${originalQuoteNumber}-R1`;
+      }
+      
+      // Prepare update data
+      const updateData = {
+        quote_number: newQuoteNumber,
+        requote_note: requoteNote,
+        status: "requote",
+        updated_by: "User"
+      };
+      
+      // Update existing quotation (not create new)
+      const response = await axios.put(`${API_BASE_URL}/api/quotations/${quotation.id}`, updateData, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data.success) {
+        alert(`✅ Quotation updated to re-quote!\nNew Quote Number: ${newQuoteNumber}`);
+        await fetchQuotations();
+        await fetchStatistics();
+      } else {
+        throw new Error(response.data.message || "Failed to update quotation");
+      }
+      
+    } catch (error) {
+      console.error("Error creating re-quote:", error);
+      alert("Failed to create re-quote. Please try again.");
+    }
+  };
 
-        <div className="col-md-3">
-          <select
-            className="form-select"
-            value={status}
-            onChange={(e) => {
-              setPage(1);
-              setStatus(e.target.value);
-            }}
-          >
-            <option value="">All Status</option>
-            <option value="draft">Draft</option>
-            <option value="sent">Sent</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
-            <option value="paid">Paid</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-        </div>
-      </div>
+  // Create new quotation
+  const startNewQuotation = () => {
+    setActionMode('create');
+    setCurrentQuotationId(null);
+    
+    // Reset form
+    setItems([]);
+    setSelectedCompanyId("");
+    setSelectedCompany(null);
+    setBillTo("");
+    setCompanyAddress("");
+    setCompanyGstin("");
+    setContactPerson("");
+    setContactMob("");
+    setContactEmail("");
+    setContactEmailSame(false);
+    setNotes("");
+    setRequoteNote("");
+    
+    // Reset search states
+    setFilteredCompanies([]);
+    setShowCompanyDropdown(false);
+    
+    // Reset item popup states
+    setShowItemPopup(false);
+    setItemSearchTerm("");
+    setSearchResults([]);
+    setShowResults(false);
+    setSelectedStockItem(null);
+    setNewItemCutWidth("");
+    setNewItemLength("");
+    setNewItemCount("1");
+    setNewItemQuantity("1");
+    setNewItemBatchCode("");
+    setAvailableBatchCodes([]);
+    setNewItemDiscount("0");
+    setNewItemDiscountType("amount");
+    setNewItemPackingCharges("0");
+    setNewItemOtherCharges("0");
+    setNewItemCustomerDescription("");
+    setNewItemSupplierPartNo("");
+    setNewItemBrandCode("");
+    
+    // Generate new quote number
+    setQuoteNo(`Q-${Date.now().toString().slice(-8)}`);
+    
+    // Start with company modal
+    setShowCompanyModal(true);
+  };
 
-      {/* Table */}
-      <div className="table-responsive">
-        <table className="table table-bordered table-hover">
-          <thead className="table-dark">
-            <tr>
-              <th>#</th>
-              <th>Quote No</th>
-              <th>Company</th>
-              <th>Contact</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th>Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
+  // Handle item field changes
+  function handleItemChange(index, field, value) {
+    setItems(prevItems => {
+      const updatedItems = [...prevItems];
+      let newValue = value;
+      
+      // Handle number fields
+      if (["cut_width", "length", "count", "mrp", "buy_price", "quantity", "discount", "tax_rate", "packing_charges", "other_charges"].includes(field)) {
+        newValue = parseFloat(value) || 0;
+      }
+      
+      updatedItems[index] = {
+        ...updatedItems[index],
+        [field]: newValue
+      };
+      
+      // Auto-calculate quantity when count, width, or length changes
+      if (["cut_width", "length", "count"].includes(field)) {
+        const width = updatedItems[index].cut_width || 1;
+        const length = updatedItems[index].length || 1;
+        const count = updatedItems[index].count || 1;
+        updatedItems[index].quantity = width * length * count;
+      }
+      
+      return updatedItems;
+    });
+  }
 
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan="8" className="text-center">
-                  Loading...
-                </td>
-              </tr>
-            ) : quotations.length === 0 ? (
-              <tr>
-                <td colSpan="8" className="text-center">
-                  No quotations found
-                </td>
-              </tr>
-            ) : (
-              quotations.map((q, idx) => (
-                <tr key={q.id}>
-                  <td>{(page - 1) * perPage + idx + 1}</td>
-                  <td>{q.quote_number}</td>
-                  <td>{q.company_name}</td>
-                  <td>{q.contact_mobile}</td>
-                  <td>₹{q.grand_total}</td>
+  // Add new item using popup
+  function addItemViaPopup() {
+    setShowItemPopup(true);
+  }
 
-                  <td>
-                    <span
-                      className={`badge bg-${
-                        q.status === "accepted"
-                          ? "success"
-                          : q.status === "rejected"
-                          ? "danger"
-                          : q.status === "paid"
-                          ? "primary"
-                          : q.status === "sent"
-                          ? "warning"
-                          : "secondary"
-                      }`}
-                    >
-                      {q.status}
-                    </span>
-                  </td>
+  // Remove item
+  function removeItem(index) {
+    setItems(prevItems => prevItems.filter((_, i) => i !== index));
+  }
 
-                  <td>{q.date}</td>
+  // Calculate price per unit (MRP × Cut Width)
+  const pricePerUnit = (item) => {
+    const mrp = parseFloat(item.mrp) || 0;
+    const cut_width = parseFloat(item.cut_width) || 0;
+    const price = mrp * cut_width;
+    return parseFloat(price.toFixed(2)) || 0;
+  };
 
-                  <td>
-                    <button
-                      className="btn btn-sm btn-info me-2"
-                      onClick={() => viewQuotation(q.id)}
-                    >
-                      <FaEye />
-                    </button>
+  // Calculate amount before discount
+  const amountBeforeDiscount = (item) => {
+    const price = pricePerUnit(item);
+    const quantity = parseFloat(item.quantity) || 0;
+    const amount = price * quantity;
+    return parseFloat(amount.toFixed(2)) || 0;
+  };
 
-                    <button
-                      className="btn btn-sm btn-warning me-2"
-                      onClick={() =>
-                        (window.location.href = `/edit-quotation/${q.id}`)
-                      }
-                    >
-                      <FaEdit />
-                    </button>
+  // Calculate discount amount
+  const discountAmount = (item) => {
+    const amount = amountBeforeDiscount(item);
+    const discount = parseFloat(item.discount) || 0;
+    
+    if (item.discount_type === "percentage") {
+      return parseFloat((amount * discount / 100).toFixed(2));
+    } else {
+      return parseFloat(discount.toFixed(2));
+    }
+  };
 
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => deleteQuotation(q.id)}
-                    >
-                      <FaTrash />
-                    </button>
-                  </td>
+  // Calculate amount after discount
+  const amountAfterDiscount = (item) => {
+    const amount = amountBeforeDiscount(item);
+    const discount = discountAmount(item);
+    const finalAmount = amount - discount;
+    return parseFloat(finalAmount.toFixed(2)) || 0;
+  };
+
+  // Calculate GST amount (18% of amount after discount + packing + other charges)
+  const gstAmount = (item) => {
+    const amount = amountAfterDiscount(item);
+    const packing = parseFloat(item.packing_charges) || 0;
+    const other = parseFloat(item.other_charges) || 0;
+    const taxableAmount = amount + packing + other;
+    const tax_rate = parseFloat(item.tax_rate) || 18.0;
+    const gst = taxableAmount * (tax_rate / 100);
+    return parseFloat(gst.toFixed(2));
+  };
+
+  // Calculate item total
+  const itemTotal = (item) => {
+    const amount = amountAfterDiscount(item);
+    const packing = parseFloat(item.packing_charges) || 0;
+    const other = parseFloat(item.other_charges) || 0;
+    const gst = gstAmount(item);
+    return parseFloat((amount + packing + other + gst).toFixed(2));
+  };
+
+  // NEW: Calculate profit per item
+  const calculateProfitPerItem = (item) => {
+    const sellingPrice = amountAfterDiscount(item);
+    const buyPrice = parseFloat(item.buy_price) || 0;
+    const quantity = parseFloat(item.quantity) || 1;
+    const profitPerUnit = sellingPrice - (buyPrice * quantity);
+    return parseFloat(profitPerUnit.toFixed(2));
+  };
+
+  // NEW: Calculate profit margin percentage
+  const calculateProfitMargin = (item) => {
+    const sellingPrice = amountAfterDiscount(item);
+    const buyPrice = parseFloat(item.buy_price) || 0;
+    const quantity = parseFloat(item.quantity) || 1;
+    const totalBuyCost = buyPrice * quantity;
+    
+    if (totalBuyCost === 0) return 0;
+    
+    const profit = sellingPrice - totalBuyCost;
+    const margin = (profit / totalBuyCost) * 100;
+    return parseFloat(margin.toFixed(2));
+  };
+
+  // NEW: Calculate total profit for all items
+  const calculateTotalProfit = () => {
+    return items.reduce((total, item) => {
+      return total + calculateProfitPerItem(item);
+    }, 0);
+  };
+
+  // Calculate all totals
+  const calculateTotals = () => {
+    const subtotal = items.reduce((sum, item) => sum + amountBeforeDiscount(item), 0);
+    const totalDiscount = items.reduce((sum, item) => sum + discountAmount(item), 0);
+    const totalPacking = items.reduce((sum, item) => sum + (parseFloat(item.packing_charges) || 0), 0);
+    const totalOther = items.reduce((sum, item) => sum + (parseFloat(item.other_charges) || 0), 0);
+    const totalGST = items.reduce((sum, item) => sum + gstAmount(item), 0);
+    const grandTotal = items.reduce((sum, item) => sum + itemTotal(item), 0);
+    const totalProfit = calculateTotalProfit();
+    const totalBuyCost = items.reduce((sum, item) => {
+      const buyPrice = parseFloat(item.buy_price) || 0;
+      const quantity = parseFloat(item.quantity) || 0;
+      return sum + (buyPrice * quantity);
+    }, 0);
+    
+    return {
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      totalDiscount: parseFloat(totalDiscount.toFixed(2)),
+      totalPacking: parseFloat(totalPacking.toFixed(2)),
+      totalOther: parseFloat(totalOther.toFixed(2)),
+      totalGST: parseFloat(totalGST.toFixed(2)),
+      grandTotal: parseFloat(grandTotal.toFixed(2)),
+      totalProfit: parseFloat(totalProfit.toFixed(2)),
+      totalBuyCost: parseFloat(totalBuyCost.toFixed(2)),
+      profitMargin: totalBuyCost > 0 ? parseFloat(((totalProfit / totalBuyCost) * 100).toFixed(2)) : 0
+    };
+  };
+
+  // Export to PDF
+  async function exportPdf() {
+    if (!quotationRef.current) {
+      alert("Quotation content not found!");
+      return;
+    }
+    
+    try {
+      const element = quotationRef.current;
+      const canvas = await html2canvas(element, { 
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff"
+      });
+      
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${quoteNo}.pdf`);
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      alert("Failed to export PDF. See console for details.");
+    }
+  }
+
+  // Save or Update quotation to backend
+  async function saveOrUpdateQuotation() {
+    if (!selectedCompanyId) {
+      alert("Please select a company first!");
+      return;
+    }
+    
+    if (!billTo.trim()) {
+      alert("Please enter Bill To information!");
+      return;
+    }
+    
+    if (items.length === 0) {
+      alert("Please add at least one item!");
+      return;
+    }
+    
+    const isUpdate = actionMode === 'edit' && currentQuotationId;
+    
+    if (isUpdate) {
+      setUpdating(true);
+    } else {
+      setSaving(true);
+    }
+    
+    const totals = calculateTotals();
+    
+    // Prepare items with calculated fields
+    const preparedItems = items.map(item => {
+      // Combine brand_code and customer_description into the description field
+      const enhancedDescription = [
+        item.description || "",
+        item.customer_description ? `[CUSTOMER_DESC:${item.customer_description}]` : "",
+        item.brand_code ? `[BRAND_CODE:${item.brand_code}]` : ""
+      ]
+        .filter(part => part.trim() !== "")
+        .join(" ");
+      
+      return {
+        item_name: item.item_name,
+        hsn_sac: item.hsn_sac,
+        supplier_part_no: item.supplier_part_no || item.brand_code || "",
+        description: enhancedDescription,
+        cut_width: item.cut_width,
+        length: item.length,
+        batch_no: item.batch_no,
+        mrp: item.mrp,
+        buy_price: item.buy_price || 0,
+        quantity: item.quantity,
+        unit: item.unit,
+        discount: item.discount,
+        discount_type: item.discount_type,
+        tax_rate: item.tax_rate,
+        price_per_unit: pricePerUnit(item),
+        amount_before_discount: amountBeforeDiscount(item),
+        discount_amount: discountAmount(item),
+        amount_after_discount: amountAfterDiscount(item),
+        tax_amount: gstAmount(item),
+        item_total: itemTotal(item)
+      };
+    });
+    
+    const quotationData = {
+      quote_number: quoteNo,
+      date: date,
+      time: time,
+      issuer_details: issuer,
+      company_id: selectedCompanyId,
+      company_name: billTo,
+      company_address: companyAddress,
+      company_gstin: companyGstin,
+      contact_person: contactPerson,
+      contact_mobile: contactMob,
+      contact_email: contactEmail,
+      subtotal: totals.subtotal,
+      total_discount: totals.totalDiscount,
+      total_tax: totals.totalGST,
+      grand_total: totals.grandTotal,
+      notes: notes || `Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`,
+      requote_note: requoteNote,
+      status: actionMode === 'edit' ? "draft" : "draft",
+      items: preparedItems,
+      created_by: "User",
+      updated_by: "User"
+    };
+    
+    try {
+      if (isUpdate) {
+        // Update existing quotation
+        const response = await axios.put(`${API_BASE_URL}/api/quotations/${currentQuotationId}`, quotationData, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.data.success) {
+          alert(`✅ Quotation updated successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nTotal Profit: ₹${totals.totalProfit}`);
+          
+          // Refresh quotations list
+          await fetchQuotations();
+          await fetchStatistics();
+          
+          // Close all modals
+          setShowPreviewModal(false);
+          setShowCompanyModal(false);
+          setShowItemsModal(false);
+          setActionMode('view');
+        } else {
+          throw new Error(response.data.message || "Failed to update quotation");
+        }
+      } else {
+        // Create new quotation
+        const response = await axios.post(`${API_BASE_URL}/api/quotations`, quotationData, {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.data.success) {
+          const message = 'Quotation saved successfully!';
+          alert(`✅ ${message}\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nTotal Profit: ₹${totals.totalProfit}`);
+          
+          // Refresh quotations list
+          await fetchQuotations();
+          await fetchStatistics();
+          
+          // Close all modals
+          setShowPreviewModal(false);
+          setShowCompanyModal(false);
+          setShowItemsModal(false);
+          setActionMode('view');
+        } else {
+          throw new Error(response.data.message || 'Failed to save quotation');
+        }
+      }
+      
+    } catch (err) {
+      console.error("Save/Update quotation failed:", err);
+      
+      // Save to localStorage as fallback
+      const quotationToSave = {
+        ...quotationData,
+        id: isUpdate ? currentQuotationId : Date.now(),
+        quoteNo: quoteNo,
+        billTo: billTo,
+        contactPerson: contactPerson,
+        contactMob: contactMob,
+        contactEmail: contactEmail,
+        totals: totals,
+        items: items.map(item => ({
+          ...item,
+          price_per_unit: pricePerUnit(item),
+          amount_before_discount: amountBeforeDiscount(item),
+          discount_amount: discountAmount(item),
+          amount_after_discount: amountAfterDiscount(item),
+          tax_amount: gstAmount(item),
+          item_total: itemTotal(item)
+        }))
+      };
+      
+      const saved = localStorage.getItem("savedQuotations");
+      const existingQuotations = saved ? JSON.parse(saved) : [];
+      
+      if (isUpdate) {
+        // Update existing
+        const updatedQuotations = existingQuotations.map(q => 
+          q.id === currentQuotationId ? quotationToSave : q
+        );
+        localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
+      } else {
+        // Add new
+        const updatedQuotations = [quotationToSave, ...existingQuotations];
+        localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
+      }
+      
+      // Update state
+      loadFromLocalStorage();
+      
+      alert(`✅ Quotation ${isUpdate ? 'updated' : 'saved'} to local storage!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nTotal Profit: ₹${totals.totalProfit}\n\nNote: Backend API failed, using local storage.`);
+      
+      setShowPreviewModal(false);
+      setShowCompanyModal(false);
+      setShowItemsModal(false);
+      setActionMode('view');
+    } finally {
+      setSaving(false);
+      setUpdating(false);
+    }
+  }
+
+  // Mark quotation as completed
+  const markAsCompleted = async (quotationId) => {
+    if (window.confirm("Are you sure you want to mark this quotation as completed? This action cannot be undone.")) {
+      try {
+        const response = await axios.patch(`${API_BASE_URL}/api/quotations/${quotationId}/status`, {
+          status: "completed",
+          updated_by: "User"
+        });
+        
+        if (response.data.success) {
+          alert("✅ Quotation marked as completed!");
+          await fetchQuotations();
+          await fetchStatistics();
+        } else {
+          throw new Error(response.data.message || "Failed to update status");
+        }
+      } catch (err) {
+        console.error("Mark as completed failed:", err);
+        alert("Failed to mark as completed. Please try again.");
+      }
+    }
+  };
+
+  // Delete saved quotation
+  async function deleteQuotation(quoteId) {
+    if (window.confirm("Are you sure you want to delete this quotation?")) {
+      try {
+        const response = await axios.delete(`${API_BASE_URL}/api/quotations/${quoteId}`);
+        
+        if (response.data.success) {
+          await fetchQuotations();
+          await fetchStatistics();
+        }
+      } catch (err) {
+        console.error("Delete failed, using localStorage:", err);
+        const saved = localStorage.getItem("savedQuotations");
+        if (saved) {
+          const existingQuotations = JSON.parse(saved);
+          const updatedQuotations = existingQuotations.filter(quote => quote.id !== quoteId);
+          localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
+          loadFromLocalStorage();
+        }
+      }
+    }
+  }
+
+  // View quotation details in modal - FIXED VERSION
+  function viewQuotation(quotation) {
+    console.log("Viewing quotation:", quotation);
+    setSelectedQuotation(quotation);
+    setShowViewModal(true);
+  }
+
+  // Print quotation - UPDATED WITH LOGO
+  function printQuotation(quotation) {
+    const printWindow = window.open('', '_blank');
+    
+    const items = quotation.items || [];
+    const totals = {
+      subtotal: quotation.subtotal || quotation.totals?.subtotal || 0,
+      totalDiscount: quotation.total_discount || quotation.totals?.totalDiscount || 0,
+      totalPacking: quotation.total_packing || quotation.totals?.totalPacking || 0,
+      totalOther: quotation.total_other || quotation.totals?.totalOther || 0,
+      totalGST: quotation.total_tax || quotation.totals?.totalGST || 0,
+      grandTotal: quotation.grand_total || quotation.totals?.grandTotal || 0,
+      totalProfit: calculateTotalProfit(),
+      totalBuyCost: items.reduce((sum, item) => {
+        const buyPrice = parseFloat(item.buy_price) || 0;
+        const quantity = parseFloat(item.quantity) || 0;
+        return sum + (buyPrice * quantity);
+      }, 0)
+    };
+    
+    // Calculate tax summary (group by tax rate)
+    const taxSummary = {};
+    items.forEach(item => {
+      const taxRate = item.tax_rate || 18;
+      const taxAmount = item.tax_amount || gstAmount(item) || 0;
+      if (!taxSummary[taxRate]) {
+        taxSummary[taxRate] = 0;
+      }
+      taxSummary[taxRate] += taxAmount;
+    });
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Quotation ${quotation.quote_number || quotation.quoteNo}</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+        <style>
+          @media print {
+            body { padding: 10px; }
+            .no-print { display: none; }
+            .table { font-size: 11px; }
+            .summary-table { font-size: 11px; }
+          }
+          .invoice-header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
+          .total-row { font-weight: bold; }
+          .table th { background-color: #f8f9fa; font-size: 11px; padding: 5px 8px; }
+          .table td { padding: 5px 8px; font-size: 11px; }
+          .text-primary { color: #0d6efd !important; }
+          .text-danger { color: #dc3545 !important; }
+          .text-success { color: #198754 !important; }
+          .text-warning { color: #ffc107 !important; }
+          .summary-table th, .summary-table td { padding: 3px 5px; }
+          h1 { font-size: 24px; }
+          h2 { font-size: 20px; }
+          h5 { font-size: 14px; }
+          p { font-size: 12px; margin-bottom: 3px; }
+          .container { max-width: 100%; }
+          .company-logo { max-width: 120px; max-height: 120px; object-fit: contain; }
+        </style>
+      </head>
+      <body>
+        <div class="container mt-3">
+          <div class="invoice-header">
+            <div class="row">
+              <div class="col-2">
+                <img src="${companyLogo}" alt="Company Logo" class="company-logo">
+              </div>
+              <div class="col-5">
+                <h1 class="mb-1">${issuer.name}</h1>
+                <p class="mb-1">${issuer.address}</p>
+                <p class="mb-1">Phone: ${issuer.phone} | Email: ${issuer.email}</p>
+                <p class="mb-1">GSTIN: ${issuer.gstin} | State: ${issuer.stateCode}</p>
+              </div>
+              <div class="col-5 text-end">
+                <h2 class="text-primary mb-2">QUOTATION</h2>
+                <p class="mb-1"><strong>Quote No:</strong> ${quotation.quote_number || quotation.quoteNo}</p>
+                <p class="mb-1"><strong>Date:</strong> ${quotation.date || quotation.date}</p>
+                <p class="mb-1"><strong>Time:</strong> ${quotation.time || quotation.time}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="row mb-3">
+            <div class="col-6">
+              <h5>Bill To:</h5>
+              <p class="mb-1"><strong>${quotation.company_name || quotation.billTo}</strong></p>
+              <p class="mb-1">${quotation.company_address || ''}</p>
+              <p class="mb-1">GSTIN: ${quotation.company_gstin || ''}</p>
+            </div>
+            <div class="col-6">
+              <h5>Contact Details:</h5>
+              <p class="mb-1"><strong>${quotation.contact_person || quotation.contactPerson}</strong></p>
+              <p class="mb-1">Phone: ${quotation.contact_mobile || quotation.contactMob}</p>
+              <p class="mb-1">Email: ${quotation.contact_email || quotation.contactEmail}</p>
+            </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table table-bordered table-sm">
+              <thead class="table-light">
+                <tr>
+                  <th>#</th>
+                  <th>Item Name</th>
+                  <th>Brand Code</th>
+                  <th>Cut Width</th>
+                  <th>Cut Length</th>
+                  <th>Count</th>
+                  <th>Supplier Part No</th>
+                  <th>Customer Description</th>
+                  <th>Batch No</th>
+                  <th>HSN</th>
+                  <th>Qty</th>
+                  <th>UoM</th>
+                  <th>MRP</th>
+                  <th>Buy Price</th>
+                  <th>Profit</th>
+                  <th>GST %</th>
+                  <th>Amount</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      {pagination?.pages > 1 && (
-        <div className="d-flex justify-content-between mt-3">
-          <button
-            className="btn btn-secondary"
-            disabled={page === 1}
-            onClick={() => setPage(page - 1)}
-          >
-            Previous
-          </button>
-
-          <span>
-            Page {pagination.page} / {pagination.pages}
-          </span>
-
-          <button
-            className="btn btn-secondary"
-            disabled={page === pagination.pages}
-            onClick={() => setPage(page + 1)}
-          >
-            Next
-          </button>
-        </div>
-      )}
-
-      {/* View Popup */}
-      {viewData && (
-        <div
-          className="modal fade show d-block"
-          style={{ background: "#00000090" }}
-          onClick={() => setViewData(null)}
-        >
-          <div
-            className="modal-dialog modal-lg"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-content p-3">
-              <h4>Quotation Details</h4>
-
-              <p>
-                <strong>Quote No:</strong> {viewData.quote_number}
-              </p>
-              <p>
-                <strong>Company:</strong> {viewData.company_name}
-              </p>
-              <p>
-                <strong>Total:</strong> ₹{viewData.grand_total}
-              </p>
-
-              {/* Review Status */}
-              <h5>Review Status</h5>
-              <select
-                className="form-select w-50 mb-3"
-                value={reviewStatus}
-                onChange={(e) => setReviewStatus(e.target.value)}
-              >
-                <option value="No">No</option>
-                <option value="approved">Approved</option>
-                <option value="rejected">Rejected</option>
-              </select>
-
-              <h5>Items</h5>
-              <table className="table table-sm table-bordered">
-                <thead>
+              </thead>
+              <tbody>
+                ${items.map((item, index) => {
+                  let brand_code = "";
+                  let customer_description = "";
+                  let display_description = item.description || "";
+                  
+                  if (display_description) {
+                    try {
+                      if (display_description.includes('[BRAND_CODE:') && display_description.includes('[CUSTOMER_DESC:')) {
+                        const brandCodeMatch = display_description.match(/\[BRAND_CODE:(.*?)\]/);
+                        const customerDescMatch = display_description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+                        
+                        if (brandCodeMatch) brand_code = brandCodeMatch[1];
+                        if (customerDescMatch) customer_description = customerDescMatch[1];
+                        
+                        display_description = display_description
+                          .replace(/\[BRAND_CODE:.*?\]/, '')
+                          .replace(/\[CUSTOMER_DESC:.*?\]/, '')
+                          .trim();
+                      }
+                    } catch (e) {
+                      console.error("Error parsing description:", e);
+                    }
+                  }
+                  
+                  const mrp = parseFloat(item.mrp) || 0;
+                  const buyPrice = parseFloat(item.buy_price) || 0;
+                  const quantity = parseFloat(item.quantity) || 0;
+                  const sellingPrice = parseFloat(item.amount_after_discount) || amountAfterDiscount(item) || 0;
+                  const totalBuyCost = buyPrice * quantity;
+                  const totalProfit = sellingPrice - totalBuyCost;
+                  const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
+                  
+                  return `
+                    <tr>
+                      <td>${index + 1}</td>
+                      <td><strong>${item.item_name}</strong></td>
+                      <td>${brand_code || item.brand_code || ''}</td>
+                      <td>${item.cut_width || ''}</td>
+                      <td>${item.length || ''}</td>
+                      <td>${item.count || ''}</td>
+                      <td>${item.supplier_part_no || ''}</td>
+                      <td>${customer_description || item.customer_description || ''}</td>
+                      <td>${item.batch_no || ''}</td>
+                      <td>${item.hsn_sac || ''}</td>
+                      <td>${item.quantity || ''}</td>
+                      <td>${item.unit || ''}</td>
+                      <td>₹${mrp.toFixed(2)}</td>
+                      <td>₹${buyPrice.toFixed(2)}</td>
+                      <td class="${totalProfit >= 0 ? 'text-success' : 'text-danger'}">
+                        ₹${totalProfit.toFixed(2)} (${profitMargin}%)
+                      </td>
+                      <td>${item.tax_rate || 18}%</td>
+                      <td><strong>₹${sellingPrice.toFixed(2)}</strong></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="row mt-3">
+            <div class="col-7">
+              <h5 class="mb-2">Tax Summary:</h5>
+              <table class="table table-bordered table-sm summary-table">
+                <thead class="table-light">
                   <tr>
-                    <th>✓</th>
-                    <th>Item</th>
-                    <th>Qty</th>
-                    <th>Rate</th>
-                    <th>Total</th>
-                    <th>Status</th>
+                    <th>GST %</th>
+                    <th>Taxable Amount</th>
+                    <th>Tax Amount</th>
                   </tr>
                 </thead>
-
                 <tbody>
-                  {viewData.items.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={itemStatuses[item.id] || false}
-                          onChange={(e) =>
-                            setItemStatuses({
-                              ...itemStatuses,
-                              [item.id]: e.target.checked,
-                            })
-                          }
-                        />
-                      </td>
-                      <td>{item.item_name}</td>
-                      <td>{item.quantity}</td>
-                      <td>{item.price_per_unit}</td>
-                      <td>{item.item_total}</td>
-                      <td>{item.item_status}</td>
+                  ${Object.entries(taxSummary).map(([rate, amount]) => `
+                    <tr>
+                      <td>${rate}%</td>
+                      <td>₹${(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                      <td>₹${amount.toFixed(2)}</td>
                     </tr>
-                  ))}
+                  `).join('')}
                 </tbody>
               </table>
+            </div>
+            <div class="col-5">
+              <div class="card border-0">
+                <div class="card-body p-2">
+                  <h5 class="card-title mb-2">Total Summary</h5>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Subtotal:</span>
+                    <strong>₹${totals.subtotal.toFixed(2)}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Discount:</span>
+                    <strong class="text-danger">- ₹${totals.totalDiscount.toFixed(2)}</strong>
+                  </div>
+                  ${totals.totalPacking > 0 ? `
+                    <div class="d-flex justify-content-between mb-1">
+                      <span>Packing:</span>
+                      <strong>₹${totals.totalPacking.toFixed(2)}</strong>
+                    </div>
+                  ` : ''}
+                  ${totals.totalOther > 0 ? `
+                    <div class="d-flex justify-content-between mb-1">
+                      <span>Other Charges:</span>
+                      <strong>₹${totals.totalOther.toFixed(2)}</strong>
+                    </div>
+                  ` : ''}
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Total Tax:</span>
+                    <strong>₹${totals.totalGST.toFixed(2)}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Total Buy Cost:</span>
+                    <strong>₹${totals.totalBuyCost.toFixed(2)}</strong>
+                  </div>
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Total Profit:</span>
+                    <strong class="${totals.totalProfit >= 0 ? 'text-success' : 'text-danger'}">₹${totals.totalProfit.toFixed(2)}</strong>
+                  </div>
+                  <hr class="my-1"/>
+                  <div class="d-flex justify-content-between total-row">
+                    <span>Grand Total:</span>
+                    <strong class="text-primary">₹${totals.grandTotal.toFixed(2)}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mt-3 p-2 bg-light rounded">
+            <h5>Notes:</h5>
+            <p class="mb-0">${quotation.notes || 'Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.'}</p>
+            ${quotation.requote_note ? `
+              <p class="mb-0 mt-1"><strong>Re-quote Note:</strong> ${quotation.requote_note}</p>
+            ` : ''}
+            <p class="mb-0 mt-1"><strong>Valid for 30 days from the date of issue.</strong></p>
+          </div>
+          
+          <div class="no-print mt-3 text-center">
+            <button onclick="window.print()" class="btn btn-primary btn-sm me-2">
+              <i class="bi bi-printer me-1"></i>Print
+            </button>
+            <button onclick="window.close()" class="btn btn-secondary btn-sm">
+              <i class="bi bi-x-circle me-1"></i>Close
+            </button>
+          </div>
+        </div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
 
-              <button className="btn btn-success" onClick={saveUpdates}>
-                Save
+  // Navigation functions
+  const goToItems = () => {
+    if (!billTo.trim()) {
+      alert("Please enter Bill To information!");
+      return;
+    }
+    setShowCompanyModal(false);
+    setShowItemsModal(true);
+  };
+
+  const goToPreview = () => {
+    if (items.length === 0) {
+      alert("Please add at least one item!");
+      return;
+    }
+    if (items.some(item => !item.item_name.trim())) {
+      alert("Please add item name for all items!");
+      return;
+    }
+    setShowItemsModal(false);
+    setShowPreviewModal(true);
+  };
+
+  const goBackToCompany = () => {
+    setShowItemsModal(false);
+    setShowCompanyModal(true);
+  };
+
+  const goBackToItems = () => {
+    setShowPreviewModal(false);
+    setShowItemsModal(true);
+  };
+
+  const cancelQuotation = () => {
+    if (window.confirm("Are you sure you want to cancel? All unsaved changes will be lost.")) {
+      setShowCompanyModal(false);
+      setShowItemsModal(false);
+      setShowPreviewModal(false);
+      setShowItemPopup(false);
+      setShowViewModal(false);
+      setActionMode('view');
+    }
+  };
+
+  // Handle search for quotations
+  const handleSearch = (term) => {
+    setSearchTerm(term);
+    setCurrentPage(1);
+  };
+
+  const totals = calculateTotals();
+
+  // Item Selection Popup Modal - SIMPLIFIED VERSION
+  const renderItemPopup = () => {
+    if (!showItemPopup) return null;
+    
+    return (
+      <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal-dialog modal-lg">
+          <div className="modal-content">
+            <div className="modal-header bg-info text-white">
+              <h5 className="modal-title">Add Item from Stock</h5>
+              <button type="button" className="btn-close btn-close-white" onClick={() => setShowItemPopup(false)}></button>
+            </div>
+            <div className="modal-body">
+              <div className="mb-3">
+                <label className="form-label">Search Stock Items</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Search by item name, brand code, or description..."
+                  value={itemSearchTerm}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setItemSearchTerm(value);
+                    if (value.trim().length > 1) {
+                      const searchTerm = value.toLowerCase();
+                      const filtered = stockItems.filter(item =>
+                        item["Item Name"]?.toLowerCase().includes(searchTerm) ||
+                        item["Brand Code"]?.toLowerCase().includes(searchTerm) ||
+                        item["Brand Description"]?.toLowerCase().includes(searchTerm)
+                      ).slice(0, 10);
+                      setSearchResults(filtered);
+                      setShowResults(true);
+                    } else {
+                      setSearchResults([]);
+                      setShowResults(false);
+                    }
+                  }}
+                />
+                
+                {showResults && searchResults.length > 0 && (
+                  <div className="border rounded mt-1 bg-white" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                    {searchResults.map((item, idx) => (
+                      <div
+                        key={item.id || idx}
+                        className={`p-3 border-bottom ${selectedStockItem?.id === item.id ? 'bg-light' : ''}`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => {
+                          setSelectedStockItem(item);
+                          setItemSearchTerm(item["Item Name"] || "");
+                          setNewItemBrandCode(item["Brand Code"] || "");
+                          setShowResults(false);
+                          const allBatchCodes = stockItems
+                            .filter(stockItem => stockItem["Brand Code"] === item["Brand Code"])
+                            .map(stockItem => stockItem["Batch Code"])
+                            .filter(Boolean);
+                          setAvailableBatchCodes(Array.from(new Set(allBatchCodes)));
+                          setNewItemSupplierPartNo(item["Brand Code"] || "");
+                        }}
+                      >
+                        <div className="d-flex justify-content-between align-items-start mb-2">
+                          <div>
+                            <div className="fw-bold mb-1">{item["Item Name"]}</div>
+                            <div className="mb-1">
+                              <span className="badge bg-primary me-1">Brand</span>
+                              <strong>{item["Brand"] || "N/A"}</strong>
+                            </div>
+                            <div className="mb-1">
+                              <span className="badge bg-secondary me-1">Code</span>
+                              <strong className="text-dark">{item["Brand Code"]}</strong>
+                            </div>
+                          </div>
+                          <div className="text-end">
+                            <div className="fw-bold text-success mb-1">MRP: ₹{parseFloat(item["MRP"] || 0).toFixed(2)}</div>
+                            <div className="fw-bold text-info">Buy: ₹{parseFloat(item["Buy Price"] || 0).toFixed(2)}</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {selectedStockItem && (
+                <div className="card mt-3">
+                  <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h6 className="mb-0">Item Details</h6>
+                    <div className="text-end">
+                      <span className="badge bg-success me-2">MRP: ₹{parseFloat(selectedStockItem["MRP"] || 0).toFixed(2)}</span>
+                      <span className="badge bg-info">Buy: ₹{parseFloat(selectedStockItem["Buy Price"] || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+                  <div className="card-body">
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Item Name</label>
+                          <input type="text" className="form-control" value={selectedStockItem["Item Name"] || ""} readOnly />
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">Brand</label>
+                          <input type="text" className="form-control" value={selectedStockItem["Brand"] || ""} readOnly />
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">Brand Code</label>
+                          <input type="text" className="form-control" value={selectedStockItem["Brand Code"] || ""} readOnly />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="row">
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Batch Code</label>
+                          <select className="form-select" value={newItemBatchCode} onChange={(e) => setNewItemBatchCode(e.target.value)}>
+                            <option value="">-- Select --</option>
+                            {availableBatchCodes.map((code, idx) => (
+                              <option key={idx} value={code}>{code}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">HSN Code</label>
+                          <input type="text" className="form-control" value={selectedStockItem["HSN"] || ""} readOnly />
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">GST Rate</label>
+                          <input type="text" className="form-control" value={`${selectedStockItem["GST"] || 18}%`} readOnly />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="row">
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Supplier Part No</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={newItemSupplierPartNo}
+                            onChange={(e) => setNewItemSupplierPartNo(e.target.value)}
+                            placeholder="Enter supplier part number..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="row">
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">Cut Width</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            step="0.1"
+                            value={newItemCutWidth}
+                            onChange={(e) => {
+                              setNewItemCutWidth(e.target.value);
+                              const width = parseFloat(e.target.value) || 0;
+                              const length = parseFloat(newItemLength) || 0;
+                              const count = parseFloat(newItemCount) || 0;
+                              setNewItemQuantity((width * length * count || 1).toString());
+                            }}
+                            placeholder="Width"
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">Cut Length</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            step="0.1"
+                            value={newItemLength}
+                            onChange={(e) => {
+                              setNewItemLength(e.target.value);
+                              const width = parseFloat(newItemCutWidth) || 0;
+                              const length = parseFloat(e.target.value) || 0;
+                              const count = parseFloat(newItemCount) || 0;
+                              setNewItemQuantity((width * length * count || 1).toString());
+                            }}
+                            placeholder="Length"
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">Count</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="1"
+                            value={newItemCount}
+                            onChange={(e) => {
+                              setNewItemCount(e.target.value);
+                              const width = parseFloat(newItemCutWidth) || 0;
+                              const length = parseFloat(newItemLength) || 0;
+                              const count = parseFloat(e.target.value) || 0;
+                              setNewItemQuantity((width * length * count || 1).toString());
+                            }}
+                            placeholder="Count"
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">MRP</label>
+                          <input type="text" className="form-control" value={`₹${parseFloat(selectedStockItem["MRP"] || 0).toFixed(2)}`} readOnly />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="row">
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Discount</label>
+                          <div className="input-group">
+                            <input
+                              type="number"
+                              className="form-control"
+                              min="0"
+                              step="0.01"
+                              value={newItemDiscount}
+                              onChange={(e) => setNewItemDiscount(e.target.value)}
+                              placeholder="Discount"
+                            />
+                            <select
+                              className="form-select"
+                              style={{ width: '100px' }}
+                              value={newItemDiscountType}
+                              onChange={(e) => setNewItemDiscountType(e.target.value)}
+                            >
+                              <option value="amount">₹ Amount</option>
+                              <option value="percentage">% Percentage</option>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Customer Description</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={newItemCustomerDescription}
+                            onChange={(e) => setNewItemCustomerDescription(e.target.value)}
+                            placeholder="Enter customer description here..."
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="row">
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Packing Charges</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            step="0.01"
+                            value={newItemPackingCharges}
+                            onChange={(e) => setNewItemPackingCharges(e.target.value)}
+                            placeholder="Packing charges"
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Other Charges</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            step="0.01"
+                            value={newItemOtherCharges}
+                            onChange={(e) => setNewItemOtherCharges(e.target.value)}
+                            placeholder="Other charges"
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Quantity (Auto)</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="1"
+                            value={newItemQuantity}
+                            readOnly
+                          />
+                          <small className="text-muted">Width × Length × Count</small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="card-footer">
+                    <div className="d-flex justify-content-end gap-2">
+                      <button type="button" className="btn btn-secondary" onClick={() => setShowItemPopup(false)}>
+                        <i className="bi bi-x-circle me-1"></i>Cancel
+                      </button>
+                      <button type="button" className="btn btn-primary" onClick={() => {
+                        if (!selectedStockItem) {
+                          alert("Please select an item first!");
+                          return;
+                        }
+                        
+                        const newItem = {
+                          id: idRef.current + 1,
+                          item_name: selectedStockItem["Item Name"] || "",
+                          brand_code: newItemBrandCode || selectedStockItem["Brand Code"] || "",
+                          hsn_sac: selectedStockItem["HSN"] || "",
+                          supplier_part_no: newItemSupplierPartNo || "",
+                          description: selectedStockItem["Brand Description"] || "",
+                          cut_width: parseFloat(newItemCutWidth) || parseFloat(selectedStockItem["Width"]) || 1,
+                          length: parseFloat(newItemLength) || parseFloat(selectedStockItem["Length"]) || 1,
+                          count: parseFloat(newItemCount) || 1,
+                          batch_no: newItemBatchCode || `B-${Date.now().toString().slice(-6)}-${items.length + 1}`,
+                          mrp: parseFloat(selectedStockItem["MRP"]) || 0,
+                          buy_price: parseFloat(selectedStockItem["Buy Price"]) || 0,
+                          quantity: parseFloat(newItemQuantity) || 1,
+                          unit: selectedStockItem["Unit"] || "pcs",
+                          discount: parseFloat(newItemDiscount) || 0,
+                          discount_type: newItemDiscountType,
+                          tax_rate: selectedStockItem["GST"] || 18.0,
+                          packing_charges: parseFloat(newItemPackingCharges) || 0,
+                          other_charges: parseFloat(newItemOtherCharges) || 0,
+                          customer_description: newItemCustomerDescription
+                        };
+                        
+                        setItems(prev => [...prev, newItem]);
+                        idRef.current = idRef.current + 1;
+                        setSelectedStockItem(null);
+                        setItemSearchTerm("");
+                        setNewItemCutWidth("");
+                        setNewItemLength("");
+                        setNewItemCount("1");
+                        setNewItemBatchCode("");
+                        setNewItemDiscount("0");
+                        setNewItemPackingCharges("0");
+                        setNewItemOtherCharges("0");
+                        setNewItemCustomerDescription("");
+                        setNewItemSupplierPartNo("");
+                        setNewItemBrandCode("");
+                        setShowItemPopup(false);
+                        setShowResults(false);
+                      }}>
+                        <i className="bi bi-plus-circle me-1"></i>Add to Quotation
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Preview Modal - UPDATED WITH PROFIT CALCULATION AND LOGO
+  const renderPreviewModal = () => {
+    if (!showPreviewModal) return null;
+    
+    return (
+      <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal-dialog modal-xl">
+          <div className="modal-content">
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">
+                {actionMode === 'edit' ? 'Preview & Update Quotation' : 'Step 3: Preview & Save'}
+              </h5>
+              <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+            </div>
+            <div className="modal-body">
+              <div ref={quotationRef}>
+                <div className="container">
+                  <div className="invoice-header border-bottom pb-3 mb-3">
+                    <div className="row">
+                      <div className="col-2">
+                        <img 
+                          src={companyLogo} 
+                          alt="Company Logo" 
+                          className="img-fluid"
+                          style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <div className="col-5">
+                        <h1 className="mb-1">{issuer.name}</h1>
+                        <p className="mb-1">{issuer.address}</p>
+                        <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                        <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                      </div>
+                      <div className="col-5 text-end">
+                        <h2 className="text-primary mb-3">QUOTATION</h2>
+                        <p className="mb-1"><strong>Quote No:</strong> {quoteNo}</p>
+                        <p className="mb-1"><strong>Date:</strong> {date}</p>
+                        <p className="mb-1"><strong>Time:</strong> {time}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="row mb-4">
+                    <div className="col-6">
+                      <h5>Bill To:</h5>
+                      <p className="mb-1"><strong>{billTo}</strong></p>
+                      <p className="mb-1">{companyAddress}</p>
+                      <p className="mb-1">GSTIN: {companyGstin}</p>
+                    </div>
+                    <div className="col-6">
+                      <h5>Contact Details:</h5>
+                      <p className="mb-1"><strong>{contactPerson}</strong></p>
+                      <p className="mb-1">Phone: {contactMob}</p>
+                      <p className="mb-1">Email: {contactEmail}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="table-responsive">
+                    <table className="table table-bordered">
+                      <thead className="table-light">
+                        <tr>
+                          <th>#</th>
+                          <th>Item Name</th>
+                          <th>Brand Code</th>
+                          <th>Cut Width</th>
+                          <th>Cut Length</th>
+                          <th>Count</th>
+                          <th>Supplier Part No</th>
+                          <th>Customer Description</th>
+                          <th>Batch No</th>
+                          <th>HSN</th>
+                          <th>Qty</th>
+                          <th>UoM</th>
+                          <th>MRP</th>
+                          <th>Buy Price</th>
+                          <th>Profit</th>
+                          <th>GST %</th>
+                          <th>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {items.map((item, index) => {
+                          const profitPerItem = calculateProfitPerItem(item);
+                          const profitMargin = calculateProfitMargin(item);
+                          
+                          return (
+                            <tr key={item.id}>
+                              <td>{index + 1}</td>
+                              <td><strong>{item.item_name}</strong></td>
+                              <td>{item.brand_code || ''}</td>
+                              <td>{item.cut_width}</td>
+                              <td>{item.length}</td>
+                              <td>{item.count}</td>
+                              <td>{item.supplier_part_no}</td>
+                              <td>{item.customer_description || ''}</td>
+                              <td>{item.batch_no}</td>
+                              <td>{item.hsn_sac}</td>
+                              <td>{item.quantity}</td>
+                              <td>{item.unit}</td>
+                              <td>₹{parseFloat(item.mrp || 0).toFixed(2)}</td>
+                              <td>₹{parseFloat(item.buy_price || 0).toFixed(2)}</td>
+                              <td className={profitPerItem >= 0 ? 'text-success' : 'text-danger'}>
+                                ₹{profitPerItem.toFixed(2)} ({profitMargin}%)
+                              </td>
+                              <td>{item.tax_rate}%</td>
+                              <td><strong>₹{amountAfterDiscount(item).toFixed(2)}</strong></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="row mt-4">
+                    <div className="col-7">
+                      <h5 className="mb-2">Tax Summary:</h5>
+                      <table className="table table-bordered table-sm">
+                        <thead className="table-light">
+                          <tr>
+                            <th>GST %</th>
+                            <th>Taxable Amount</th>
+                            <th>Tax Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            const taxSummary = {};
+                            items.forEach(item => {
+                              const taxRate = item.tax_rate || 18;
+                              const taxAmount = gstAmount(item);
+                              if (!taxSummary[taxRate]) {
+                                taxSummary[taxRate] = 0;
+                              }
+                              taxSummary[taxRate] += taxAmount;
+                            });
+                            
+                            return Object.entries(taxSummary).map(([rate, amount]) => (
+                              <tr key={rate}>
+                                <td>{rate}%</td>
+                                <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                                <td>₹{amount.toFixed(2)}</td>
+                              </tr>
+                            ));
+                          })()}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="col-5">
+                      <div className="card border-0">
+                        <div className="card-body">
+                          <h5 className="card-title">Total Summary</h5>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Subtotal:</span>
+                            <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                          </div>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Discount:</span>
+                            <strong className="text-danger">- ₹{totals.totalDiscount.toFixed(2)}</strong>
+                          </div>
+                          {totals.totalPacking > 0 && (
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Packing:</span>
+                              <strong>₹{totals.totalPacking.toFixed(2)}</strong>
+                            </div>
+                          )}
+                          {totals.totalOther > 0 && (
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Other Charges:</span>
+                              <strong>₹{totals.totalOther.toFixed(2)}</strong>
+                            </div>
+                          )}
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total Tax:</span>
+                            <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                          </div>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total Buy Cost:</span>
+                            <strong>₹{totals.totalBuyCost.toFixed(2)}</strong>
+                          </div>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total Profit:</span>
+                            <strong className={totals.totalProfit >= 0 ? 'text-success' : 'text-danger'}>
+                              ₹{totals.totalProfit.toFixed(2)} ({totals.profitMargin}%)
+                            </strong>
+                          </div>
+                          <hr/>
+                          <div className="d-flex justify-content-between total-row">
+                            <span>Grand Total:</span>
+                            <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4 p-3 bg-light rounded">
+                    <h5>Notes:</h5>
+                    <p className="mb-0">{notes || 'Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.'}</p>
+                    {requoteNote && (
+                      <p className="mb-0 mt-2"><strong>Re-quote Note:</strong> {requoteNote}</p>
+                    )}
+                    <p className="mb-0 mt-2"><strong>Valid for 30 days from the date of issue.</strong></p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-footer mt-3">
+                <button type="button" className="btn btn-secondary" onClick={goBackToItems}>
+                  <i className="bi bi-arrow-left me-1"></i>Back to Items
+                </button>
+                <button type="button" className="btn btn-info" onClick={exportPdf}>
+                  <i className="bi bi-file-pdf me-1"></i>Export PDF
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-success" 
+                  onClick={saveOrUpdateQuotation} 
+                  disabled={saving || updating}
+                >
+                  {saving || updating ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      {actionMode === 'edit' ? 'Updating...' : 'Saving...'}
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-save me-1"></i>
+                      {actionMode === 'edit' ? 'Update Quotation' : 'Save Quotation'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // View Quotation Modal - UPDATED WITH PROFIT CALCULATION AND LOGO
+  const renderViewModal = () => {
+    if (!showViewModal || !selectedQuotation) return null;
+    
+    return (
+      <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal-dialog modal-xl">
+          <div className="modal-content">
+            <div className="modal-header bg-info text-white">
+              <h5 className="modal-title">Quotation Details</h5>
+              <button type="button" className="btn-close btn-close-white" onClick={() => setShowViewModal(false)}></button>
+            </div>
+            <div className="modal-body">
+              <div className="container">
+                <div className="invoice-header border-bottom pb-3 mb-3">
+                  <div className="row">
+                    <div className="col-2">
+                      <img 
+                        src={companyLogo} 
+                        alt="Company Logo" 
+                        className="img-fluid"
+                        style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    <div className="col-5">
+                      <h1 className="mb-1">{issuer.name}</h1>
+                      <p className="mb-1">{issuer.address}</p>
+                      <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                      <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                    </div>
+                    <div className="col-5 text-end">
+                      <h2 className="text-info mb-3">QUOTATION</h2>
+                      <p className="mb-1"><strong>Quote No:</strong> {selectedQuotation.quote_number || selectedQuotation.quoteNo}</p>
+                      <p className="mb-1"><strong>Date:</strong> {selectedQuotation.date || selectedQuotation.date}</p>
+                      <p className="mb-1"><strong>Time:</strong> {selectedQuotation.time || selectedQuotation.time}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="row mb-4">
+                  <div className="col-6">
+                    <h5>Bill To:</h5>
+                    <p className="mb-1"><strong>{selectedQuotation.company_name || selectedQuotation.billTo}</strong></p>
+                    <p className="mb-1">{selectedQuotation.company_address || ''}</p>
+                    <p className="mb-1">GSTIN: {selectedQuotation.company_gstin || ''}</p>
+                  </div>
+                  <div className="col-6">
+                    <h5>Contact Details:</h5>
+                    <p className="mb-1"><strong>{selectedQuotation.contact_person || selectedQuotation.contactPerson}</strong></p>
+                    <p className="mb-1">Phone: {selectedQuotation.contact_mobile || selectedQuotation.contactMob}</p>
+                    <p className="mb-1">Email: {selectedQuotation.contact_email || selectedQuotation.contactEmail}</p>
+                  </div>
+                </div>
+                
+                <div className="table-responsive">
+                  <table className="table table-bordered">
+                    <thead className="table-light">
+                      <tr>
+                        <th>#</th>
+                        <th>Item Name</th>
+                        <th>Brand Code</th>
+                        <th>Cut Width</th>
+                        <th>Cut Length</th>
+                        <th>Count</th>
+                        <th>Supplier Part No</th>
+                        <th>Customer Description</th>
+                        <th>Batch No</th>
+                        <th>HSN</th>
+                        <th>Qty</th>
+                        <th>UoM</th>
+                        <th>MRP</th>
+                        <th>Buy Price</th>
+                        <th>Profit</th>
+                        <th>GST %</th>
+                        <th>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedQuotation.items || []).map((item, index) => {
+                        let brand_code = "";
+                        let customer_description = "";
+                        let display_description = item.description || "";
+                        
+                        if (display_description) {
+                          try {
+                            if (display_description.includes('[BRAND_CODE:') && display_description.includes('[CUSTOMER_DESC:')) {
+                              const brandCodeMatch = display_description.match(/\[BRAND_CODE:(.*?)\]/);
+                              const customerDescMatch = display_description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+                              
+                              if (brandCodeMatch) brand_code = brandCodeMatch[1];
+                              if (customerDescMatch) customer_description = customerDescMatch[1];
+                              
+                              display_description = display_description
+                                .replace(/\[BRAND_CODE:.*?\]/, '')
+                                .replace(/\[CUSTOMER_DESC:.*?\]/, '')
+                                .trim();
+                            }
+                          } catch (e) {
+                            console.error("Error parsing description:", e);
+                          }
+                        }
+                        
+                        const mrp = parseFloat(item.mrp) || 0;
+                        const buyPrice = parseFloat(item.buy_price) || 0;
+                        const quantity = parseFloat(item.quantity) || 0;
+                        const sellingPrice = parseFloat(item.amount_after_discount) || 0;
+                        const totalBuyCost = buyPrice * quantity;
+                        const totalProfit = sellingPrice - totalBuyCost;
+                        const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
+                        
+                        return (
+                          <tr key={index}>
+                            <td>{index + 1}</td>
+                            <td><strong>{item.item_name}</strong></td>
+                            <td>{brand_code || item.brand_code || ''}</td>
+                            <td>{item.cut_width || ''}</td>
+                            <td>{item.length || ''}</td>
+                            <td>{item.count || ''}</td>
+                            <td>{item.supplier_part_no || ''}</td>
+                            <td>{customer_description || item.customer_description || ''}</td>
+                            <td>{item.batch_no || ''}</td>
+                            <td>{item.hsn_sac || ''}</td>
+                            <td>{item.quantity || ''}</td>
+                            <td>{item.unit || ''}</td>
+                            <td>₹{mrp.toFixed(2)}</td>
+                            <td>₹{buyPrice.toFixed(2)}</td>
+                            <td className={totalProfit >= 0 ? 'text-success' : 'text-danger'}>
+                              ₹{totalProfit.toFixed(2)} ({profitMargin}%)
+                            </td>
+                            <td>{item.tax_rate || 18}%</td>
+                            <td><strong>₹{sellingPrice.toFixed(2)}</strong></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <div className="row mt-4">
+                  <div className="col-7">
+                    <h5 className="mb-2">Tax Summary:</h5>
+                    <table className="table table-bordered table-sm">
+                      <thead className="table-light">
+                        <tr>
+                          <th>GST %</th>
+                          <th>Taxable Amount</th>
+                          <th>Tax Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const taxSummary = {};
+                          (selectedQuotation.items || []).forEach(item => {
+                            const taxRate = item.tax_rate || 18;
+                            const taxAmount = item.tax_amount || 0;
+                            if (!taxSummary[taxRate]) {
+                              taxSummary[taxRate] = 0;
+                            }
+                            taxSummary[taxRate] += taxAmount;
+                          });
+                          
+                          return Object.entries(taxSummary).map(([rate, amount]) => (
+                            <tr key={rate}>
+                              <td>{rate}%</td>
+                              <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                              <td>₹{amount.toFixed(2)}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="col-5">
+                    <div className="card border-0">
+                      <div className="card-body">
+                        <h5 className="card-title">Total Summary</h5>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Subtotal:</span>
+                          <strong>₹{(selectedQuotation.subtotal || 0).toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Discount:</span>
+                          <strong className="text-danger">- ₹{(selectedQuotation.total_discount || 0).toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Total Tax:</span>
+                          <strong>₹{(selectedQuotation.total_tax || 0).toFixed(2)}</strong>
+                        </div>
+                        {(() => {
+                          const totalBuyCost = (selectedQuotation.items || []).reduce((sum, item) => {
+                            const buyPrice = parseFloat(item.buy_price) || 0;
+                            const quantity = parseFloat(item.quantity) || 0;
+                            return sum + (buyPrice * quantity);
+                          }, 0);
+                          
+                          const totalProfit = (selectedQuotation.items || []).reduce((sum, item) => {
+                            const sellingPrice = parseFloat(item.amount_after_discount) || 0;
+                            const buyPrice = parseFloat(item.buy_price) || 0;
+                            const quantity = parseFloat(item.quantity) || 0;
+                            const totalBuyCost = buyPrice * quantity;
+                            return sum + (sellingPrice - totalBuyCost);
+                          }, 0);
+                          
+                          const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
+                          
+                          return (
+                            <>
+                              <div className="d-flex justify-content-between mb-2">
+                                <span>Total Buy Cost:</span>
+                                <strong>₹{totalBuyCost.toFixed(2)}</strong>
+                              </div>
+                              <div className="d-flex justify-content-between mb-2">
+                                <span>Total Profit:</span>
+                                <strong className={totalProfit >= 0 ? 'text-success' : 'text-danger'}>
+                                  ₹{totalProfit.toFixed(2)} ({profitMargin}%)
+                                </strong>
+                              </div>
+                            </>
+                          );
+                        })()}
+                        <hr/>
+                        <div className="d-flex justify-content-between total-row">
+                          <span>Grand Total:</span>
+                          <strong className="text-primary">₹{(selectedQuotation.grand_total || 0).toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-4 p-3 bg-light rounded">
+                  <h5>Notes:</h5>
+                  <p className="mb-0">{selectedQuotation.notes || 'Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.'}</p>
+                  {selectedQuotation.requote_note && (
+                    <p className="mb-0 mt-2"><strong>Re-quote Note:</strong> {selectedQuotation.requote_note}</p>
+                  )}
+                  <p className="mb-0 mt-2"><strong>Valid for 30 days from the date of issue.</strong></p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowViewModal(false)}>
+                <i className="bi bi-x-circle me-1"></i>Close
               </button>
-
-              <button
-                className="btn btn-danger ms-2"
-                onClick={() => setViewData(null)}
-              >
-                Close
+              <button type="button" className="btn btn-primary" onClick={() => printQuotation(selectedQuotation)}>
+                <i className="bi bi-printer me-1"></i>Print
               </button>
             </div>
           </div>
         </div>
+      </div>
+    );
+  };
+
+  // Items Modal - UPDATED WITH BUY PRICE AND PROFIT
+  const renderItemsModal = () => {
+    if (!showItemsModal) return null;
+    
+    return (
+      <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal-dialog modal-xl">
+          <div className="modal-content">
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">Step 2: Add Items</h5>
+              <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex align-items-center text-success">
+                  <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
+                    <i className="bi bi-check"></i>
+                  </div>
+                  <span className="ms-2">Company Details</span>
+                </div>
+                <div className="flex-grow-1 border-top mx-3"></div>
+                <div className="d-flex align-items-center text-primary">
+                  <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
+                  <span className="ms-2">Add Items</span>
+                </div>
+                <div className="flex-grow-1 border-top mx-3"></div>
+                <div className="d-flex align-items-center text-muted">
+                  <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
+                  <span className="ms-2">Preview</span>
+                </div>
+              </div>
+
+              <div className="card mb-4">
+                <div className="card-header bg-light">
+                  <div className="d-flex justify-content-between align-items-center">
+                    <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
+                    <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
+                      <i className="bi bi-plus-circle me-1"></i>Add Item
+                    </button>
+                  </div>
+                </div>
+                <div className="card-body p-0">
+                  {items.length === 0 ? (
+                    <div className="text-center py-5">
+                      <i className="bi bi-box display-1 text-muted mb-3"></i>
+                      <h5 className="text-muted">No items added</h5>
+                      <p className="text-muted">Click "Add Item" to start adding items to your quotation</p>
+                    </div>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-hover mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th width="50">#</th>
+                            <th>Item Name</th>
+                            <th width="120">Brand Code</th>
+                            <th width="120">Part No</th>
+                            <th width="80">Width</th>
+                            <th width="80">Length</th>
+                            <th width="80">Count</th>
+                            <th width="80">Qty</th>
+                            <th width="80">Unit</th>
+                            <th width="100">MRP</th>
+                            <th width="100">Buy Price</th>
+                            <th width="120">Profit</th>
+                            <th width="120">Discount</th>
+                            <th width="100">Total</th>
+                            <th width="80">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, index) => {
+                            const profitPerItem = calculateProfitPerItem(item);
+                            const profitMargin = calculateProfitMargin(item);
+                            
+                            return (
+                              <tr key={item.id}>
+                                <td>{index + 1}</td>
+                                <td>
+                                  <div className="fw-bold">{item.item_name}</div>
+                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
+                                </td>
+                                <td>{item.brand_code || ''}</td>
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={item.supplier_part_no}
+                                    onChange={(e) => handleItemChange(index, "supplier_part_no", e.target.value)}
+                                    placeholder="Part No"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.cut_width}
+                                    onChange={(e) => handleItemChange(index, "cut_width", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.length}
+                                    onChange={(e) => handleItemChange(index, "length", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    value={item.count}
+                                    onChange={(e) => handleItemChange(index, "count", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                    readOnly
+                                  />
+                                </td>
+                                <td>{item.unit}</td>
+                                <td className="text-end">
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm text-end"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.mrp}
+                                    onChange={(e) => handleItemChange(index, "mrp", e.target.value)}
+                                  />
+                                </td>
+                                <td className="text-end">
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm text-end"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.buy_price}
+                                    onChange={(e) => handleItemChange(index, "buy_price", e.target.value)}
+                                  />
+                                </td>
+                                <td className={`text-end fw-bold ${profitPerItem >= 0 ? 'text-success' : 'text-danger'}`}>
+                                  ₹{profitPerItem.toFixed(2)}<br/>
+                                  <small className="text-muted">({profitMargin}%)</small>
+                                </td>
+                                <td>
+                                  <div className="input-group input-group-sm">
+                                    <input
+                                      type="number"
+                                      className="form-control"
+                                      min="0"
+                                      step="0.01"
+                                      value={item.discount}
+                                      onChange={(e) => handleItemChange(index, "discount", e.target.value)}
+                                    />
+                                    <select
+                                      className="form-select"
+                                      style={{ width: '80px' }}
+                                      value={item.discount_type}
+                                      onChange={(e) => handleItemChange(index, "discount_type", e.target.value)}
+                                    >
+                                      <option value="amount">₹</option>
+                                      <option value="percentage">%</option>
+                                    </select>
+                                  </div>
+                                </td>
+                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
+                                <td>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => removeItem(index)}
+                                    title="Delete"
+                                  >
+                                    <i className="bi bi-trash"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="row">
+                <div className="col-md-4">
+                  <div className="card">
+                    <div className="card-body">
+                      <h6 className="card-title">Quick Summary</h6>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Items:</span>
+                        <strong>{items.length}</strong>
+                      </div>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Subtotal:</span>
+                        <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                      </div>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Discount:</span>
+                        <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
+                      </div>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Tax (18%):</span>
+                        <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                      </div>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Total Buy Cost:</span>
+                        <strong>₹{totals.totalBuyCost.toFixed(2)}</strong>
+                      </div>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Total Profit:</span>
+                        <strong className={totals.totalProfit >= 0 ? 'text-success' : 'text-danger'}>
+                          ₹{totals.totalProfit.toFixed(2)}
+                        </strong>
+                      </div>
+                      <hr />
+                      <div className="d-flex justify-content-between fw-bold">
+                        <span>Grand Total:</span>
+                        <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={goBackToCompany}>
+                  <i className="bi bi-arrow-left me-1"></i>Back to Company
+                </button>
+                <button type="button" className="btn btn-primary" onClick={goToPreview} disabled={items.length === 0 || items.some(item => !item.item_name.trim())}>
+                  Next: Preview <i className="bi bi-arrow-right ms-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Company Details Modal
+  const renderCompanyModal = () => {
+    if (!showCompanyModal) return null;
+    
+    return (
+      <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <div className="modal-dialog modal-lg">
+          <div className="modal-content">
+            <div className="modal-header bg-primary text-white">
+              <h5 className="modal-title">
+                {actionMode === 'edit' ? 'Edit Quotation' : 'Step 1: Company Details'}
+              </h5>
+              <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className={`d-flex align-items-center ${billTo.trim() ? 'text-success' : ''}`}>
+                  <div className={`rounded-circle ${billTo.trim() ? 'bg-success' : 'bg-primary'} text-white d-flex align-items-center justify-content-center`} style={{ width: '30px', height: '30px' }}>
+                    {billTo.trim() ? <i className="bi bi-check"></i> : '1'}
+                  </div>
+                  <span className="ms-2">Company Details</span>
+                </div>
+                <div className="flex-grow-1 border-top mx-3"></div>
+                <div className="d-flex align-items-center text-muted">
+                  <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
+                  <span className="ms-2">Add Items</span>
+                </div>
+                <div className="flex-grow-1 border-top mx-3"></div>
+                <div className="d-flex align-items-center text-muted">
+                  <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
+                  <span className="ms-2">Preview</span>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Search Company</label>
+                <div className="position-relative">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Type company name or contact..."
+                    value={billTo}
+                    onChange={(e) => handleBillToSearch(e.target.value)}
+                    onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                  />
+                  
+                  {showCompanyDropdown && filteredCompanies.length > 0 && (
+                    <div className="position-absolute w-100 bg-white border rounded shadow-sm" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
+                      {filteredCompanies.map((company, index) => (
+                        <div
+                          key={company.id || index}
+                          className={`p-2 border-bottom ${selectedCompanyId === (company.id || company.ID)?.toString() ? 'bg-light' : ''}`}
+                          style={{ cursor: 'pointer' }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            selectCompanyFromSearch(company);
+                          }}
+                        >
+                          <div className="fw-bold">{company.company_name || company.companyName}</div>
+                          <div className="text-muted small">
+                            {company.customer_name || company.customerName} • {company.customer_mobile || company.customerMobile}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                
+                {loadingCompanies && <div className="alert alert-info mt-2 py-2">Loading companies...</div>}
+                {companyError && <div className="alert alert-warning mt-2 py-2">{companyError}</div>}
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Contact Person</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={contactPerson}
+                      onChange={(e) => setContactPerson(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Contact Mobile</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={contactMob}
+                      onChange={(e) => handleContactMobChange(e.target.value)}
+                      placeholder="Type mobile to auto-fill"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Company Address</label>
+                <textarea
+                  className="form-control"
+                  rows="3"
+                  value={companyAddress}
+                  onChange={(e) => setCompanyAddress(e.target.value)}
+                />
+              </div>
+
+              <div className="row">
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Company GSTIN</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={companyGstin}
+                      onChange={(e) => setCompanyGstin(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Contact Email</label>
+                    <div className="input-group">
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={contactEmail}
+                        onChange={(e) => {
+                          setContactEmail(e.target.value);
+                          if (e.target.value !== issuer.email) {
+                            setContactEmailSame(false);
+                          }
+                        }}
+                      />
+                      <div className="input-group-text">
+                        <input
+                          className="form-check-input me-1"
+                          type="checkbox"
+                          id="sameEmail"
+                          checked={contactEmailSame}
+                          onChange={(e) => setContactEmailSame(e.target.checked)}
+                        />
+                        <label className="form-check-label small" htmlFor="sameEmail">
+                          Use issuer email
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {actionMode === 'edit' && (
+                <div className="mb-3">
+                  <label className="form-label">Re-quote Note (if applicable)</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    value={requoteNote}
+                    onChange={(e) => setRequoteNote(e.target.value)}
+                    placeholder="Add note if this is a re-quote..."
+                  />
+                </div>
+              )}
+
+              <div className="mb-3">
+                <label className="form-label">Notes</label>
+                <textarea
+                  className="form-control"
+                  rows="3"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Additional notes for the quotation..."
+                />
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={cancelQuotation}>
+                  <i className="bi bi-x-circle me-1"></i>Cancel
+                </button>
+                <button type="button" className="btn btn-primary" onClick={goToItems} disabled={!billTo.trim()}>
+                  Next: Add Items <i className="bi bi-arrow-right ms-1"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="container-fluid py-4">
+      {/* Header with Action Buttons */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h1 className="h2 mb-1">Quotation Management</h1>
+          <p className="text-muted mb-0">Manage and track your quotations</p>
+        </div>
+        <div className="d-flex gap-2">
+        </div>
+      </div>
+
+      {/* Statistics Cards */}
+      {statistics && (
+        <div className="row mb-4">
+          <div className="col-md-2 col-6 mb-3">
+            <div className="card border-success">
+              <div className="card-body text-center">
+                <div className="h3 text-success">{statistics.status_counts?.completed || 0}</div>
+                <div className="text-muted">Completed</div>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-2 col-6 mb-3">
+            <div className="card border-warning">
+              <div className="card-body text-center">
+                <div className="h3 text-warning">{statistics.status_counts?.requote || 0}</div>
+                <div className="text-muted">Re-quote</div>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-2 col-6 mb-3">
+            <div className="card border-primary">
+              <div className="card-body text-center">
+                <div className="h3 text-primary">{statistics.status_counts?.draft || 0}</div>
+                <div className="text-muted">Draft</div>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-2 col-6 mb-3">
+            <div className="card border-info">
+              <div className="card-body text-center">
+                <div className="h3 text-info">{statistics.total || 0}</div>
+                <div className="text-muted">Total</div>
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4 col-12 mb-3">
+            <div className="card">
+              <div className="card-body">
+                <div className="d-flex justify-content-between">
+                  <div>
+                    <div className="text-muted">This Month</div>
+                    <div className="h4">₹{(statistics.current_month_revenue || 0).toLocaleString()}</div>
+                  </div>
+                  <div className="align-self-center">
+                    <i className="bi bi-graph-up text-success fs-3"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* Render Modals */}
+      {renderCompanyModal()}
+      {renderItemsModal()}
+      {renderItemPopup()}
+      {renderPreviewModal()}
+      {renderViewModal()}
+
+      {/* Saved Quotations Section */}
+      <div className="card">
+        <div className="card-header bg-light">
+          <div className="d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">Saved Quotations</h5>
+            <div className="d-flex gap-2">
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                style={{ width: '250px' }}
+                placeholder="Search quotations..."
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+              />
+              {searchTerm && (
+                <button className="btn btn-sm btn-outline-danger" onClick={resetSearch} title="Clear search">
+                  <i className="bi bi-x-circle"></i>
+                </button>
+              )}
+              <button className="btn btn-sm btn-outline-primary" onClick={fetchQuotations} disabled={loadingQuotations} title="Refresh">
+                <i className="bi bi-arrow-clockwise"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="card-body p-0">
+          {loadingQuotations ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <p className="mt-2 text-muted">Loading quotations...</p>
+            </div>
+          ) : savedQuotations.length > 0 ? (
+            <>
+              <div className="table-responsive">
+                <table className="table table-hover mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th width="50">#</th>
+                      <th>Quote No</th>
+                      <th>Date</th>
+                      <th>Company</th>
+                      <th>Contact Person</th>
+                      <th>Items</th>
+                      <th>Status</th>
+                      <th>Grand Total</th>
+                      <th>Total Profit</th>
+                      <th width="200">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedQuotations.map((quote, index) => {
+                      const isCompleted = quote.status?.toLowerCase() === 'completed';
+                      const isDraft = quote.status?.toLowerCase() === 'draft';
+                      const isRequote = quote.status?.toLowerCase() === 'requote';
+                      
+                      // Calculate total profit for this quotation
+                      const totalProfit = (quote.items || []).reduce((sum, item) => {
+                        const sellingPrice = parseFloat(item.amount_after_discount) || 0;
+                        const buyPrice = parseFloat(item.buy_price) || 0;
+                        const quantity = parseFloat(item.quantity) || 0;
+                        const totalBuyCost = buyPrice * quantity;
+                        return sum + (sellingPrice - totalBuyCost);
+                      }, 0);
+                      
+                      // Calculate total buy cost
+                      const totalBuyCost = (quote.items || []).reduce((sum, item) => {
+                        const buyPrice = parseFloat(item.buy_price) || 0;
+                        const quantity = parseFloat(item.quantity) || 0;
+                        return sum + (buyPrice * quantity);
+                      }, 0);
+                      
+                      const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
+                      
+                      return (
+                        <tr key={quote.id}>
+                          <td>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
+                          <td>
+                            <strong>{quote.quote_number || quote.quoteNo}</strong>
+                            {isRequote && <span className="badge bg-warning ms-1">Re-quote</span>}
+                          </td>
+                          <td>
+                            {quote.date || quote.date}<br/>
+                            <small className="text-muted">{quote.time || quote.time}</small>
+                          </td>
+                          <td>
+                            {quote.company_name || quote.billTo}<br/>
+                            <small className="text-muted">{quote.contact_email || quote.contactEmail}</small>
+                          </td>
+                          <td>
+                            {quote.contact_person || quote.contactPerson}<br/>
+                            <small className="text-muted">{quote.contact_mobile || quote.contactMob}</small>
+                          </td>
+                          <td>{(quote.items || []).length} items</td>
+                          <td>
+                            <span className={`badge ${
+                              isCompleted ? 'bg-success' : 
+                              isRequote ? 'bg-warning' : 
+                              isDraft ? 'bg-secondary' : 
+                              'bg-primary'
+                            }`}>
+                              {quote.status || 'draft'}
+                            </span>
+                          </td>
+                          <td>
+                            <strong className="text-primary">
+                              ₹{((quote.grand_total || 0)).toFixed(2)}
+                            </strong>
+                          </td>
+                          <td>
+                            <strong className={totalProfit >= 0 ? 'text-success' : 'text-danger'}>
+                              ₹{totalProfit.toFixed(2)}<br/>
+                              <small className="text-muted">({profitMargin}%)</small>
+                            </strong>
+                          </td>
+                          <td>
+                            <div className="btn-group btn-group-sm">
+                              <button
+                                className="btn btn-outline-info"
+                                onClick={() => viewQuotation(quote)}
+                                title="View"
+                              >
+                                <i className="bi bi-eye"></i>
+                              </button>
+                              
+                              {!isCompleted && (
+                                <button
+                                  className="btn btn-outline-warning"
+                                  onClick={() => startEditQuotation(quote)}
+                                  title="Edit"
+                                >
+                                  <i className="bi bi-pencil"></i>
+                                </button>
+                              )}
+                              
+                              {!isCompleted && (
+                                <button
+                                  className="btn btn-outline-primary"
+                                  onClick={() => startCreateReQuote(quote)}
+                                  title="Create Re-quote"
+                                >
+                                  <i className="bi bi-arrow-repeat"></i>
+                                </button>
+                              )}
+                              
+                              {!isCompleted && (
+                                <button
+                                  className="btn btn-outline-success"
+                                  onClick={() => markAsCompleted(quote.id)}
+                                  title="Mark as Completed"
+                                >
+                                  <i className="bi bi-check-circle"></i>
+                                </button>
+                              )}
+                              
+                              <button
+                                className="btn btn-outline-secondary"
+                                onClick={() => printQuotation(quote)}
+                                title="Print"
+                              >
+                                <i className="bi bi-printer"></i>
+                              </button>
+                              
+                              {!isCompleted && (
+                                <button
+                                  className="btn btn-outline-danger"
+                                  onClick={() => deleteQuotation(quote.id)}
+                                  title="Delete"
+                                >
+                                  <i className="bi bi-trash"></i>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* PAGINATION */}
+              {totalPages > 1 && (
+                <div className="d-flex justify-content-between align-items-center p-3 border-top">
+                  <div className="text-muted">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+                  </div>
+                  <nav aria-label="Page navigation">
+                    <ul className="pagination pagination-sm mb-0">
+                      <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
+                        <button 
+                          className="page-link" 
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                        >
+                          <i className="bi bi-chevron-left"></i>
+                        </button>
+                      </li>
+                      
+                      {getPaginationItems().map((pageNum, index) => (
+                        <li key={index} className={`page-item ${pageNum === currentPage ? 'active' : ''} ${pageNum === '...' ? 'disabled' : ''}`}>
+                          {pageNum === '...' ? (
+                            <span className="page-link">...</span>
+                          ) : (
+                            <button 
+                              className="page-link" 
+                              onClick={() => handlePageChange(pageNum)}
+                            >
+                              {pageNum}
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                      
+                      <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
+                        <button 
+                          className="page-link" 
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                        >
+                          <i className="bi bi-chevron-right"></i>
+                        </button>
+                      </li>
+                    </ul>
+                  </nav>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-5">
+              <div className="mb-3">
+                <i className="bi bi-file-earmark-text display-1 text-muted"></i>
+              </div>
+              <h5 className="text-muted">No quotations found</h5>
+              <p className="text-muted">
+                {searchTerm ? 'Try a different search term or ' : ''}
+                Create your first quotation to get started
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -38,6 +38,10 @@ import StockSoldPage from "./Components/StockSold";
 import Quotation from "./Components/Quotation";
 import MRPChangePage from "./Components/mrpchange";
 import QuotationReportPage from "./Components/QuotationReport";
+import SalesOrder from "./Components/SalesOrder";
+import RejectedItemsPage from "./Components/RejectedReport";
+import Purchaseorder from "./Components/PurchaseOrder";
+import PurchaseOrderPage from "./Components/PurchaseOreder_Approval";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -125,11 +129,14 @@ function AppContent({
               <Route path="/noesipf" element={<CasualLabourSalaryReport />} />
               <Route path="/accesscontrol" element={<AccessControlPage />} />
               <Route path="/quotationreport" element={<QuotationReportPage />} />
-
+              <Route path="/salesorder" element={<SalesOrder />} />
               <Route path="/stockupload" element={<StockUploadPage />} />
               <Route path="/stocksold" element={<StockSoldPage />} />
               <Route path="/grn" element={<GRNPage />} />
               <Route path="/quotation" element={<Quotation />} />
+              <Route path="/rejected" element={<RejectedItemsPage />} />
+              <Route path="/PurchaseOrder" element={<Purchaseorder />} />
+              <Route path="/PurchaseOrderapproval" element={<PurchaseOrderPage />} />
 
               {/* FIXED MRP ROUTE */}
               <Route path="/mrpchange" element={<MRPChangePage />} />

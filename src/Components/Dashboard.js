@@ -1,83 +1,139 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
 const Dashboard = () => {
+  const email = localStorage.getItem("email"); // logged-in user
+  const [metrics, setMetrics] = useState({
+    totalEmployees: 0,
+    totalCompanies: 0,
+    tasksAssignedToMe: {},
+    tasksAssignedByMe: {},
+  });
+
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      // Total employees
+      const empRes = await axios.get("http://localhost:5000/api/employee/all");
+      const totalEmployees = Array.isArray(empRes.data) ? empRes.data.length : 0;
+
+      // Total companies
+      const companyRes = await axios.get("http://localhost:5000/api/company");
+      const totalCompanies = Array.isArray(companyRes.data) ? companyRes.data.length : 0;
+
+      // Tasks assigned TO me
+      const assignedToRes = await axios.get("http://localhost:5000/api/tasks", {
+        params: { assigned_to: email },
+      });
+      const tasksAssignedToMe = { Pending: 0, "In Progress": 0, Completed: 0 };
+      assignedToRes.data.forEach(task => {
+        tasksAssignedToMe[task.status] = (tasksAssignedToMe[task.status] || 0) + 1;
+      });
+
+      // Tasks assigned BY me
+      const assignedByRes = await axios.get(`http://localhost:5000/api/tasks/assigned-by/${email}`);
+      const tasksAssignedByMe = { Pending: 0, "In Progress": 0, Completed: 0 };
+      assignedByRes.data.forEach(task => {
+        tasksAssignedByMe[task.status] = (tasksAssignedByMe[task.status] || 0) + 1;
+      });
+
+      setMetrics({
+        totalEmployees,
+        totalCompanies,
+        tasksAssignedToMe,
+        tasksAssignedByMe,
+      });
+    } catch (err) {
+      console.error("Dashboard fetch error:", err);
+    }
+  };
+
+  const generatePieData = data => {
+    return Object.keys(data).map(key => ({ name: key, value: data[key] }));
+  };
+
   return (
-    <div style={styles.container}>
-      {/* Header */}
-      <div style={styles.headerSection}>
-        <h1 style={styles.title}>Dashboard</h1>
-        <p style={styles.subtitle}>Quick overview of key metrics</p>
+    <div style={{ padding: "30px", fontFamily: "Arial, sans-serif" }}>
+      <h2 style={{ marginBottom: "20px" }}>Dashboard</h2>
+
+      <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+        <Card title="Total Employees" value={metrics.totalEmployees} />
+        <Card title="Total Companies" value={metrics.totalCompanies} />
       </div>
 
-      {/* KPI Cards */}
-      <div style={styles.kpiGrid}>
-        <div style={{ ...styles.kpiCard, backgroundColor: "#4caf50", color: "#fff" }}>
-          <p style={styles.kpiLabel}>Total Employees</p>
-          <h2 style={styles.kpiValue}>120</h2>
+      <div style={{ display: "flex", gap: "40px", marginTop: "40px", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 300 }}>
+          <h3>Tasks Assigned To Me</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={generatePieData(metrics.tasksAssignedToMe)}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                fill="#8884d8"
+                label
+              >
+                {generatePieData(metrics.tasksAssignedToMe).map((entry, index) => (
+                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
 
-        <div style={{ ...styles.kpiCard, backgroundColor: "#ff9800", color: "#fff" }}>
-          <p style={styles.kpiLabel}>Pending Tasks</p>
-          <h2 style={styles.kpiValue}>8</h2>
-        </div>
-
-        <div style={{ ...styles.kpiCard, backgroundColor: "#2196f3", color: "#fff" }}>
-          <p style={styles.kpiLabel}>Attendance Rate</p>
-          <h2 style={styles.kpiValue}>95%</h2>
-        </div>
-
-        <div style={{ ...styles.kpiCard, backgroundColor: "#f44336", color: "#fff" }}>
-          <p style={styles.kpiLabel}>Leaves Taken</p>
-          <h2 style={styles.kpiValue}>12</h2>
+        <div style={{ flex: 1, minWidth: 300 }}>
+          <h3>Tasks Assigned By Me</h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={generatePieData(metrics.tasksAssignedByMe)}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                fill="#82ca9d"
+                label
+              >
+                {generatePieData(metrics.tasksAssignedByMe).map((entry, index) => (
+                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
     </div>
   );
 };
 
-const styles = {
-  container: {
-    fontFamily: "Poppins, sans-serif",
-    padding: "30px",
-    backgroundColor: "#f9f9f9",
-    minHeight: "100vh",
-  },
-  headerSection: {
-    marginBottom: "30px",
-  },
-  title: {
-    fontSize: "28px",
-    fontWeight: "700",
-    color: "#333",
-    margin: 0,
-  },
-  subtitle: {
-    fontSize: "14px",
-    color: "#666",
-    marginTop: "5px",
-  },
-  kpiGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-    gap: "20px",
-  },
-  kpiCard: {
-    borderRadius: "12px",
-    padding: "25px 20px",
-    textAlign: "center",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-    transition: "transform 0.2s",
-    cursor: "pointer",
-  },
-  kpiLabel: {
-    fontSize: "14px",
-    marginBottom: "10px",
-  },
-  kpiValue: {
-    fontSize: "28px",
-    fontWeight: "700",
-    margin: 0,
-  },
-};
+const Card = ({ title, value }) => (
+  <div
+    style={{
+      background: "#1976d2",
+      color: "#fff",
+      padding: "20px",
+      borderRadius: "10px",
+      flex: "1 1 200px",
+      textAlign: "center",
+    }}
+  >
+    <p style={{ margin: 0 }}>{title}</p>
+    <h2 style={{ margin: 0 }}>{value}</h2>
+  </div>
+);
 
 export default Dashboard;

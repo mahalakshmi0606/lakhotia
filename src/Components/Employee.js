@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { FaEdit, FaTrash, FaPlus, FaTimes, FaEye, FaPaperclip, FaDownload } from "react-icons/fa";
+import { FaEdit, FaTrash, FaPlus, FaTimes, FaEye, FaPaperclip, FaDownload, FaSearch, FaFileExcel, FaFilePdf, FaEyeSlash, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const EmployeePage = () => {
   const [employees, setEmployees] = useState([]);
+  const [filteredEmployees, setFilteredEmployees] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
   const [step, setStep] = useState(1);
@@ -14,14 +16,24 @@ const EmployeePage = () => {
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [userTypes, setUserTypes] = useState([]);
+  
+  // State for showing/hiding passwords
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showViewPassword, setShowViewPassword] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
   const API_URL = "http://localhost:5000/api/employee";
 
   // ESI/PF Status Options (Matches Backend)
   const esiPfOptions = [
-    { value: "ESI/PF", label: "ESI/PF" },
-    { value: "No ESI/PF", label: "No ESI/PF" },
-    { value: "Casual Labour", label: "Casual Labour" }
+    { value: "ESI", label: "ESI" },
+    { value: "PF", label: "PF" },
+    { value: "Both", label: "Both" },
+    { value: "None", label: "None" }
   ];
 
   // ✅ Load user details from localStorage
@@ -58,6 +70,47 @@ const EmployeePage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Filter employees based on search term
+  useEffect(() => {
+    if (searchTerm.trim() === "") {
+      setFilteredEmployees(employees);
+    } else {
+      const filtered = employees.filter(emp => 
+        emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.designation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.mobile?.includes(searchTerm) ||
+        emp.esiPfStatus?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredEmployees(filtered);
+    }
+    setCurrentPage(1); // Reset to first page when searching
+  }, [searchTerm, employees]);
+
+  // Calculate pagination
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentEmployees = filteredEmployees.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+
+  // Pagination functions
+  const nextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const goToPage = (pageNumber) => {
+    setCurrentPage(pageNumber);
+  };
+
   const [formData, setFormData] = useState({
     photo: null,
     photoPreview: null,
@@ -78,7 +131,7 @@ const EmployeePage = () => {
     aadharAttachment: null,
     password: "",
     confirmPassword: "",
-    esiPfStatus: "", // ✅ Updated to match backend field name and type
+    esiPfStatus: "",
   });
 
   // Handle input
@@ -121,11 +174,45 @@ const EmployeePage = () => {
   const nextStep = () => setStep((s) => Math.min(s + 1, 3));
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
+  // Check for duplicate email
+  const checkDuplicateEmail = async (email, excludeId = null) => {
+    // Check locally first
+    const duplicate = employees.find(emp => 
+      emp.email.toLowerCase() === email.toLowerCase() && emp.id !== excludeId
+    );
+    
+    if (duplicate) {
+      toast.error(`Email ${email} already exists for employee: ${duplicate.name}`);
+      return true;
+    }
+    
+    // Also check with backend for additional safety
+    try {
+      const res = await fetch(`${API_URL}/check-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, excludeId })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.exists) {
+          toast.error(`Email ${email} already exists in the system`);
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error("Error checking email:", error);
+    }
+    
+    return false;
+  };
+
   // Submit Form to Backend (handles both add and update)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Only validate password match when creating or when password entered during edit
+    // Validate password match
     if (!editId && formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match!");
       return;
@@ -135,14 +222,26 @@ const EmployeePage = () => {
       return;
     }
 
+    // Check for duplicate email before proceeding
+    if (formData.email) {
+      const isDuplicate = await checkDuplicateEmail(formData.email, editId);
+      if (isDuplicate) {
+        return; // Stop submission if duplicate found
+      }
+    }
+
     const fd = new FormData();
     for (const key in formData) {
       if (formData[key] !== null && key !== "photoPreview" && key !== "confirmPassword") {
-        // ✅ Only append fields that backend expects (exclude confirmPassword)
+        // Only append fields that backend expects
+        if (key === "password" && editId && !formData.password) {
+          // If editing and password is empty, skip sending it
+          continue;
+        }
         fd.append(key, formData[key]);
       }
     }
-    // ✅ Fixed: Use the loggedUser state which now properly gets from localStorage
+    
     fd.append("createdBy", loggedUser);
 
     try {
@@ -186,6 +285,7 @@ const EmployeePage = () => {
       const res = await fetch(API_URL + "/all");
       const data = await res.json();
       setEmployees(data);
+      setFilteredEmployees(data);
     } catch {
       toast.error("Error loading employees");
     }
@@ -210,12 +310,28 @@ const EmployeePage = () => {
     }
   };
 
-  // View employee (open card)
+  // View employee (open card) - UPDATED with debug logs
   const handleView = async (id) => {
     try {
       const res = await fetch(`${API_URL}/${id}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
+      
+      // Debug logs
+      console.log("✅ Employee data from backend:", data);
+      console.log("✅ Password in response:", data.password);
+      console.log("✅ Has password key:", 'password' in data);
+      console.log("✅ All keys:", Object.keys(data));
+      
+      // Also test debug endpoint
+      try {
+        const debugRes = await fetch(`${API_URL}/debug/${id}`);
+        const debugData = await debugRes.json();
+        console.log("🔍 Debug endpoint result:", debugData);
+      } catch (debugErr) {
+        console.log("Debug endpoint not available");
+      }
+      
       setSelectedEmployee(data);
       setViewOpen(true);
     } catch {
@@ -223,16 +339,19 @@ const EmployeePage = () => {
     }
   };
 
-  // Edit employee - fetch data and populate form
+  // Edit employee - fetch data and populate form - UPDATED
   const handleEdit = async (id) => {
     try {
       const res = await fetch(`${API_URL}/${id}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
 
-      // populate form fields
+      // Debug log
+      console.log("Edit employee data:", data);
+
+      // populate form fields - FIXED
       setFormData({
-        photo: null, // keep null until user selects new photo
+        photo: null,
         photoPreview: data.photo
           ? `http://localhost:5000/api/employee/uploads/${data.photo}`
           : null,
@@ -251,9 +370,9 @@ const EmployeePage = () => {
         aadhar: data.aadhar || "",
         panAttachment: null,
         aadharAttachment: null,
-        password: "", // leave blank; user can enter new password to change
-        confirmPassword: "",
-        esiPfStatus: data.esiPfStatus || "", // ✅ Updated to match backend field
+        password: data.password || "", // ✅ Now includes actual password
+        confirmPassword: data.password || "", // ✅ Auto-fill confirm password too
+        esiPfStatus: data.esiPfStatus || "",
       });
       setEditId(id);
       setStep(1);
@@ -282,6 +401,117 @@ const EmployeePage = () => {
     }
   };
 
+  // Export to Excel
+  const exportToExcel = () => {
+    if (filteredEmployees.length === 0) {
+      toast.warning("No data to export!");
+      return;
+    }
+
+    // Create CSV content
+    const headers = ['ID', 'Name', 'Email', 'Mobile', 'Department', 'Designation', 'ESI/PF Status', 'DOJ', 'Created By', 'Created At'];
+    const rows = filteredEmployees.map(emp => [
+      emp.id,
+      `"${emp.name}"`,
+      `"${emp.email}"`,
+      `"${emp.mobile}"`,
+      `"${emp.department}"`,
+      `"${emp.designation}"`,
+      `"${emp.esiPfStatus || 'N/A'}"`,
+      `"${emp.doj}"`,
+      `"${emp.createdBy}"`,
+      `"${emp.createdAt}"`
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `employees_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Exported to Excel successfully!");
+  };
+
+  // Export to PDF
+  const exportToPDF = () => {
+    if (filteredEmployees.length === 0) {
+      toast.warning("No data to export!");
+      return;
+    }
+
+    // Create HTML content for PDF
+    const htmlContent = `
+      <html>
+        <head>
+          <title>Employee Report</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            h1 { color: #333; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f5c518; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+            .date { color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>Employee Report</h1>
+            <div class="date">Generated on: ${new Date().toLocaleDateString()}</div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Mobile</th>
+                <th>Department</th>
+                <th>Designation</th>
+                <th>ESI/PF Status</th>
+                <th>DOJ</th>
+                <th>Created By</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredEmployees.map(emp => `
+                <tr>
+                  <td>${emp.id}</td>
+                  <td>${emp.name || 'N/A'}</td>
+                  <td>${emp.email || 'N/A'}</td>
+                  <td>${emp.mobile || 'N/A'}</td>
+                  <td>${emp.department || 'N/A'}</td>
+                  <td>${emp.designation || 'N/A'}</td>
+                  <td>${emp.esiPfStatus || 'N/A'}</td>
+                  <td>${emp.doj || 'N/A'}</td>
+                  <td>${emp.createdBy || 'N/A'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div style="margin-top: 20px; color: #666; font-size: 12px;">
+            Total Employees: ${filteredEmployees.length}
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Open print dialog for PDF
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    printWindow.print();
+    toast.success("PDF generated successfully!");
+  };
+
   const resetForm = () => {
     setFormData({
       photo: null,
@@ -303,27 +533,74 @@ const EmployeePage = () => {
       aadharAttachment: null,
       password: "",
       confirmPassword: "",
-      esiPfStatus: "", // ✅ Reset to empty string
+      esiPfStatus: "",
     });
     setStep(1);
     setFormOpen(false);
     setEditId(null);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
   };
 
   return (
     <div style={styles.container}>
       <h2 style={styles.heading}>Employee Management</h2>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
-        <button
-          style={styles.addButton}
-          onClick={() => {
-            resetForm();
-            setFormOpen(true);
-          }}
-        >
-          <FaPlus style={{ marginRight: 6 }} /> Add Employee
-        </button>
+      {/* Search and Export Section */}
+      <div style={styles.toolbar}>
+        <div style={styles.searchContainer}>
+          <FaSearch style={styles.searchIcon} />
+          <input
+            type="text"
+            placeholder="Search by name, email, department, designation, or mobile..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={styles.searchInput}
+          />
+          {searchTerm && (
+            <button 
+              onClick={() => setSearchTerm("")} 
+              style={styles.clearSearchButton}
+            >
+              <FaTimes />
+            </button>
+          )}
+        </div>
+        
+        <div style={styles.buttonGroup}>
+          <button
+            style={styles.excelButton}
+            onClick={exportToExcel}
+            title="Export to Excel"
+          >
+            <FaFileExcel style={{ marginRight: 6 }} /> Excel
+          </button>
+          
+          <button
+            style={styles.pdfButton}
+            onClick={exportToPDF}
+            title="Export to PDF"
+          >
+            <FaFilePdf style={{ marginRight: 6 }} /> PDF
+          </button>
+          
+          <button
+            style={styles.addButton}
+            onClick={() => {
+              resetForm();
+              setFormOpen(true);
+            }}
+            title="Add New Employee"
+          >
+            <FaPlus style={{ marginRight: 6 }} /> Add Employee
+          </button>
+        </div>
+      </div>
+
+      {/* Results Count */}
+      <div style={styles.resultsCount}>
+        Showing {filteredEmployees.length} of {employees.length} employees
+        {searchTerm && ` for "${searchTerm}"`}
       </div>
 
       {/* Form Modal (Add / Edit) */}
@@ -407,7 +684,7 @@ const EmployeePage = () => {
                 </div>
               )}
 
-              {/* Step 2 */}
+              {/* Step 2 - UPDATED */}
               {step === 2 && (
                 <div style={styles.gridForm}>
                   <div>
@@ -452,28 +729,67 @@ const EmployeePage = () => {
                       required
                     />
                   </div>
+                  
+                  {/* Password Field with Eye Icon - UPDATED */}
                   <div>
-                    <label style={styles.label}>Password {editId ? "(leave blank to keep)" : ""}</label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      style={styles.input}
-                      required={!editId}
-                    />
+                    <label style={styles.label}>
+                      Password {editId ? "(leave blank to keep current)" : ""}
+                      {editId && formData.password && (
+                        <span style={{fontSize: "12px", color: "green", marginLeft: "8px"}}>
+                          ✓ Current password loaded
+                        </span>
+                      )}
+                    </label>
+                    <div style={styles.passwordContainer}>
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        style={{...styles.input, paddingRight: "40px"}}
+                        required={!editId}
+                        placeholder={editId ? "Enter new password or leave blank" : "Enter password"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        style={styles.eyeButton}
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <FaEyeSlash /> : <FaEye />}
+                      </button>
+                    </div>
+                    {editId && (
+                      <div style={{fontSize: "12px", color: "#666", marginTop: "4px"}}>
+                        Leave empty to keep current password: {formData.password ? "••••••••" : "Not loaded"}
+                      </div>
+                    )}
                   </div>
+                  
+                  {/* Confirm Password Field with Eye Icon */}
                   <div>
                     <label style={styles.label}>Confirm Password</label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      style={styles.input}
-                      required={!editId}
-                    />
+                    <div style={styles.passwordContainer}>
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        style={{...styles.input, paddingRight: "40px"}}
+                        required={!editId}
+                        placeholder={editId ? "Leave blank to keep current" : "Confirm password"}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        style={styles.eyeButton}
+                        title={showConfirmPassword ? "Hide password" : "Show password"}
+                      >
+                        {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
+                      </button>
+                    </div>
                   </div>
+                  
                   <div style={styles.buttonGroupStep}>
                     <button type="button" style={styles.prevButton} onClick={prevStep}>
                       Previous
@@ -604,7 +920,7 @@ const EmployeePage = () => {
                     </div>
                   </div>
 
-                  {/* ✅ ESI/PF Dropdown (Updated) */}
+                  {/* ✅ ESI/PF Dropdown */}
                   <div>
                     <label style={styles.label}>ESI/PF Status</label>
                     <select
@@ -637,7 +953,7 @@ const EmployeePage = () => {
         </div>
       )}
 
-      {/* View Card Modal */}
+      {/* View Card Modal - UPDATED */}
       {viewOpen && selectedEmployee && (
         <div style={styles.modalOverlay}>
           <div style={styles.viewModal}>
@@ -647,6 +963,7 @@ const EmployeePage = () => {
                 onClick={() => {
                   setViewOpen(false);
                   setSelectedEmployee(null);
+                  setShowViewPassword(false);
                 }}
                 style={styles.closeIcon}
               />
@@ -755,6 +1072,45 @@ const EmployeePage = () => {
                 <div style={styles.viewRow}>
                   <strong>Address:</strong> <span>{selectedEmployee.address}</span>
                 </div>
+                
+                {/* Password Row with Eye Icon - UPDATED */}
+                <div style={styles.viewRow}>
+                  <strong>Password:</strong> 
+                  <div style={{display: "flex", alignItems: "center", gap: "8px"}}>
+                    <span style={{fontFamily: "monospace"}}>
+                      {showViewPassword ? 
+                        (selectedEmployee?.password ? selectedEmployee.password : "Not set") 
+                        : "••••••••"
+                      }
+                    </span>
+                    {selectedEmployee?.password && (
+                      <button
+                        type="button"
+                        onClick={() => setShowViewPassword(!showViewPassword)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#666",
+                          fontSize: "16px",
+                          padding: "4px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center"
+                        }}
+                        title={showViewPassword ? "Hide password" : "Show password"}
+                      >
+                        {showViewPassword ? <FaEyeSlash /> : <FaEye />}
+                      </button>
+                    )}
+                  </div>
+                  {!selectedEmployee?.password && (
+                    <div style={{fontSize: "12px", color: "red", marginTop: "4px"}}>
+                      Password not loaded from backend
+                    </div>
+                  )}
+                </div>
+                
                 <div style={styles.viewRow}>
                   <strong>Created By:</strong> <span>{selectedEmployee.createdBy}</span>
                 </div>
@@ -772,6 +1128,7 @@ const EmployeePage = () => {
         <table style={styles.table}>
           <thead>
             <tr>
+              <th style={styles.th}>ID</th>
               <th style={styles.th}>Photo</th>
               <th style={styles.th}>Name</th>
               <th style={styles.th}>Department</th>
@@ -783,9 +1140,10 @@ const EmployeePage = () => {
             </tr>
           </thead>
           <tbody>
-            {employees.length ? (
-              employees.map((emp) => (
+            {currentEmployees.length ? (
+              currentEmployees.map((emp) => (
                 <tr key={emp.id}>
+                  <td style={styles.td}>{emp.id}</td>
                   <td style={styles.td}>
                     {emp.photo ? (
                       <img
@@ -839,8 +1197,8 @@ const EmployeePage = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="8" style={styles.noData}>
-                  No employees found.
+                <td colSpan="9" style={styles.noData}>
+                  {searchTerm ? `No employees found for "${searchTerm}"` : "No employees found."}
                 </td>
               </tr>
             )}
@@ -848,15 +1206,150 @@ const EmployeePage = () => {
         </table>
       </div>
 
+      {/* Pagination Controls */}
+      {filteredEmployees.length > itemsPerPage && (
+        <div style={styles.paginationContainer}>
+          <div style={styles.paginationInfo}>
+            Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredEmployees.length)} of {filteredEmployees.length} entries
+          </div>
+          
+          <div style={styles.paginationControls}>
+            <button
+              onClick={prevPage}
+              disabled={currentPage === 1}
+              style={{
+                ...styles.paginationButton,
+                opacity: currentPage === 1 ? 0.5 : 1,
+                cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <FaChevronLeft />
+            </button>
+            
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pageNumber;
+              if (totalPages <= 5) {
+                pageNumber = i + 1;
+              } else if (currentPage <= 3) {
+                pageNumber = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNumber = totalPages - 4 + i;
+              } else {
+                pageNumber = currentPage - 2 + i;
+              }
+              
+              return pageNumber <= totalPages ? (
+                <button
+                  key={pageNumber}
+                  onClick={() => goToPage(pageNumber)}
+                  style={{
+                    ...styles.paginationButton,
+                    backgroundColor: currentPage === pageNumber ? '#f5c518' : '#f0f0f0',
+                    color: currentPage === pageNumber ? '#333' : '#666',
+                    fontWeight: currentPage === pageNumber ? 'bold' : 'normal'
+                  }}
+                >
+                  {pageNumber}
+                </button>
+              ) : null;
+            })}
+            
+            <button
+              onClick={nextPage}
+              disabled={currentPage === totalPages}
+              style={{
+                ...styles.paginationButton,
+                opacity: currentPage === totalPages ? 0.5 : 1,
+                cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+              }}
+            >
+              <FaChevronRight />
+            </button>
+          </div>
+        </div>
+      )}
+
       <ToastContainer position="top-right" autoClose={2000} />
     </div>
   );
 };
 
-// Styles
+// Updated Styles
 const styles = {
   container: { padding: "30px", fontFamily: "Poppins, sans-serif", background: "#fff" },
   heading: { marginBottom: "20px" },
+  toolbar: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "20px",
+    flexWrap: "wrap",
+    gap: "15px"
+  },
+  searchContainer: {
+    position: "relative",
+    flex: 1,
+    minWidth: "300px",
+    maxWidth: "500px"
+  },
+  searchIcon: {
+    position: "absolute",
+    left: "12px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    color: "#666",
+    fontSize: "16px"
+  },
+  searchInput: {
+    width: "100%",
+    padding: "10px 40px 10px 40px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+    fontSize: "14px",
+    outline: "none",
+    transition: "border-color 0.3s"
+  },
+  clearSearchButton: {
+    position: "absolute",
+    right: "10px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#999",
+    fontSize: "14px",
+    padding: "0"
+  },
+  buttonGroup: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center"
+  },
+  excelButton: {
+    background: "#217346",
+    color: "white",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontWeight: "600",
+    display: "flex",
+    alignItems: "center",
+    fontSize: "14px"
+  },
+  pdfButton: {
+    background: "#ff4d4d",
+    color: "white",
+    padding: "10px 20px",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontWeight: "600",
+    display: "flex",
+    alignItems: "center",
+    fontSize: "14px"
+  },
   addButton: {
     background: "#f5c518",
     padding: "10px 20px",
@@ -867,10 +1360,32 @@ const styles = {
     display: "flex",
     alignItems: "center",
   },
-  table: { width: "100%", borderCollapse: "collapse" },
-  th: { background: "#fff8d6", padding: "12px", borderBottom: "2px solid #f5c518" },
-  td: { padding: "10px", textAlign: "center", borderBottom: "1px solid #eee" },
-  tablePhoto: { width: "45px", height: "45px", borderRadius: "50%" },
+  resultsCount: {
+    marginBottom: "15px",
+    color: "#666",
+    fontSize: "14px",
+    fontStyle: "italic"
+  },
+  table: { width: "100%", borderCollapse: "collapse", marginBottom: "20px" },
+  th: { 
+    background: "#fff8d6", 
+    padding: "12px", 
+    borderBottom: "2px solid #f5c518",
+    textAlign: "left",
+    whiteSpace: "nowrap"
+  },
+  td: { 
+    padding: "12px", 
+    textAlign: "left", 
+    borderBottom: "1px solid #eee",
+    verticalAlign: "middle"
+  },
+  tablePhoto: { 
+    width: "45px", 
+    height: "45px", 
+    borderRadius: "50%",
+    objectFit: "cover"
+  },
   modalOverlay: {
     position: "fixed",
     inset: 0,
@@ -909,9 +1424,21 @@ const styles = {
     display: "flex",
     gap: 18,
   },
-  viewLeft: { width: 160, display: "flex", justifyContent: "center", alignItems: "center" },
-  viewRight: { flex: 1 },
-  viewPhoto: { width: 140, height: 140, borderRadius: "12px", objectFit: "cover" },
+  viewLeft: { 
+    width: 160, 
+    display: "flex", 
+    justifyContent: "center", 
+    alignItems: "center" 
+  },
+  viewRight: { 
+    flex: 1 
+  },
+  viewPhoto: { 
+    width: 140, 
+    height: 140, 
+    borderRadius: "12px", 
+    objectFit: "cover" 
+  },
   noPhoto: {
     width: 140,
     height: 140,
@@ -960,24 +1487,44 @@ const styles = {
     gridTemplateColumns: "1fr 1fr",
     gap: "15px 20px",
   },
-  gridItemFull: { gridColumn: "1 / span 2" },
-  label: { fontWeight: "500", display: "block", marginBottom: 6 },
-  input: { width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc" },
+  gridItemFull: { 
+    gridColumn: "1 / span 2" 
+  },
+  label: { 
+    fontWeight: "500", 
+    display: "block", 
+    marginBottom: 6,
+    fontSize: "14px"
+  },
+  input: { 
+    width: "100%", 
+    padding: "10px", 
+    borderRadius: "6px", 
+    border: "1px solid #ddd",
+    fontSize: "14px",
+    boxSizing: "border-box"
+  },
   textarea: {
     width: "100%",
     borderRadius: "6px",
-    border: "1px solid #ccc",
-    padding: "8px",
+    border: "1px solid #ddd",
+    padding: "10px",
     minHeight: 70,
+    fontSize: "14px",
+    boxSizing: "border-box",
+    resize: "vertical"
   },
   fileInputContainer: {
     position: "relative",
     width: "100%",
-    border: "1px solid #ccc",
+    border: "1px solid #ddd",
     borderRadius: "6px",
-    padding: "8px",
+    padding: "10px",
     background: "#f9f9f9",
     cursor: "pointer",
+    minHeight: "42px",
+    display: "flex",
+    alignItems: "center"
   },
   fileInput: {
     position: "absolute",
@@ -991,6 +1538,10 @@ const styles = {
   fileInputText: {
     color: "#666",
     fontSize: "14px",
+    marginLeft: "8px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap"
   },
   attachmentIcon: {
     marginRight: "8px",
@@ -1002,51 +1553,137 @@ const styles = {
     borderRadius: "8px",
     marginTop: 10,
     objectFit: "cover",
+    border: "1px solid #ddd"
   },
   modalHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "12px",
+    marginBottom: "20px",
+    paddingBottom: "10px",
+    borderBottom: "1px solid #eee"
   },
-  modalTitle: { margin: 0 },
-  closeIcon: { cursor: "pointer", color: "#ff4d4d" },
+  modalTitle: { 
+    margin: 0,
+    fontSize: "18px"
+  },
+  closeIcon: { 
+    cursor: "pointer", 
+    color: "#ff4d4d",
+    fontSize: "20px"
+  },
   buttonGroupStep: {
     gridColumn: "1 / span 2",
     display: "flex",
     justifyContent: "space-between",
-    marginTop: 6,
+    marginTop: "20px",
+    paddingTop: "15px",
+    borderTop: "1px solid #eee"
   },
   prevButton: {
-    background: "#ccc",
+    background: "#f0f0f0",
     border: "none",
-    padding: "10px 18px",
+    padding: "10px 25px",
     borderRadius: "6px",
     cursor: "pointer",
+    fontWeight: "600",
+    fontSize: "14px",
+    color: "#333"
   },
   nextButton: {
     background: "#f5c518",
     border: "none",
-    padding: "10px 18px",
+    padding: "10px 25px",
     borderRadius: "6px",
     cursor: "pointer",
+    fontWeight: "600",
+    fontSize: "14px",
+    color: "#333"
   },
   submitButton: {
     background: "#4CAF50",
     color: "#fff",
     border: "none",
-    padding: "10px 18px",
+    padding: "10px 25px",
     borderRadius: "6px",
     cursor: "pointer",
+    fontWeight: "600",
+    fontSize: "14px"
   },
-  noData: { textAlign: "center", padding: "20px", color: "#888" },
+  noData: { 
+    textAlign: "center", 
+    padding: "30px", 
+    color: "#888",
+    fontSize: "16px"
+  },
   actionButton: {
     border: "none",
     background: "transparent",
     cursor: "pointer",
     fontSize: "18px",
     margin: "0 5px",
+    padding: "5px",
+    borderRadius: "4px",
+    transition: "background-color 0.2s"
   },
+  // New styles for password fields with eye icons
+  passwordContainer: {
+    position: "relative",
+    width: "100%"
+  },
+  eyeButton: {
+    position: "absolute",
+    right: "10px",
+    top: "50%",
+    transform: "translateY(-50%)",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    color: "#666",
+    fontSize: "16px",
+    padding: "0",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "30px",
+    height: "30px"
+  },
+  // Pagination styles
+  paginationContainer: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "20px",
+    padding: "15px",
+    backgroundColor: "#f9f9f9",
+    borderRadius: "8px",
+    flexWrap: "wrap",
+    gap: "10px"
+  },
+  paginationInfo: {
+    color: "#666",
+    fontSize: "14px"
+  },
+  paginationControls: {
+    display: "flex",
+    gap: "5px",
+    alignItems: "center"
+  },
+  paginationButton: {
+    padding: "8px 12px",
+    border: "1px solid #ddd",
+    borderRadius: "4px",
+    backgroundColor: "#f0f0f0",
+    color: "#666",
+    cursor: "pointer",
+    fontSize: "14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: "36px",
+    height: "36px",
+    transition: "all 0.2s"
+  }
 };
 
 export default EmployeePage;

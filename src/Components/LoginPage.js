@@ -1,10 +1,12 @@
 // Login.js
 import React, { useState } from "react";
-import { FaUserCircle, FaLock } from "react-icons/fa";
+import { FaUserCircle, FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
+import Logo from "./Name1.jpg"; // 🖼️ Logo Image
 
 const Login = ({ onLogin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // 🔐 Main Login Function
@@ -19,7 +21,6 @@ const Login = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      // 🟢 Step 1: Try Employee login first
       const empResponse = await fetch("http://localhost:5000/api/employee/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -33,7 +34,6 @@ const Login = ({ onLogin }) => {
         return;
       }
 
-      // 🔁 Step 2: Try Admin/Auth Login
       const authResponse = await fetch("http://localhost:5000/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -47,7 +47,6 @@ const Login = ({ onLogin }) => {
         return;
       }
 
-      // ❌ Both failed
       alert(`❌ ${empData.message || authData.message || "Login failed. Try again."}`);
     } catch (error) {
       console.error("Login Error:", error);
@@ -61,45 +60,33 @@ const Login = ({ onLogin }) => {
   const handleSuccessfulLogin = (user, loginType) => {
     alert("✅ Login successful!");
 
-    // 🧠 Pick correct display name
     const displayName =
       user.username ||
       user.name ||
       user.fullname ||
       "Unknown User";
 
-    // 🧠 PICK USER TYPE NAME
     const userType =
       user.userType ||
       user.user_type ||
       user.usertype ||
       user.role ||
-      "Employee";
+      "undefined";
 
-    // 🧠 PICK USER TYPE ID (VERY IMPORTANT)
     const userTypeId =
-      user.user_type_id ||   // 🔵 mostly backend returns this
+      user.user_type_id ||
       user.userTypeId ||
       user.usertype_id ||
       user.user_type ||
       0;
 
-    // 💾 Save everything to localStorage
     localStorage.setItem("user_id", user.id);
     localStorage.setItem("username", displayName);
     localStorage.setItem("email", user.email);
     localStorage.setItem("login_type", loginType);
-
-    // ⭐ Save usertype
     localStorage.setItem("usertype", userType);
-
-    // ⭐ Save user_type_id
     localStorage.setItem("user_type_id", userTypeId);
 
-    console.log("Saved usertype:", userType);
-    console.log("Saved user_type_id:", userTypeId);
-
-    // 🔁 Notify parent
     if (onLogin) onLogin(user);
   };
 
@@ -107,12 +94,12 @@ const Login = ({ onLogin }) => {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <FaUserCircle size={60} color="#f5c518" />
-          <h2 style={styles.title}>Welcome to Lakotia</h2>
+          <img src={Logo} alt="Lakotia Logo" style={styles.logo} />
           <p style={styles.subtitle}>Please sign in to continue</p>
         </div>
 
         <form onSubmit={handleSubmit} style={styles.form}>
+          {/* Email */}
           <div style={styles.inputGroup}>
             <FaUserCircle style={styles.icon} />
             <input
@@ -125,16 +112,23 @@ const Login = ({ onLogin }) => {
             />
           </div>
 
+          {/* Password with Eye Icon */}
           <div style={styles.inputGroup}>
             <FaLock style={styles.icon} />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               style={styles.input}
             />
+            <span
+              style={styles.eyeIcon}
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <FaEyeSlash /> : <FaEye />}
+            </span>
           </div>
 
           <button type="submit" style={styles.button} disabled={loading}>
@@ -165,8 +159,11 @@ const styles = {
     textAlign: "center",
   },
   header: { marginBottom: "25px" },
-  title: { color: "#333", fontWeight: "700", marginTop: "10px" },
-  subtitle: { color: "#666", fontSize: "14px", marginTop: "5px" },
+  logo: {
+    width: "200px",
+    marginBottom: "15px",
+  },
+  subtitle: { color: "#666", fontSize: "14px" },
   form: { display: "flex", flexDirection: "column", gap: "20px" },
   inputGroup: {
     display: "flex",
@@ -177,6 +174,10 @@ const styles = {
     padding: "10px",
   },
   icon: { marginRight: "10px", color: "#f5c518" },
+  eyeIcon: {
+    cursor: "pointer",
+    color: "#999",
+  },
   input: {
     border: "none",
     outline: "none",
@@ -193,7 +194,6 @@ const styles = {
     cursor: "pointer",
     fontWeight: "bold",
     fontSize: "16px",
-    transition: "background 0.3s ease, transform 0.2s ease",
   },
 };
 

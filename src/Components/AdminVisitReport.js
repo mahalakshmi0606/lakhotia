@@ -1,24 +1,28 @@
 import React, { useState, useEffect } from "react";
 import {
-  FaEdit,
-  FaTrash,
   FaEye,
   FaPaperclip,
   FaStickyNote,
   FaSearch,
+  FaFileExcel,
+  FaFilePdf,
 } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
 
+// Excel + PDF
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+
 const API_BASE = "http://localhost:5000/api";
 
 const VisitReportPage = () => {
   const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [formMode, setFormMode] = useState("view");
   const [selectedReport, setSelectedReport] = useState(null);
 
   // ✅ Search filters
@@ -77,8 +81,67 @@ const VisitReportPage = () => {
     }
   };
 
-  const openModal = (mode, report = null) => {
-    setFormMode(mode);
+  // ✅ Export to Excel
+  const exportToExcel = () => {
+    if (!reports.length) return toast.error("No data to export");
+
+    const data = reports.map((r) => ({
+      "Customer Name": r.customer_name,
+      "Company Name": r.company_name,
+      "Mobile": r.customer_mobile,
+      "Notes": r.notes,
+      "Created By": r.created_by,
+      "Created At": new Date(r.created_at).toLocaleDateString(),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "VisitReports");
+
+    const buffer = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+    saveAs(
+      new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }),
+      "Visit_Reports.xlsx"
+    );
+  };
+
+  // ✅ Export to PDF
+  const exportToPDF = () => {
+    if (!reports.length) return toast.error("No data to export");
+
+    const doc = new jsPDF("landscape", "pt", "a4");
+
+    const columns = [
+      "Customer Name",
+      "Company Name", 
+      "Mobile",
+      "Notes",
+      "Created By",
+      "Created At"
+    ];
+
+    const rows = reports.map((item) => [
+      item.customer_name,
+      item.company_name,
+      item.customer_mobile,
+      item.notes,
+      item.created_by,
+      new Date(item.created_at).toLocaleDateString(),
+    ]);
+
+    autoTable(doc, {
+      head: [columns],
+      body: rows,
+      styles: { fontSize: 8 },
+      margin: { top: 20, left: 10, right: 10 },
+    });
+
+    doc.save("Visit_Reports.pdf");
+  };
+
+  const openModal = (report = null) => {
     setSelectedReport(report);
     setShowModal(true);
   };
@@ -86,18 +149,6 @@ const VisitReportPage = () => {
   const closeModal = () => {
     setShowModal(false);
     setSelectedReport(null);
-  };
-
-  // ✅ Delete Report
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this report?")) return;
-    try {
-      await axios.delete(`${API_BASE}/visitreport/${id}`);
-      toast.info("🗑️ Visit Report Deleted");
-      fetchReports();
-    } catch {
-      toast.error("❌ Failed to delete");
-    }
   };
 
   return (
@@ -111,8 +162,16 @@ const VisitReportPage = () => {
       >
         <h3 className="fw-bold text-dark mb-2 mb-md-0">📋 Visit Report</h3>
 
-        {/* ✅ Search Section */}
-        <div className="d-flex flex-wrap align-items-end gap-2">
+        <div className="d-flex flex-wrap gap-2 align-items-center">
+          {/* Export Buttons */}
+          <button className="btn btn-success btn-sm" onClick={exportToExcel}>
+            <FaFileExcel /> Excel
+          </button>
+
+          <button className="btn btn-danger btn-sm" onClick={exportToPDF}>
+            <FaFilePdf /> PDF
+          </button>
+
           {/* 🔍 Search by Name */}
           <div className="d-flex align-items-center gap-2">
             <input
@@ -168,15 +227,14 @@ const VisitReportPage = () => {
             <thead style={{ backgroundColor: "#fff59d" }}>
               <tr>
                 <th>ID</th>
-                <th>Company</th>
-                <th>Industry</th>
                 <th>Customer</th>
-                <th>Department</th>
+                <th>Company</th>
+                <th>Mobile</th>
                 <th>Created By</th>
                 <th>Created At</th>
                 <th>Attachment</th>
                 <th>Notes</th>
-                <th>Actions</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -184,12 +242,11 @@ const VisitReportPage = () => {
                 reports.map((r) => (
                   <tr key={r.id}>
                     <td>{r.id}</td>
-                    <td>{r.company_name}</td>
-                    <td>{r.industry_segment}</td>
                     <td>{r.customer_name}</td>
-                    <td>{r.department}</td>
+                    <td>{r.company_name}</td>
+                    <td>{r.customer_mobile}</td>
                     <td>{r.created_by}</td>
-                    <td>{r.created_at}</td>
+                    <td>{new Date(r.created_at).toLocaleDateString()}</td>
                     <td>
                       {r.attachment ? (
                         <a
@@ -208,37 +265,27 @@ const VisitReportPage = () => {
                       {r.notes ? (
                         <span className="text-muted">
                           <FaStickyNote className="me-1 text-warning" />
-                          {r.notes.slice(0, 15)}...
+                          {r.notes.slice(0, 30)}...
                         </span>
                       ) : (
                         "-"
                       )}
                     </td>
                     <td className="text-center">
-                      <FaEye
-                        className="text-info mx-2"
-                        title="View"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => openModal("view", r)}
-                      />
-                      <FaEdit
-                        className="text-warning mx-2"
-                        title="Edit"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => openModal("edit", r)}
-                      />
-                      <FaTrash
-                        className="text-danger mx-2"
-                        title="Delete"
-                        style={{ cursor: "pointer" }}
-                        onClick={() => handleDelete(r.id)}
-                      />
+                      <div className="d-flex justify-content-center">
+                        <FaEye
+                          className="text-info mx-2"
+                          title="View Details"
+                          style={{ cursor: "pointer" }}
+                          onClick={() => openModal(r)}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="10" className="text-center py-3 text-muted">
+                  <td colSpan="9" className="text-center py-3 text-muted">
                     No visit reports available.
                   </td>
                 </tr>
@@ -248,7 +295,7 @@ const VisitReportPage = () => {
         </div>
       </div>
 
-      {/* View/Edit Modal */}
+      {/* View Modal */}
       {showModal && selectedReport && (
         <div
           className="modal fade show"
@@ -263,9 +310,7 @@ const VisitReportPage = () => {
               style={{ backgroundColor: "#fffde7" }}
             >
               <div className="modal-header bg-warning text-dark py-2">
-                <h5 className="modal-title fw-bold">
-                  {formMode === "view" ? "View Visit Report" : "Edit Visit Report"}
-                </h5>
+                <h5 className="modal-title fw-bold">View Visit Report</h5>
                 <button
                   type="button"
                   className="btn-close"
@@ -275,11 +320,55 @@ const VisitReportPage = () => {
 
               <div className="modal-body p-3">
                 <ul className="list-group list-group-flush">
-                  {Object.entries(selectedReport).map(([key, value]) => (
-                    <li key={key} className="list-group-item">
-                      <strong>{key.replace(/_/g, " ")}:</strong> {String(value)}
-                    </li>
-                  ))}
+                  <li className="list-group-item d-flex justify-content-between">
+                    <strong>Customer Name:</strong> 
+                    <span>{selectedReport.customer_name || "-"}</span>
+                  </li>
+                  <li className="list-group-item d-flex justify-content-between">
+                    <strong>Company Name:</strong> 
+                    <span>{selectedReport.company_name || "-"}</span>
+                  </li>
+                  <li className="list-group-item d-flex justify-content-between">
+                    <strong>Mobile:</strong> 
+                    <span>{selectedReport.customer_mobile || "-"}</span>
+                  </li>
+                  <li className="list-group-item d-flex justify-content-between">
+                    <strong>Created By:</strong> 
+                    <span>{selectedReport.created_by || "-"}</span>
+                  </li>
+                  <li className="list-group-item d-flex justify-content-between">
+                    <strong>Created At:</strong> 
+                    <span>
+                      {selectedReport.created_at 
+                        ? new Date(selectedReport.created_at).toLocaleString() 
+                        : "-"
+                      }
+                    </span>
+                  </li>
+                  <li className="list-group-item">
+                    <strong>Notes:</strong>
+                    <div className="mt-1 p-2 bg-light rounded">
+                      {selectedReport.notes || "-"}
+                    </div>
+                  </li>
+                  <li className="list-group-item">
+                    <strong>Attachment:</strong>
+                    <div className="mt-1">
+                      {selectedReport.attachment ? (
+                        <a
+                          href={`${API_BASE}/visit_reports/${selectedReport.attachment}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-sm btn-outline-primary"
+                        >
+                          <FaPaperclip className="me-1" />
+                          View Attachment
+                        </a>
+                      ) : (
+                        <span className="text-muted">No attachment</span>
+                      )}
+                    </div>
+                  </li>
                 </ul>
               </div>
 

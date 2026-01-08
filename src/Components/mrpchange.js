@@ -10,46 +10,71 @@ export default function MRPChangePage() {
   const [previewData, setPreviewData] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const [allStock, setAllStock] = useState([]);
   const [itemNames, setItemNames] = useState([]);
   const [brands, setBrands] = useState([]);
 
   const [selectedItemName, setSelectedItemName] = useState("");
   const [selectedBrand, setSelectedBrand] = useState("");
 
+  /* =========================
+     LOAD STOCK DATA
+  ========================= */
   useEffect(() => {
-    fetchFilterData();
+    fetchStockData();
   }, []);
 
-  const fetchFilterData = async () => {
+  const fetchStockData = async () => {
     try {
       const res = await axios.get(API_STOCK_ALL);
-      const data = res.data.data;
+      const data = res.data.data || [];
 
-      setItemNames([...new Set(data.map((d) => d["Item Name"]))]);
-      setBrands([...new Set(data.map((d) => d["Brand"]))]);
+      setAllStock(data);
+
+      setBrands([...new Set(data.map(d => d["Brand"]))]);
+      setItemNames([...new Set(data.map(d => d["Item Name"]))]);
     } catch (error) {
-      console.error("Error loading filters", error);
+      console.error("Error loading stock data", error);
     }
   };
 
-  // Download Excel
+  /* =========================
+     BRAND → ITEM FILTER
+  ========================= */
+  useEffect(() => {
+    if (!selectedBrand) {
+      setItemNames([...new Set(allStock.map(d => d["Item Name"]))]);
+    } else {
+      const filteredItems = allStock
+        .filter(d => d["Brand"] === selectedBrand)
+        .map(d => d["Item Name"]);
+
+      setItemNames([...new Set(filteredItems)]);
+      setSelectedItemName(""); // reset item when brand changes
+    }
+  }, [selectedBrand, allStock]);
+
+  /* =========================
+     DOWNLOAD EXCEL
+  ========================= */
   const handleDownloadExcel = async () => {
     try {
-      const res = await axios.get(API_STOCK_ALL);
-      let data = res.data.data;
+      let data = [...allStock];
 
-      if (!data.length) return alert("No stock data found!");
+      if (selectedBrand) {
+        data = data.filter(d => d["Brand"] === selectedBrand);
+      }
 
-      if (selectedItemName)
-        data = data.filter((d) => d["Item Name"] === selectedItemName);
+      if (selectedItemName) {
+        data = data.filter(d => d["Item Name"] === selectedItemName);
+      }
 
-      if (selectedBrand)
-        data = data.filter((d) => d["Brand"] === selectedBrand);
-
-      if (!data.length) return alert("No records found for filters!");
+      if (!data.length) {
+        return alert("No records found!");
+      }
 
       const ws = XLSX.utils.json_to_sheet(
-        data.map((d) => ({
+        data.map(d => ({
           "Item Name": d["Item Name"],
           Brand: d["Brand"],
           "Brand Code": d["Brand Code"],
@@ -59,7 +84,7 @@ export default function MRPChangePage() {
       );
 
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Stock");
+      XLSX.utils.book_append_sheet(wb, ws, "MRP Update");
       XLSX.writeFile(wb, "MRP_Update.xlsx");
     } catch (error) {
       console.error(error);
@@ -67,7 +92,9 @@ export default function MRPChangePage() {
     }
   };
 
-  // Upload Preview
+  /* =========================
+     FILE UPLOAD PREVIEW
+  ========================= */
   const handleFileUpload = (e) => {
     const selectedFile = e.target.files[0];
     setFile(selectedFile);
@@ -82,7 +109,9 @@ export default function MRPChangePage() {
     reader.readAsBinaryString(selectedFile);
   };
 
-  // Update MRP
+  /* =========================
+     UPDATE MRP
+  ========================= */
   const handleMRPUpdate = async () => {
     if (!file) return alert("Upload Excel first!");
 
@@ -93,6 +122,8 @@ export default function MRPChangePage() {
       });
 
       alert(res.data.message || "MRP Updated Successfully!");
+      setFile(null);
+      setPreviewData([]);
     } catch (error) {
       console.error(error);
       alert("Error updating MRP");
@@ -102,37 +133,38 @@ export default function MRPChangePage() {
 
   return (
     <div className="container mt-4">
-      <h2 className="text-center fw-bold mb-4">MRP Management</h2>
+      <h2 className="text-center fw-bold mb-4">PRICE LIST-MRP</h2>
 
       {/* FILTER CARD */}
       <div className="card shadow-sm mb-3">
         <div className="card-body">
           <h4 className="fw-semibold mb-3">Download Filters</h4>
 
-          {/* SMALL INPUTS INLINE */}
           <div className="d-flex gap-2 flex-wrap align-items-center mb-3">
 
-            <select
-              className="form-select form-select-sm"
-              style={{ width: "200px" }}
-              value={selectedItemName}
-              onChange={(e) => setSelectedItemName(e.target.value)}
-            >
-              <option value="">Item Name</option>
-              {itemNames.map((v, i) => (
-                <option key={i} value={v}>{v}</option>
-              ))}
-            </select>
-
+            {/* BRAND FILTER */}
             <select
               className="form-select form-select-sm"
               style={{ width: "200px" }}
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
             >
-              <option value="">Brand</option>
-              {brands.map((v, i) => (
-                <option key={i} value={v}>{v}</option>
+              <option value="">All Brands</option>
+              {brands.map((b, i) => (
+                <option key={i} value={b}>{b}</option>
+              ))}
+            </select>
+
+            {/* ITEM FILTER */}
+            <select
+              className="form-select form-select-sm"
+              style={{ width: "200px" }}
+              value={selectedItemName}
+              onChange={(e) => setSelectedItemName(e.target.value)}
+            >
+              <option value="">All Items</option>
+              {itemNames.map((item, i) => (
+                <option key={i} value={item}>{item}</option>
               ))}
             </select>
 
@@ -145,16 +177,16 @@ export default function MRPChangePage() {
             />
 
             <button
-              className="btn btn-primary btn-sm px-2 py-1"
+              className="btn btn-primary btn-sm"
               onClick={handleDownloadExcel}
             >
               Download Excel
             </button>
 
             <button
-              className="btn btn-success btn-sm px-2 py-1"
+              className="btn btn-success btn-sm"
               onClick={handleMRPUpdate}
-              disabled={!file}
+              disabled={!file || loading}
             >
               {loading ? "Updating..." : "Update MRP"}
             </button>
@@ -172,7 +204,7 @@ export default function MRPChangePage() {
               <table className="table table-bordered table-sm">
                 <thead className="table-warning">
                   <tr>
-                    {Object.keys(previewData[0]).map((col) => (
+                    {Object.keys(previewData[0]).map(col => (
                       <th key={col}>{col}</th>
                     ))}
                   </tr>

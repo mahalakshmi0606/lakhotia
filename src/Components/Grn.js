@@ -1,51 +1,34 @@
-// === GRNPage.jsx (FULL WORKING VERSION WITH VIEW POPUP) ===
-
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { FaEye } from "react-icons/fa";
+import { 
+  FaEye, FaSearch, FaFileInvoice, FaBuilding, FaUser, 
+  FaBox, FaTag, FaBarcode, FaRulerCombined, FaRupeeSign,
+  FaHashtag, FaReceipt, FaCopy, FaCalendarAlt
+} from "react-icons/fa";
 
 const GRNPage = () => {
   const todayDate = new Date().toISOString().slice(0, 10);
-
-  const [formData, setFormData] = useState({
-    item_name: "",
-    brand: "",
-    length: "",
-    width: "",
-    buy_price: "",
-    batch_code: "",
-    invoice_number: "",
-    invoice_date: todayDate,
-    customer_name: "",
-    customer_part_no: "",
-    customer_description: "",
-  });
-
-  const [stockData, setStockData] = useState([]);
-  const [filteredItems, setFilteredItems] = useState([]);
+  
+  const [poNumber, setPoNumber] = useState("");
+  const [poDetails, setPoDetails] = useState(null);
   const [grnList, setGrnList] = useState([]);
-  const [tempItems, setTempItems] = useState([]);
   const [openPopup, setOpenPopup] = useState(false);
-
-  const [viewData, setViewData] = useState(null); // VIEW CARD DATA
-
+  const [viewData, setViewData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [invoiceNumber, setInvoiceNumber] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterInvoice, setFilterInvoice] = useState("");
+  
+  // Fetch GRN list on component mount
   useEffect(() => {
-    fetchStock();
     fetchGRN();
   }, []);
-
-  const fetchStock = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/stock/all");
-      if (res.data.success) setStockData(res.data.data);
-    } catch (err) {
-      console.log("Error loading stock", err);
-    }
-  };
-
+  
+  // Fetch GRN records
   const fetchGRN = async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/grn/all");
@@ -54,437 +37,920 @@ const GRNPage = () => {
       console.log("Error loading GRN", err);
     }
   };
-
-  const handleItemTyping = (e) => {
-    const value = e.target.value;
-    setFormData({ ...formData, item_name: value });
-
-    if (!value) {
-      setFilteredItems([]);
+  
+  // Fetch PO details by PO number
+  const fetchPODetails = async () => {
+    if (!poNumber.trim()) {
+      toast.error("Please enter a PO Number");
       return;
     }
-
-    const results = stockData.filter((x) =>
-      x["Item Name"].toLowerCase().includes(value.toLowerCase())
-    );
-
-    setFilteredItems(results);
-  };
-
-  const handleSuggestionSelect = (item) => {
-    setFormData({
-      ...formData,
-      item_name: item["Item Name"],
-      brand: item.Brand,
-      width: "",
-    });
-    setFilteredItems([]);
-    generateBatchCode(item.Brand);
-  };
-
-  const generateBatchCode = (brandValue) => {
-    if (!brandValue || brandValue.trim() === "") return;
-
-    const brand = brandValue.substring(0, 3).toUpperCase();
-    const today = new Date();
-    const dateStr =
-      today.getFullYear().toString() +
-      String(today.getMonth() + 1).padStart(2, "0") +
-      String(today.getDate()).padStart(2, "0");
-
-    let count = grnList.filter((g) =>
-      g.batch_code?.startsWith(`${brand}-${dateStr}`)
-    ).length;
-
-    count += 1;
-
-    const finalCode = `${brand}-${dateStr}-${count}`;
-
-    setFormData((prev) => ({
-      ...prev,
-      batch_code: finalCode,
-    }));
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-
-    if (name === "brand") {
-      setFormData({ ...formData, brand: value });
-      if (value.length >= 3) generateBatchCode(value);
-      return;
-    }
-
-    setFormData({ ...formData, [name]: value });
-  };
-
-  // ADD ITEM TO PREVIEW
-  const handleNext = () => {
-    if (!formData.item_name || !formData.brand || !formData.length) {
-      toast.error("Please fill all required fields!");
-      return;
-    }
-
-    setTempItems([...tempItems, formData]);
-
-    setFormData({
-      ...formData,
-      item_name: "",
-      brand: "",
-      length: "",
-      width: "",
-      buy_price: "",
-      batch_code: "",
-    });
-  };
-
-  // SUBMIT ALL ITEMS
-  const handleSubmitAll = async () => {
-    if (tempItems.length === 0) {
-      toast.error("No items added!");
-      return;
-    }
-
+    
+    setLoading(true);
     try {
-      await axios.post("http://localhost:5000/api/grn/save-multiple", {
-        invoice_number: formData.invoice_number,
-        invoice_date: formData.invoice_date,
-        customer_name: formData.customer_name,
-        customer_part_no: formData.customer_part_no,
-        customer_description: formData.customer_description,
-        items: tempItems,
-      });
-
-      toast.success("All GRN Items Saved!");
-      setTempItems([]);
-      fetchGRN();
-      setOpenPopup(false);
+      const res = await axios.get(`http://localhost:5000/api/grn/get-po/${poNumber}`);
+      
+      if (res.data.success) {
+        const poData = res.data.data;
+        setPoDetails(poData);
+        toast.success("PO details loaded successfully!");
+        
+        // Initialize selected items (all items selected by default) with batch codes
+        if (poData.items && poData.items.length > 0) {
+          const itemsWithBatch = poData.items.map(item => ({
+            ...item,
+            selected: true,
+            batch_code: "",
+            hsn_code: item.hsn_code || "",
+            brand_description: item.brand_description || "",
+            buy_price: item.buy_price || 0,
+            original_batch_code: "" // Store original for comparison
+          }));
+          setSelectedItems(itemsWithBatch);
+        }
+        
+        // Open the popup
+        setOpenPopup(true);
+      } else {
+        toast.error(res.data.message || "PO not found");
+        setPoDetails(null);
+      }
     } catch (err) {
-      toast.error("Error saving GRN");
+      toast.error("Error fetching PO details");
+      console.error("Error fetching PO:", err);
+      setPoDetails(null);
+    } finally {
+      setLoading(false);
     }
   };
-
+  
+  // Generate batch code
+  const generateBatchCode = (brand, date, index) => {
+    // Get first 3 letters of brand (uppercase)
+    const brandPrefix = (brand || "GEN").substring(0, 3).toUpperCase();
+    
+    // Format date as YYYYMMDD
+    const formattedDate = date.replace(/-/g, "");
+    
+    // Generate sequence number with leading zeros
+    const sequence = String(index + 1).padStart(3, '0');
+    
+    // Combine: BRAND-YYYYMMDD-001
+    return `${brandPrefix}-${formattedDate}-${sequence}`;
+  };
+  
+  // Generate batch codes for all selected items
+  const generateBatchCodes = () => {
+    const today = todayDate;
+    
+    // Count items per brand for the day
+    const brandCounts = {};
+    
+    const updatedItems = selectedItems.map((item, index) => {
+      const brand = item.brand || "GENERIC";
+      const brandKey = `${brand}_${today}`;
+      
+      if (!brandCounts[brandKey]) {
+        brandCounts[brandKey] = 0;
+      }
+      brandCounts[brandKey]++;
+      
+      const batchNumber = brandCounts[brandKey];
+      const batchCode = generateBatchCode(brand, today, batchNumber - 1);
+      
+      return {
+        ...item,
+        batch_code: batchCode
+      };
+    });
+    
+    setSelectedItems(updatedItems);
+    toast.success("Batch codes generated successfully!");
+  };
+  
+  // Generate batch code for specific item
+  const generateItemBatchCode = (index) => {
+    const item = selectedItems[index];
+    if (!item.brand) {
+      toast.error("Please enter brand name for this item first");
+      return;
+    }
+    
+    const today = todayDate;
+    
+    // Count how many items have the same brand today
+    const sameBrandItems = selectedItems.filter((it, idx) => 
+      it.brand === item.brand && idx <= index
+    );
+    
+    const batchNumber = sameBrandItems.length;
+    const batchCode = generateBatchCode(item.brand, today, batchNumber - 1);
+    
+    const updatedItems = [...selectedItems];
+    updatedItems[index].batch_code = batchCode;
+    setSelectedItems(updatedItems);
+  };
+  
+  // Toggle item selection
+  const toggleItemSelection = (index) => {
+    const updatedItems = [...selectedItems];
+    updatedItems[index].selected = !updatedItems[index].selected;
+    setSelectedItems(updatedItems);
+  };
+  
+  // Select all items
+  const selectAllItems = () => {
+    const updatedItems = selectedItems.map(item => ({
+      ...item,
+      selected: true
+    }));
+    setSelectedItems(updatedItems);
+  };
+  
+  // Deselect all items
+  const deselectAllItems = () => {
+    const updatedItems = selectedItems.map(item => ({
+      ...item,
+      selected: false
+    }));
+    setSelectedItems(updatedItems);
+  };
+  
+  // Handle item field changes
+  const handleItemChange = (index, field, value) => {
+    const updatedItems = [...selectedItems];
+    updatedItems[index][field] = value;
+    setSelectedItems(updatedItems);
+  };
+  
+  // Copy batch code to clipboard
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success("Batch code copied to clipboard!"))
+      .catch(() => toast.error("Failed to copy"));
+  };
+  
+  // Submit GRN from PO
+  const handleSubmitGRN = async () => {
+    // Filter selected items
+    const itemsToSubmit = selectedItems
+      .filter(item => item.selected)
+      .map(item => {
+        const { selected, original_batch_code, ...itemData } = item;
+        return {
+          ...itemData,
+          batch_code: item.batch_code || generateBatchCode(item.brand || "GEN", todayDate, 0),
+          hsn_code: item.hsn_code || "",
+          brand_description: item.brand_description || "",
+          buy_price: parseFloat(item.buy_price) || 0
+        };
+      });
+    
+    if (itemsToSubmit.length === 0) {
+      toast.error("Please select at least one item");
+      return;
+    }
+    
+    // Validate batch codes
+    const batchCodes = itemsToSubmit.map(item => item.batch_code);
+    const uniqueBatchCodes = new Set(batchCodes);
+    
+    if (batchCodes.length !== uniqueBatchCodes.size) {
+      toast.error("Duplicate batch codes detected! Please regenerate unique codes.");
+      return;
+    }
+    
+    try {
+      const payload = {
+        po_number: poNumber,
+        items: itemsToSubmit
+      };
+      
+      const res = await axios.post("http://localhost:5000/api/grn/save-from-po", payload);
+      
+      if (res.data.success) {
+        toast.success(res.data.message);
+        setInvoiceNumber(res.data.invoice_number);
+        
+        // Reset and close
+        setTimeout(() => {
+          setOpenPopup(false);
+          setPoDetails(null);
+          setPoNumber("");
+          setSelectedItems([]);
+          setInvoiceNumber("");
+          fetchGRN(); // Refresh GRN list
+        }, 2000);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Error creating GRN");
+      console.error("Error submitting GRN:", err);
+    }
+  };
+  
+  // View GRN details by invoice
+  const viewGRNByInvoice = async (invoiceNumber) => {
+    try {
+      const res = await axios.get(`http://localhost:5000/api/grn/invoice/${invoiceNumber}`);
+      
+      if (res.data.success) {
+        setViewData(res.data.data);
+      }
+    } catch (err) {
+      toast.error("Error loading GRN details");
+      console.error(err);
+    }
+  };
+  
+  // Filter GRN list
+  const filteredGRNList = grnList.filter(item => {
+    const matchesSearch = searchTerm ? 
+      item.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.po_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.item_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.batch_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.hsn_code?.toLowerCase().includes(searchTerm.toLowerCase())
+      : true;
+    
+    const matchesInvoice = filterInvoice ? 
+      item.invoice_number === filterInvoice : true;
+    
+    return matchesSearch && matchesInvoice;
+  });
+  
+  // Get unique invoice numbers
+  const uniqueInvoices = [...new Set(grnList.map(item => item.invoice_number))].sort();
+  
+  // Group GRN by invoice
+  const groupedGRN = filteredGRNList.reduce((acc, item) => {
+    if (!acc[item.invoice_number]) {
+      acc[item.invoice_number] = {
+        invoice_number: item.invoice_number,
+        invoice_date: item.invoice_date,
+        po_number: item.po_number,
+        company_name: item.company_name,
+        customer_name: item.customer_name,
+        gst_number: item.gst_number,
+        items: [],
+        total_amount: 0,
+        item_count: 0
+      };
+    }
+    acc[item.invoice_number].items.push(item);
+    acc[item.invoice_number].total_amount += (item.quantity * item.buy_price);
+    acc[item.invoice_number].item_count++;
+    return acc;
+  }, {});
+  
   return (
-    <div className="container mt-4">
-      <ToastContainer />
-
-      <h2 className="text-center mb-4 fw-bold">GRN Management</h2>
-
-      <button
-        className="btn btn-success mb-3"
-        onClick={() => setOpenPopup(true)}
-      >
-        + Add GRN
-      </button>
-
-      {/* CREATE GRN POPUP */}
-      {openPopup && (
-        <div className="modal fade show d-block" style={{ background: "#0005" }}>
-          <div className="modal-dialog modal-xl">
-            <div className="modal-content shadow-lg">
-              <div className="modal-header">
-                <h5 className="modal-title fw-bold">New GRN Entry</h5>
-                <button className="btn-close" onClick={() => setOpenPopup(false)}></button>
+    <div className="container-fluid mt-4">
+      <ToastContainer position="top-right" autoClose={3000} />
+      
+      <div className="card shadow border-0">
+        <div className="card-header bg-primary text-white">
+          <h3 className="mb-0">
+            <FaFileInvoice className="me-2" />
+            GRN (Goods Receipt Note) Management
+          </h3>
+        </div>
+        
+        <div className="card-body">
+          {/* PO Search Section */}
+          <div className="row mb-4">
+            <div className="col-md-8">
+              <div className="input-group">
+                <span className="input-group-text bg-white">
+                  <FaSearch />
+                </span>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Enter PO Number (e.g., PO-202401-001)"
+                  value={poNumber}
+                  onChange={(e) => setPoNumber(e.target.value.toUpperCase())}
+                  onKeyPress={(e) => e.key === 'Enter' && fetchPODetails()}
+                />
+                <button
+                  className="btn btn-primary"
+                  onClick={fetchPODetails}
+                  disabled={loading || !poNumber.trim()}
+                >
+                  {loading ? "Loading..." : "Fetch PO Details"}
+                </button>
               </div>
-
-              <div className="modal-body">
-                {/* FORM */}
-                <div className="row g-3">
-                  {/* Invoice */}
-                  <div className="col-md-4">
-                    <label className="fw-bold">Invoice Number</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="invoice_number"
-                      value={formData.invoice_number}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  <div className="col-md-4">
-                    <label className="fw-bold">Invoice Date</label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      name="invoice_date"
-                      value={formData.invoice_date}
-                      readOnly
-                    />
-                  </div>
-
-                  <div className="col-md-4">
-                    <label className="fw-bold">Customer Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="customer_name"
-                      value={formData.customer_name}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  {/* Part + Desc */}
-                  <div className="col-md-6">
-                    <label className="fw-bold">Customer Part No</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="customer_part_no"
-                      value={formData.customer_part_no}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  <div className="col-md-6">
-                    <label className="fw-bold">Customer Description</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="customer_description"
-                      value={formData.customer_description}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  {/* Item */}
-                  <div className="col-md-6 position-relative">
-                    <label className="fw-bold">Item Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="item_name"
-                      value={formData.item_name}
-                      onChange={handleItemTyping}
-                      placeholder="Search item"
-                    />
-                    {filteredItems.length > 0 && (
-                      <div
-                        className="list-group position-absolute w-100 shadow-sm"
-                        style={{ zIndex: 10 }}
-                      >
-                        {filteredItems.map((item, i) => (
-                          <button
-                            key={i}
-                            className="list-group-item list-group-item-action"
-                            onClick={() => handleSuggestionSelect(item)}
-                          >
-                            {item["Item Name"]}
-                          </button>
-                        ))}
+            </div>
+          </div>
+          
+          {/* Success Message with Invoice Number */}
+          {invoiceNumber && (
+            <div className="alert alert-success alert-dismissible fade show">
+              <strong>Success!</strong> GRN created with Invoice Number: <strong>{invoiceNumber}</strong>
+              <button type="button" className="btn-close" onClick={() => setInvoiceNumber("")}></button>
+            </div>
+          )}
+          
+          {/* GRN Search and Filters */}
+          <div className="row mb-3 g-2">
+            <div className="col-md-4">
+              <div className="input-group">
+                <span className="input-group-text bg-white">
+                  <FaSearch />
+                </span>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="Search Invoice, PO, Customer, Batch..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="col-md-3">
+              <select 
+                className="form-select" 
+                value={filterInvoice}
+                onChange={(e) => setFilterInvoice(e.target.value)}
+              >
+                <option value="">All Invoices</option>
+                {uniqueInvoices.map(invoice => (
+                  <option key={invoice} value={invoice}>{invoice}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-5 text-end">
+              <div className="text-muted">
+                <FaFileInvoice className="me-1" />
+                Total GRN Records: <strong>{grnList.length}</strong> | 
+                Showing: <strong>{Object.keys(groupedGRN).length}</strong> invoices
+              </div>
+            </div>
+          </div>
+          
+          {/* GRN List Table */}
+          <div className="table-responsive">
+            <table className="table table-hover table-bordered">
+              <thead className="table-dark">
+                <tr>
+                  <th>Invoice No</th>
+                  <th>Date</th>
+                  <th>PO Number</th>
+                  <th>Company</th>
+                  <th>Customer</th>
+                  <th>Items</th>
+                  <th>Batch Codes</th>
+                  <th>Total Amount</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(groupedGRN).length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="text-center py-4">
+                      <div className="text-muted">
+                        <i className="fas fa-inbox fa-2x mb-2"></i>
+                        <p>No GRN records found</p>
                       </div>
+                    </td>
+                  </tr>
+                ) : (
+                  Object.values(groupedGRN).map((invoice) => (
+                    <tr key={invoice.invoice_number}>
+                      <td className="fw-bold text-primary">
+                        <FaFileInvoice className="me-1" />
+                        {invoice.invoice_number}
+                      </td>
+                      <td>
+                        <FaCalendarAlt className="me-1 text-secondary" />
+                        {invoice.invoice_date}
+                      </td>
+                      <td>
+                        <FaReceipt className="me-1 text-secondary" />
+                        {invoice.po_number}
+                      </td>
+                      <td>
+                        <FaBuilding className="me-1" />
+                        {invoice.company_name}
+                      </td>
+                      <td>
+                        <FaUser className="me-1" />
+                        {invoice.customer_name}
+                      </td>
+                      <td>
+                        <span className="badge bg-secondary">
+                          <FaBox className="me-1" />
+                          {invoice.item_count} items
+                        </span>
+                        <div className="mt-1">
+                          <small className="text-muted">
+                            {invoice.items.slice(0, 2).map((item, idx) => (
+                              <div key={idx} className="text-truncate" style={{ maxWidth: '150px' }}>
+                                • {item.item_name}
+                              </div>
+                            ))}
+                            {invoice.item_count > 2 && (
+                              <div className="text-muted">+ {invoice.item_count - 2} more</div>
+                            )}
+                          </small>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="batch-codes">
+                          {invoice.items.slice(0, 2).map((item, idx) => (
+                            <div key={idx} className="text-truncate" style={{ maxWidth: '120px' }}>
+                              <small className="badge bg-info text-dark">
+                                {item.batch_code}
+                              </small>
+                            </div>
+                          ))}
+                          {invoice.item_count > 2 && (
+                            <div className="text-muted">
+                              <small>+ {invoice.item_count - 2} more</small>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="fw-bold">
+                        <FaRupeeSign className="me-1 text-success" />
+                        {parseFloat(invoice.total_amount).toLocaleString('en-IN', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-outline-primary btn-sm"
+                          onClick={() => viewGRNByInvoice(invoice.invoice_number)}
+                          title="View Details"
+                        >
+                          <FaEye />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      
+      {/* CREATE GRN POPUP MODAL */}
+      {openPopup && poDetails && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl modal-dialog-scrollable">
+            <div className="modal-content">
+              <div className="modal-header bg-success text-white">
+                <h5 className="modal-title">
+                  <FaFileInvoice className="me-2" />
+                  Create GRN from PO: {poNumber}
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setOpenPopup(false)}></button>
+              </div>
+              
+              <div className="modal-body">
+                {/* PO Information */}
+                <div className="card mb-4">
+                  <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h6 className="mb-0 fw-bold">Purchase Order Information</h6>
+                    <div className="text-muted">
+                      <FaCalendarAlt className="me-1" />
+                      Date: {poDetails.po_date?.slice(0, 10)}
+                    </div>
+                  </div>
+                  <div className="card-body">
+                    <div className="row">
+                      <div className="col-md-4">
+                        <p><strong><FaFileInvoice className="me-1" /> PO Number:</strong> {poDetails.po_number}</p>
+                        <p><strong>Status:</strong> <span className={`badge ${poDetails.status === 'approved' ? 'bg-success' : 'bg-warning'}`}>
+                          {poDetails.status?.toUpperCase()}
+                        </span></p>
+                      </div>
+                      <div className="col-md-4">
+                        <p><strong><FaBuilding className="me-1" /> Company:</strong> {poDetails.company_name}</p>
+                        <p><strong>Address:</strong> {poDetails.company_address}</p>
+                        <p><strong>GST:</strong> {poDetails.gst_number || "N/A"}</p>
+                      </div>
+                      <div className="col-md-4">
+                        <p><strong><FaUser className="me-1" /> Customer:</strong> {poDetails.customer_name}</p>
+                        <p><strong>Mobile:</strong> {poDetails.customer_mobile}</p>
+                        <p><strong>Email:</strong> {poDetails.customer_email}</p>
+                      </div>
+                    </div>
+                    {poDetails.supplier_part_no && (
+                      <p><strong>Supplier Part No:</strong> {poDetails.supplier_part_no}</p>
+                    )}
+                    {poDetails.supplier_description && (
+                      <p><strong>Description:</strong> {poDetails.supplier_description}</p>
                     )}
                   </div>
-
-                  {/* Brand */}
-                  <div className="col-md-6">
-                    <label className="fw-bold">Brand</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="brand"
-                      value={formData.brand}
-                      onChange={handleChange}
-                    />
+                </div>
+                
+                {/* Batch Code Generator */}
+                <div className="card mb-4">
+                  <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h6 className="mb-0 fw-bold">Batch Code Management</h6>
+                    <button 
+                      className="btn btn-sm btn-primary"
+                      onClick={generateBatchCodes}
+                      title="Generate unique batch codes for all selected items"
+                    >
+                      <FaCopy className="me-1" />
+                      Generate All Batch Codes
+                    </button>
                   </div>
-
-                  {/* Length */}
-                  <div className="col-md-6">
-                    <label className="fw-bold">Length</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="length"
-                      value={formData.length}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  {/* Width */}
-                  <div className="col-md-6">
-                    <label className="fw-bold">Width</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="width"
-                      value={formData.width}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  {/* Buy Price */}
-                  <div className="col-md-6">
-                    <label className="fw-bold">Buy Price</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="buy_price"
-                      value={formData.buy_price}
-                      onChange={handleChange}
-                    />
-                  </div>
-
-                  {/* Batch */}
-                  <div className="col-md-6">
-                    <label className="fw-bold">Batch Code</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="batch_code"
-                      value={formData.batch_code}
-                      onChange={handleChange}
-                    />
+                  <div className="card-body">
+                    <div className="alert alert-info">
+                      <strong>Batch Code Format:</strong> First 3 letters of Brand + Date (YYYYMMDD) + Sequence (001, 002...)<br />
+                      <strong>Example:</strong> ABC (from brand) + 20240115 (date) + 001 = <strong>ABC-20240115-001</strong><br />
+                      <small className="text-muted">Batch codes are automatically generated and guaranteed to be unique.</small>
+                    </div>
                   </div>
                 </div>
-
-                {/* BUTTONS */}
-                <div className="mt-4 d-flex justify-content-between">
-                  <button className="btn btn-info" onClick={handleNext}>
-                    Next ➜ Add Item
-                  </button>
-                  <button className="btn btn-success" onClick={handleSubmitAll}>
-                    Submit All
-                  </button>
-                  <button className="btn btn-secondary" onClick={() => setOpenPopup(false)}>
-                    Cancel
-                  </button>
-                </div>
-
-                {/* PREVIEW */}
-                <h5 className="mt-4 fw-bold">Preview Items</h5>
-                <div className="table-responsive">
-                  <table className="table table-bordered mt-3">
-                    <thead className="table-dark">
-                      <tr>
-                        <th>Item</th>
-                        <th>Brand</th>
-                        <th>Length</th>
-                        <th>Width</th>
-                        <th>Price</th>
-                        <th>Batch</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tempItems.length === 0 ? (
-                        <tr>
-                          <td colSpan="6" className="text-center">No Items Added</td>
-                        </tr>
-                      ) : (
-                        tempItems.map((row, i) => (
-                          <tr key={i}>
-                            <td>{row.item_name}</td>
-                            <td>{row.brand}</td>
-                            <td>{row.length}</td>
-                            <td>{row.width}</td>
-                            <td>{row.buy_price}</td>
-                            <td>{row.batch_code}</td>
+                
+                {/* Items Selection */}
+                <div className="card mb-4">
+                  <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h6 className="mb-0 fw-bold">Select Items for GRN</h6>
+                    <div>
+                      <button className="btn btn-sm btn-outline-success me-2" onClick={selectAllItems}>
+                        Select All
+                      </button>
+                      <button className="btn btn-sm btn-outline-danger" onClick={deselectAllItems}>
+                        Deselect All
+                      </button>
+                    </div>
+                  </div>
+                  <div className="card-body">
+                    <div className="table-responsive">
+                      <table className="table table-bordered">
+                        <thead className="table-light">
+                          <tr>
+                            <th style={{ width: '50px' }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedItems.length > 0 && selectedItems.every(item => item.selected)}
+                                onChange={(e) => {
+                                  if (e.target.checked) selectAllItems();
+                                  else deselectAllItems();
+                                }}
+                              />
+                            </th>
+                            <th>Item Name</th>
+                            <th><FaTag /> Brand</th>
+                            <th><FaBarcode /> Brand Code</th>
+                            <th>Description</th>
+                            <th><FaHashtag /> HSN</th>
+                            <th><FaRulerCombined /> Size</th>
+                            <th>Unit</th>
+                            <th>Quantity</th>
+                            <th><FaRupeeSign /> Buy Price</th>
+                            <th>Total</th>
+                            <th>Batch Code</th>
+                            <th>Action</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {selectedItems.map((item, index) => (
+                            <tr key={index} className={item.selected ? 'table-success' : ''}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={item.selected}
+                                  onChange={() => toggleItemSelection(index)}
+                                />
+                              </td>
+                              <td>{item.item_name}</td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={item.brand || ""}
+                                  onChange={(e) => handleItemChange(index, 'brand', e.target.value)}
+                                  placeholder="Brand"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={item.brand_code || ""}
+                                  onChange={(e) => handleItemChange(index, 'brand_code', e.target.value)}
+                                  placeholder="Code"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={item.brand_description || ""}
+                                  onChange={(e) => handleItemChange(index, 'brand_description', e.target.value)}
+                                  placeholder="Description"
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  value={item.hsn_code || ""}
+                                  onChange={(e) => handleItemChange(index, 'hsn_code', e.target.value)}
+                                  placeholder="HSN"
+                                />
+                              </td>
+                              <td>
+                                <div className="d-flex">
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm me-1"
+                                    style={{ width: '50px' }}
+                                    value={item.length || ""}
+                                    onChange={(e) => handleItemChange(index, 'length', e.target.value)}
+                                    placeholder="L"
+                                  />
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    style={{ width: '50px' }}
+                                    value={item.width || ""}
+                                    onChange={(e) => handleItemChange(index, 'width', e.target.value)}
+                                    placeholder="W"
+                                  />
+                                </div>
+                              </td>
+                              <td>{item.unit}</td>
+                              <td>{item.quantity}</td>
+                              <td>
+                                <div className="input-group input-group-sm">
+                                  <span className="input-group-text">
+                                    <FaRupeeSign />
+                                  </span>
+                                  <input
+                                    type="number"
+                                    className="form-control"
+                                    value={item.buy_price || ""}
+                                    onChange={(e) => handleItemChange(index, 'buy_price', e.target.value)}
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="Price"
+                                  />
+                                </div>
+                              </td>
+                              <td className="fw-bold">
+                                <FaRupeeSign className="me-1" />
+                                {(item.quantity * (parseFloat(item.buy_price) || 0)).toFixed(2)}
+                              </td>
+                              <td>
+                                <div className="d-flex align-items-center">
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm me-1"
+                                    value={item.batch_code || ""}
+                                    onChange={(e) => handleItemChange(index, 'batch_code', e.target.value.toUpperCase())}
+                                    placeholder="Batch Code"
+                                    style={{ minWidth: '120px' }}
+                                  />
+                                  {item.batch_code && (
+                                    <button
+                                      className="btn btn-sm btn-outline-info"
+                                      onClick={() => copyToClipboard(item.batch_code)}
+                                      title="Copy to clipboard"
+                                    >
+                                      <FaCopy />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <button
+                                  className="btn btn-sm btn-outline-primary"
+                                  onClick={() => generateItemBatchCode(index)}
+                                  title="Generate Batch Code"
+                                >
+                                  Generate
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="table-secondary">
+                          <tr>
+                            <td colSpan="10" className="text-end fw-bold">Selected Items Total:</td>
+                            <td colSpan="3" className="fw-bold text-success">
+                              <FaRupeeSign className="me-1" />
+                              {selectedItems
+                                .filter(item => item.selected)
+                                .reduce((total, item) => total + (item.quantity * (parseFloat(item.buy_price) || 0)), 0)
+                                .toLocaleString('en-IN', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td colSpan="10" className="text-end fw-bold">PO Grand Total:</td>
+                            <td colSpan="3" className="fw-bold text-primary">
+                              <FaRupeeSign className="me-1" />
+                              {parseFloat(poDetails.total_amount || 0).toLocaleString('en-IN', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                    
+                    <div className="alert alert-warning mt-3">
+                      <strong>Important:</strong> 
+                      <ul className="mb-0">
+                        <li>Ensure all batch codes are unique before submitting</li>
+                        <li>Batch codes follow format: BRAND-YYYYMMDD-001</li>
+                        <li>HSN code and Brand Description are required for tax purposes</li>
+                        <li>Buy Price should match the PO unit price</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
-
+              
+              <div className="modal-footer">
+                <button
+                  className="btn btn-success"
+                  onClick={handleSubmitGRN}
+                  disabled={selectedItems.filter(item => item.selected).length === 0}
+                >
+                  <FaFileInvoice className="me-2" />
+                  Create GRN
+                </button>
+                <button className="btn btn-secondary" onClick={() => setOpenPopup(false)}>
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-
-      {/* VIEW POPUP */}
+      
+      {/* VIEW GRN DETAILS MODAL */}
       {viewData && (
-        <div className="modal fade show d-block" style={{ background: "#0005" }}>
-          <div className="modal-dialog">
-            <div className="modal-content shadow-lg">
-              <div className="modal-header bg-dark text-white">
-                <h5 className="modal-title">GRN Details</h5>
-                <button className="btn-close" onClick={() => setViewData(null)}></button>
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">
+                  <FaFileInvoice className="me-2" />
+                  GRN Details - {viewData[0]?.invoice_number}
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setViewData(null)}></button>
               </div>
-
+              
               <div className="modal-body">
-                <div className="card shadow p-3">
-                  <h5 className="fw-bold text-primary">{viewData.item_name}</h5>
-
-                  <p><b>Invoice:</b> {viewData.invoice_number}</p>
-                  <p><b>Date:</b> {viewData.invoice_date?.slice(0, 10)}</p>
-
-                  <p><b>Customer Name:</b> {viewData.customer_name}</p>
-                  <p><b>Part No:</b> {viewData.customer_part_no}</p>
-                  <p><b>Description:</b> {viewData.customer_description}</p>
-
-                  <p><b>Brand:</b> {viewData.brand}</p>
-                  <p><b>Length:</b> {viewData.length}</p>
-                  <p><b>Width:</b> {viewData.width}</p>
-                  <p><b>Price:</b> {viewData.buy_price}</p>
-                  <p><b>Batch:</b> {viewData.batch_code}</p>
-                  <p><b>Created:</b> {viewData.created_on}</p>
+                <div className="card border-0 shadow-sm">
+                  <div className="card-body">
+                    <div className="row mb-4">
+                      <div className="col-md-6">
+                        <h4 className="text-primary fw-bold">
+                          <FaFileInvoice className="me-2" />
+                          {viewData[0]?.invoice_number}
+                        </h4>
+                        <p>
+                          <strong>PO Number:</strong> 
+                          <span className="badge bg-secondary ms-2">{viewData[0]?.po_number}</span>
+                        </p>
+                        <p>
+                          <strong>Invoice Date:</strong> 
+                          <FaCalendarAlt className="me-1 ms-2" />
+                          {viewData[0]?.invoice_date}
+                        </p>
+                        <p>
+                          <strong><FaBuilding className="me-1" /> Company:</strong> {viewData[0]?.company_name}
+                        </p>
+                        <p><strong>Address:</strong> {viewData[0]?.company_address}</p>
+                        <p><strong>GST:</strong> {viewData[0]?.gst_number || 'N/A'}</p>
+                      </div>
+                      <div className="col-md-6">
+                        <p>
+                          <strong><FaUser className="me-1" /> Customer:</strong> {viewData[0]?.customer_name}
+                        </p>
+                        <p><strong>Mobile:</strong> {viewData[0]?.customer_mobile}</p>
+                        <p><strong>Email:</strong> {viewData[0]?.customer_email}</p>
+                        <p><strong>Department:</strong> {viewData[0]?.department}</p>
+                        <p><strong>Created:</strong> {viewData[0]?.created_on?.slice(0, 16)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-top pt-3">
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h6 className="fw-bold mb-0">
+                          <FaBox className="me-2" />
+                          Items ({viewData.length})
+                        </h6>
+                        <div className="text-muted">
+                          Total Amount: 
+                          <span className="fw-bold text-success ms-2">
+                            <FaRupeeSign className="me-1" />
+                            {viewData.reduce((total, item) => total + (item.quantity * item.buy_price), 0).toLocaleString('en-IN', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="table-responsive">
+                        <table className="table table-sm table-bordered">
+                          <thead className="table-light">
+                            <tr>
+                              <th>#</th>
+                              <th>Item Name</th>
+                              <th>Brand</th>
+                              <th>Code</th>
+                              <th>Description</th>
+                              <th>HSN</th>
+                              <th>Size</th>
+                              <th>Unit</th>
+                              <th>Qty</th>
+                              <th>Buy Price</th>
+                              <th>Total</th>
+                              <th>Batch Code</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {viewData.map((item, index) => (
+                              <tr key={index}>
+                                <td>{index + 1}</td>
+                                <td className="fw-bold">{item.item_name}</td>
+                                <td>{item.brand}</td>
+                                <td>{item.brand_code || '-'}</td>
+                                <td>{item.brand_description || '-'}</td>
+                                <td>
+                                  {item.hsn_code ? (
+                                    <span className="badge bg-info text-dark">
+                                      <FaHashtag className="me-1" />
+                                      {item.hsn_code}
+                                    </span>
+                                  ) : '-'}
+                                </td>
+                                <td>
+                                  {item.length || item.width
+                                    ? `${item.length || ''}${item.width ? '×' + item.width : ''}`
+                                    : '-'
+                                  }
+                                </td>
+                                <td>{item.unit}</td>
+                                <td>{item.quantity}</td>
+                                <td>
+                                  <FaRupeeSign className="me-1" />
+                                  {parseFloat(item.buy_price).toFixed(2)}
+                                </td>
+                                <td className="fw-bold text-success">
+                                  <FaRupeeSign className="me-1" />
+                                  {(item.quantity * item.buy_price).toFixed(2)}
+                                </td>
+                                <td>
+                                  <div className="d-flex align-items-center">
+                                    <span className="badge bg-dark fw-bold">
+                                      {item.batch_code}
+                                    </span>
+                                    <button
+                                      className="btn btn-sm btn-outline-info ms-2"
+                                      onClick={() => copyToClipboard(item.batch_code)}
+                                      title="Copy batch code"
+                                    >
+                                      <FaCopy />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="table-secondary">
+                            <tr>
+                              <td colSpan="10" className="text-end fw-bold">Total Amount:</td>
+                              <td colSpan="2" className="fw-bold text-success">
+                                <FaRupeeSign className="me-1" />
+                                {viewData.reduce((total, item) => total + (item.quantity * item.buy_price), 0).toLocaleString('en-IN', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
+              
               <div className="modal-footer">
-                <button className="btn btn-danger" onClick={() => setViewData(null)}>
+                <button className="btn btn-secondary" onClick={() => setViewData(null)}>
                   Close
                 </button>
               </div>
-
             </div>
           </div>
         </div>
       )}
-
-      {/* GRN LIST TABLE */}
-      <h4 className="mt-4 fw-bold">GRN List</h4>
-
-      <div className="table-responsive">
-        <table className="table table-striped table-bordered mt-3">
-          <thead className="table-dark">
-            <tr>
-              <th>Invoice</th>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Item</th>
-              <th>Brand</th>
-              <th>Length</th>
-              <th>Width</th>
-              <th>Price</th>
-              <th>Batch</th>
-              <th>View</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {grnList.length === 0 ? (
-              <tr>
-                <td colSpan="10" className="text-center">No Records Found</td>
-              </tr>
-            ) : (
-              grnList.map((row, i) => (
-                <tr key={i}>
-                  <td>{row.invoice_number}</td>
-                  <td>{row.invoice_date?.slice(0, 10)}</td>
-                  <td>{row.customer_name}</td>
-                  <td>{row.item_name}</td>
-                  <td>{row.brand}</td>
-                  <td>{row.length}</td>
-                  <td>{row.width}</td>
-                  <td>{row.buy_price}</td>
-                  <td>{row.batch_code}</td>
-
-                  <td className="text-center">
-                    <button
-                      className="btn btn-outline-primary btn-sm"
-                      onClick={() => setViewData(row)}
-                    >
-                      <FaEye />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
     </div>
   );
 };
