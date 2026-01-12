@@ -23,6 +23,29 @@ import "react-toastify/dist/ReactToastify.css";
 
 const API_BASE = "http://localhost:5000/api";
 
+// Validation functions
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const validateMobile = (mobile) => {
+  const mobileRegex = /^[6-9]\d{9}$/; // Indian mobile numbers starting with 6-9
+  return mobileRegex.test(mobile);
+};
+
+const validateGST = (gst) => {
+  if (!gst) return true; // Optional field
+  const gstRegex = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
+  return gstRegex.test(gst);
+};
+
+const validatePinCode = (pincode) => {
+  if (!pincode) return true; // Optional field
+  const pincodeRegex = /^[1-9][0-9]{5}$/;
+  return pincodeRegex.test(pincode);
+};
+
 const CompanyPage = () => {
   const [companies, setCompanies] = useState([]);
   const [filteredCompanies, setFilteredCompanies] = useState([]);
@@ -42,6 +65,9 @@ const CompanyPage = () => {
   const [viewOpen, setViewOpen] = useState(false);
 
   const [step, setStep] = useState(1);
+  
+  // Validation errors state
+  const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
     companyName: "",
@@ -54,7 +80,6 @@ const CompanyPage = () => {
     department: "",
     personalMobile: "",
     personalEmail: "",
-    // ✅ NEW FIELD
     gstNumber: "",
   });
 
@@ -108,10 +133,70 @@ const CompanyPage = () => {
   };
 
   const handleChange = (e) => {
-    setFormData((s) => ({ ...s, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+    
+    // Validate specific fields on change
+    if (name === "customerEmail" || name === "personalEmail") {
+      if (value && !validateEmail(value)) {
+        setErrors((prev) => ({ ...prev, [name]: "Invalid email format" }));
+      }
+    }
+    
+    if (name === "customerMobile" || name === "personalMobile") {
+      if (value && !validateMobile(value)) {
+        setErrors((prev) => ({ ...prev, [name]: "Invalid mobile number (10 digits starting with 6-9)" }));
+      }
+    }
+    
+    if (name === "gstNumber") {
+      if (value && !validateGST(value)) {
+        setErrors((prev) => ({ ...prev, [name]: "Invalid GST format (e.g., 27ABCDE1234F1Z5)" }));
+      }
+    }
+    
+    if (name === "pinCode") {
+      if (value && !validatePinCode(value)) {
+        setErrors((prev) => ({ ...prev, [name]: "Invalid PIN code (6 digits)" }));
+      }
+    }
   };
 
-  const nextStep = () => setStep((s) => Math.min(2, s + 1));
+  const nextStep = () => {
+    // Validate step 1 fields before proceeding
+    if (step === 1) {
+      const step1Errors = {};
+      
+      if (!formData.companyName.trim()) {
+        step1Errors.companyName = "Company name is required";
+      }
+      
+      if (!formData.companyAddress.trim()) {
+        step1Errors.companyAddress = "Company address is required";
+      }
+      
+      if (formData.gstNumber && !validateGST(formData.gstNumber)) {
+        step1Errors.gstNumber = "Invalid GST format";
+      }
+      
+      if (formData.pinCode && !validatePinCode(formData.pinCode)) {
+        step1Errors.pinCode = "Invalid PIN code";
+      }
+      
+      if (Object.keys(step1Errors).length > 0) {
+        setErrors(step1Errors);
+        return;
+      }
+    }
+    
+    setStep((s) => Math.min(2, s + 1));
+  };
+  
   const prevStep = () => setStep((s) => Math.max(1, s - 1));
 
   const handleSearch = () => {
@@ -124,7 +209,6 @@ const CompanyPage = () => {
     }
 
     const filtered = companies.filter((c) => {
-      // Check all searchable fields including GST
       return (
         (c.companyName && c.companyName.toLowerCase().includes(value)) ||
         (c.customerName && c.customerName.toLowerCase().includes(value)) ||
@@ -136,12 +220,12 @@ const CompanyPage = () => {
         (c.department && c.department.toLowerCase().includes(value)) ||
         (c.personalMobile && c.personalMobile.includes(value)) ||
         (c.personalEmail && c.personalEmail.toLowerCase().includes(value)) ||
-        (c.gstNumber && c.gstNumber.toLowerCase().includes(value)) // ✅ NEW SEARCH FIELD
+        (c.gstNumber && c.gstNumber.toLowerCase().includes(value))
       );
     });
     
     setFilteredCompanies(filtered);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   };
 
   const updatePagination = () => {
@@ -167,34 +251,150 @@ const CompanyPage = () => {
       department: "",
       personalMobile: "",
       personalEmail: "",
-      // ✅ NEW FIELD
       gstNumber: "",
     });
     setEditId(null);
     setStep(1);
+    setErrors({});
     setFormOpen(false);
+  };
+
+  const checkDuplicates = () => {
+    const duplicates = {};
+    
+    // Check duplicate customer mobile
+    if (formData.customerMobile) {
+      const duplicateMobile = companies.find(company => 
+        company.customerMobile === formData.customerMobile && 
+        company.id !== editId
+      );
+      if (duplicateMobile) {
+        duplicates.customerMobile = "Mobile number already exists for another company";
+      }
+    }
+    
+    // Check duplicate customer email
+    if (formData.customerEmail) {
+      const duplicateEmail = companies.find(company => 
+        company.customerEmail === formData.customerEmail && 
+        company.id !== editId
+      );
+      if (duplicateEmail) {
+        duplicates.customerEmail = "Email already exists for another company";
+      }
+    }
+    
+    // Check duplicate personal mobile
+    if (formData.personalMobile) {
+      const duplicatePersonalMobile = companies.find(company => 
+        company.personalMobile === formData.personalMobile && 
+        company.id !== editId
+      );
+      if (duplicatePersonalMobile) {
+        duplicates.personalMobile = "Personal mobile already exists for another company";
+      }
+    }
+    
+    // Check duplicate personal email
+    if (formData.personalEmail) {
+      const duplicatePersonalEmail = companies.find(company => 
+        company.personalEmail === formData.personalEmail && 
+        company.id !== editId
+      );
+      if (duplicatePersonalEmail) {
+        duplicates.personalEmail = "Personal email already exists for another company";
+      }
+    }
+    
+    // Check duplicate GST number
+    if (formData.gstNumber) {
+      const duplicateGST = companies.find(company => 
+        company.gstNumber === formData.gstNumber && 
+        company.id !== editId
+      );
+      if (duplicateGST) {
+        duplicates.gstNumber = "GST number already exists for another company";
+      }
+    }
+    
+    return duplicates;
+  };
+
+  const validateAllFields = () => {
+    const newErrors = {};
+    
+    // Required fields
+    if (!formData.companyName.trim()) {
+      newErrors.companyName = "Company name is required";
+    }
+    
+    if (!formData.companyAddress.trim()) {
+      newErrors.companyAddress = "Company address is required";
+    }
+    
+    // Email validations
+    if (formData.customerEmail && !validateEmail(formData.customerEmail)) {
+      newErrors.customerEmail = "Invalid email format";
+    }
+    
+    if (formData.personalEmail && !validateEmail(formData.personalEmail)) {
+      newErrors.personalEmail = "Invalid email format";
+    }
+    
+    // Mobile validations
+    if (formData.customerMobile && !validateMobile(formData.customerMobile)) {
+      newErrors.customerMobile = "Invalid mobile number (10 digits starting with 6-9)";
+    }
+    
+    if (formData.personalMobile && !validateMobile(formData.personalMobile)) {
+      newErrors.personalMobile = "Invalid mobile number (10 digits starting with 6-9)";
+    }
+    
+    // GST validation
+    if (formData.gstNumber && !validateGST(formData.gstNumber)) {
+      newErrors.gstNumber = "Invalid GST format (e.g., 27ABCDE1234F1Z5)";
+    }
+    
+    // PIN code validation
+    if (formData.pinCode && !validatePinCode(formData.pinCode)) {
+      newErrors.pinCode = "Invalid PIN code (6 digits)";
+    }
+    
+    // Check for duplicates
+    const duplicateErrors = checkDuplicates();
+    Object.assign(newErrors, duplicateErrors);
+    
+    return newErrors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.companyName || !formData.companyAddress) {
-      toast.error("Please fill required fields");
+    // Validate all fields
+    const validationErrors = validateAllFields();
+    
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      toast.error("Please fix the errors in the form");
       return;
     }
 
     try {
       if (editId) {
         await axios.put(`${API_BASE}/company/${editId}`, formData);
-        toast.success("Company updated");
+        toast.success("Company updated successfully");
       } else {
         await axios.post(`${API_BASE}/company`, formData);
-        toast.success("Company added");
+        toast.success("Company added successfully");
       }
       fetchCompanies();
       resetForm();
     } catch (err) {
-      toast.error("Failed to save company");
+      if (err.response?.data?.message) {
+        toast.error(err.response.data.message);
+      } else {
+        toast.error("Failed to save company");
+      }
     }
   };
 
@@ -202,15 +402,16 @@ const CompanyPage = () => {
     setFormData({ ...comp });
     setEditId(comp.id);
     setStep(1);
+    setErrors({});
     setFormOpen(true);
   };
 
   const handleDelete = async (comp) => {
-    if (!window.confirm("Delete this company?")) return;
+    if (!window.confirm("Are you sure you want to delete this company?")) return;
 
     try {
       await axios.delete(`${API_BASE}/company/${comp.id}`);
-      toast.success("Company deleted");
+      toast.success("Company deleted successfully");
       fetchCompanies();
     } catch {
       toast.error("Delete failed");
@@ -320,6 +521,11 @@ const CompanyPage = () => {
   // ---------------------- EXPORTS --------------------------
 
   const exportExcel = () => {
+    if (filteredCompanies.length === 0) {
+      toast.warning("No data to export");
+      return;
+    }
+    
     const ws = XLSX.utils.json_to_sheet(filteredCompanies);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Companies");
@@ -327,6 +533,11 @@ const CompanyPage = () => {
   };
 
   const exportPDF = () => {
+    if (filteredCompanies.length === 0) {
+      toast.warning("No data to export");
+      return;
+    }
+    
     const doc = new jsPDF();
 
     doc.text("Company List", 14, 15);
@@ -335,7 +546,7 @@ const CompanyPage = () => {
 
     const tableRows = filteredCompanies.map((c) => [
       c.companyName || "",
-      c.gstNumber || "", // ✅ NEW COLUMN
+      c.gstNumber || "",
       c.industrySegment || "",
       c.customerName || "",
       c.customerMobile || "",
@@ -344,7 +555,6 @@ const CompanyPage = () => {
       c.companyAddress ? c.companyAddress.substring(0, 25) + "..." : "",
     ]);
 
-    // ✅ FIXED PDF TABLE
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
@@ -361,7 +571,7 @@ const CompanyPage = () => {
       },
       columnStyles: {
         0: { cellWidth: 25 },
-        1: { cellWidth: 30 }, // GST column
+        1: { cellWidth: 30 },
         2: { cellWidth: 22 },
         3: { cellWidth: 22 },
         4: { cellWidth: 18 },
@@ -391,7 +601,7 @@ const CompanyPage = () => {
               <FaSearch />
             </InputGroup.Text>
             <Form.Control
-              placeholder="Search "
+              placeholder="Search by company, customer, GST, mobile, email, etc."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyPress={handleKeyPress}
@@ -417,11 +627,11 @@ const CompanyPage = () => {
         </Col>
 
         <Col md="auto" className="mt-2 mt-md-0">
-          <Button variant="success" className="me-2" onClick={exportExcel}>
+          <Button variant="success" className="me-2" onClick={exportExcel} disabled={filteredCompanies.length === 0}>
             <FaFileExcel className="me-1" /> Excel
           </Button>
 
-          <Button variant="danger" onClick={exportPDF}>
+          <Button variant="danger" onClick={exportPDF} disabled={filteredCompanies.length === 0}>
             <FaFilePdf className="me-1" /> PDF
           </Button>
         </Col>
@@ -454,7 +664,7 @@ const CompanyPage = () => {
           <thead style={{ background: "#fff3cd" }}>
             <tr className="text-center">
               <th>Company</th>
-              <th>GST Number</th> {/* ✅ NEW COLUMN */}
+              <th>GST Number</th>
               <th>Industry</th>
               <th>Customer</th>
               <th>Mobile</th>
@@ -467,7 +677,7 @@ const CompanyPage = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="8" className="text-center"> {/* ✅ Updated colspan */}
+                <td colSpan="8" className="text-center">
                   <div className="spinner-border text-warning" role="status">
                     <span className="visually-hidden">Loading...</span>
                   </div>
@@ -475,7 +685,7 @@ const CompanyPage = () => {
               </tr>
             ) : paginatedCompanies.length === 0 ? (
               <tr>
-                <td colSpan="8" className="text-center text-muted py-4"> {/* ✅ Updated colspan */}
+                <td colSpan="8" className="text-center text-muted py-4">
                   {search ? "No companies match your search criteria" : "No companies found"}
                 </td>
               </tr>
@@ -487,7 +697,7 @@ const CompanyPage = () => {
                     <small className="text-muted">{c.companyAddress ? c.companyAddress.substring(0, 40) + "..." : ""}</small>
                   </td>
                   <td>
-                    <span className="badge bg-info text-dark">{c.gstNumber || "N/A"}</span> {/* ✅ GST Display */}
+                    <span className="badge bg-info text-dark">{c.gstNumber || "N/A"}</span>
                   </td>
                   <td>{c.industrySegment}</td>
                   <td>
@@ -553,18 +763,29 @@ const CompanyPage = () => {
                       onChange={handleChange} 
                       required 
                       placeholder="Enter company name"
+                      isInvalid={!!errors.companyName}
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.companyName}
+                    </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
                 <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">GST Number</Form.Label>
                     <Form.Control 
-                      name="gstNumber" // ✅ NEW FIELD
+                      name="gstNumber"
                       value={formData.gstNumber} 
                       onChange={handleChange} 
                       placeholder="Enter GST number (e.g., 27ABCDE1234F1Z5)"
+                      isInvalid={!!errors.gstNumber}
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.gstNumber}
+                    </Form.Control.Feedback>
+                    <Form.Text className="text-muted">
+                      Format: 2-digit state code + 10-digit PAN + 1-digit entity + 1-digit checksum
+                    </Form.Text>
                   </Form.Group>
                 </Col>
               </Row>
@@ -577,8 +798,12 @@ const CompanyPage = () => {
                       name="pinCode" 
                       value={formData.pinCode} 
                       onChange={handleChange} 
-                      placeholder="Enter pin code"
+                      placeholder="Enter 6-digit pin code"
+                      isInvalid={!!errors.pinCode}
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.pinCode}
+                    </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
                 <Col md={6}>
@@ -606,7 +831,11 @@ const CompanyPage = () => {
                   onChange={handleChange} 
                   required 
                   placeholder="Enter full address"
+                  isInvalid={!!errors.companyAddress}
                 />
+                <Form.Control.Feedback type="invalid">
+                  {errors.companyAddress}
+                </Form.Control.Feedback>
               </Form.Group>
 
               <div className="d-flex justify-content-end">
@@ -639,8 +868,12 @@ const CompanyPage = () => {
                       name="customerMobile" 
                       value={formData.customerMobile} 
                       onChange={handleChange} 
-                      placeholder="Enter mobile number"
+                      placeholder="Enter 10-digit mobile number"
+                      isInvalid={!!errors.customerMobile}
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.customerMobile}
+                    </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
               </Row>
@@ -653,7 +886,11 @@ const CompanyPage = () => {
                   value={formData.customerEmail} 
                   onChange={handleChange} 
                   placeholder="Enter email address"
+                  isInvalid={!!errors.customerEmail}
                 />
+                <Form.Control.Feedback type="invalid">
+                  {errors.customerEmail}
+                </Form.Control.Feedback>
               </Form.Group>
 
               <Form.Group className="mb-3">
@@ -677,8 +914,12 @@ const CompanyPage = () => {
                       name="personalMobile" 
                       value={formData.personalMobile} 
                       onChange={handleChange} 
-                      placeholder="Enter personal mobile"
+                      placeholder="Enter 10-digit mobile number"
+                      isInvalid={!!errors.personalMobile}
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.personalMobile}
+                    </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
                 <Col md={6}>
@@ -689,8 +930,12 @@ const CompanyPage = () => {
                       name="personalEmail" 
                       value={formData.personalEmail} 
                       onChange={handleChange} 
-                      placeholder="Enter personal email"
+                      placeholder="Enter email address"
+                      isInvalid={!!errors.personalEmail}
                     />
+                    <Form.Control.Feedback type="invalid">
+                      {errors.personalEmail}
+                    </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
               </Row>
@@ -727,7 +972,7 @@ const CompanyPage = () => {
                 <div className="mb-3">
                   <h6 className="fw-semibold text-warning">Company Information</h6>
                   <p><strong>Company Name:</strong> {viewData.companyName || "N/A"}</p>
-                  <p><strong>GST Number:</strong> {viewData.gstNumber || "N/A"}</p> {/* ✅ NEW FIELD */}
+                  <p><strong>GST Number:</strong> {viewData.gstNumber || "N/A"}</p>
                   <p><strong>Address:</strong> {viewData.companyAddress || "N/A"}</p>
                   <p><strong>Pin Code:</strong> {viewData.pinCode || "N/A"}</p>
                   <p><strong>Industry Segment:</strong> {viewData.industrySegment || "N/A"}</p>

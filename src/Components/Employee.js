@@ -22,6 +22,9 @@ const EmployeePage = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showViewPassword, setShowViewPassword] = useState(false);
 
+  // Validation errors state
+  const [errors, setErrors] = useState({});
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -35,6 +38,51 @@ const EmployeePage = () => {
     { value: "Both", label: "Both" },
     { value: "None", label: "None" }
   ];
+
+  // Validation functions
+  const validateEmail = (email) => {
+    if (!email) return true; // Optional during editing
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateMobile = (mobile) => {
+    if (!mobile) return true;
+    const mobileRegex = /^[6-9]\d{9}$/;
+    return mobileRegex.test(mobile);
+  };
+
+  const validateAadhar = (aadhar) => {
+    if (!aadhar) return true;
+    const aadharRegex = /^\d{12}$/;
+    return aadharRegex.test(aadhar);
+  };
+
+  const validatePAN = (pan) => {
+    if (!pan) return true;
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    return panRegex.test(pan);
+  };
+
+  const validatePassword = (password) => {
+    if (!password) return true; // Optional during edit
+    if (password.length < 6) return false;
+    return true;
+  };
+
+  const validateDate = (date) => {
+    if (!date) return true;
+    const selectedDate = new Date(date);
+    const today = new Date();
+    return selectedDate <= today;
+  };
+
+  const validateDOJvsDOB = (dob, doj) => {
+    if (!dob || !doj) return true;
+    const dobDate = new Date(dob);
+    const dojDate = new Date(doj);
+    return dojDate >= dobDate;
+  };
 
   // ✅ Load user details from localStorage
   useEffect(() => {
@@ -81,7 +129,9 @@ const EmployeePage = () => {
         emp.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         emp.designation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         emp.mobile?.includes(searchTerm) ||
-        emp.esiPfStatus?.toLowerCase().includes(searchTerm.toLowerCase())
+        emp.esiPfStatus?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.pan?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.aadhar?.includes(searchTerm)
       );
       setFilteredEmployees(filtered);
     }
@@ -134,83 +184,278 @@ const EmployeePage = () => {
     esiPfStatus: "",
   });
 
-  // Handle input
+  // Handle input with validation
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
+    
     setFormData({ 
       ...formData, 
-      [name]: type === 'checkbox' ? checked : value 
+      [name]: newValue 
     });
+    
+    // Clear error for this field when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: "" }));
+    }
+    
+    // Real-time validation
+    let error = "";
+    
+    if (name === "email" && newValue && !validateEmail(newValue)) {
+      error = "Invalid email format";
+    } else if ((name === "mobile" || name === "altContact") && newValue && !validateMobile(newValue)) {
+      error = "Invalid mobile number (10 digits starting with 6-9)";
+    } else if (name === "aadhar" && newValue && !validateAadhar(newValue)) {
+      error = "Invalid Aadhar number (12 digits)";
+    } else if (name === "pan" && newValue && !validatePAN(newValue)) {
+      error = "Invalid PAN format (e.g., ABCDE1234F)";
+    } else if (name === "password" && newValue && !validatePassword(newValue)) {
+      error = "Password must be at least 6 characters";
+    } else if ((name === "dob" || name === "doj") && newValue && !validateDate(newValue)) {
+      error = "Date cannot be in the future";
+    }
+    
+    if (error) {
+      setErrors(prev => ({ ...prev, [name]: error }));
+    }
   };
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
-    if (file)
+    if (file) {
+      // Validate file type
+      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+      if (!validTypes.includes(file.type)) {
+        toast.error("Please upload a valid image (JPEG, PNG, GIF)");
+        return;
+      }
+      
+      // Validate file size (2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("Image size should be less than 2MB");
+        return;
+      }
+      
       setFormData({
         ...formData,
         photo: file,
         photoPreview: URL.createObjectURL(file),
       });
+    }
   };
 
   const handlePanAttachmentChange = (e) => {
     const file = e.target.files[0];
-    if (file)
+    if (file) {
+      // Validate file type and size
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+      if (!validTypes.includes(file.type)) {
+        toast.error("Please upload PDF or image files only");
+        return;
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size should be less than 5MB");
+        return;
+      }
+      
       setFormData({
         ...formData,
         panAttachment: file,
       });
+    }
   };
 
   const handleAadharAttachmentChange = (e) => {
     const file = e.target.files[0];
-    if (file)
+    if (file) {
+      // Validate file type and size
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+      if (!validTypes.includes(file.type)) {
+        toast.error("Please upload PDF or image files only");
+        return;
+      }
+      
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File size should be less than 5MB");
+        return;
+      }
+      
       setFormData({
         ...formData,
         aadharAttachment: file,
       });
+    }
   };
 
-  const nextStep = () => setStep((s) => Math.min(s + 1, 3));
+  const validateStep = (stepNumber) => {
+    const newErrors = {};
+    
+    if (stepNumber === 1) {
+      if (!formData.name.trim()) {
+        newErrors.name = "Full name is required";
+      }
+      if (!formData.dob) {
+        newErrors.dob = "Date of birth is required";
+      } else if (!validateDate(formData.dob)) {
+        newErrors.dob = "Date of birth cannot be in the future";
+      }
+      if (!formData.gender) {
+        newErrors.gender = "Gender is required";
+      }
+    } else if (stepNumber === 2) {
+      if (!formData.email) {
+        newErrors.email = "Email is required";
+      } else if (!validateEmail(formData.email)) {
+        newErrors.email = "Invalid email format";
+      }
+      
+      if (!formData.mobile) {
+        newErrors.mobile = "Mobile number is required";
+      } else if (!validateMobile(formData.mobile)) {
+        newErrors.mobile = "Invalid mobile number (10 digits starting with 6-9)";
+      }
+      
+      if (formData.altContact && !validateMobile(formData.altContact)) {
+        newErrors.altContact = "Invalid alternate contact number";
+      }
+      
+      if (!formData.address) {
+        newErrors.address = "Address is required";
+      }
+      
+      if (!editId && !formData.password) {
+        newErrors.password = "Password is required for new employees";
+      } else if (formData.password && !validatePassword(formData.password)) {
+        newErrors.password = "Password must be at least 6 characters";
+      }
+      
+      if (!editId && formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match";
+      } else if (editId && formData.password && formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match";
+      }
+    } else if (stepNumber === 3) {
+      if (formData.aadhar && !validateAadhar(formData.aadhar)) {
+        newErrors.aadhar = "Invalid Aadhar number (12 digits)";
+      }
+      if (formData.pan && !validatePAN(formData.pan)) {
+        newErrors.pan = "Invalid PAN format (e.g., ABCDE1234F)";
+      }
+      if (formData.dob && formData.doj && !validateDOJvsDOB(formData.dob, formData.doj)) {
+        newErrors.doj = "Date of joining cannot be before date of birth";
+      }
+    }
+    
+    return newErrors;
+  };
+
+  const nextStep = () => {
+    const stepErrors = validateStep(step);
+    
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors);
+      toast.error("Please fix the errors before proceeding");
+      return;
+    }
+    
+    // Check duplicates before proceeding to step 2
+    if (step === 1 && formData.email) {
+      const duplicateErrors = checkDuplicates();
+      if (Object.keys(duplicateErrors).length > 0) {
+        setErrors(prev => ({ ...prev, ...duplicateErrors }));
+        toast.error("Duplicate information found");
+        return;
+      }
+    }
+    
+    setStep((s) => Math.min(s + 1, 3));
+  };
+  
   const prevStep = () => setStep((s) => Math.max(s - 1, 1));
 
-  // Check for duplicate email
-  const checkDuplicateEmail = async (email, excludeId = null) => {
-    // Check locally first
-    const duplicate = employees.find(emp => 
-      emp.email.toLowerCase() === email.toLowerCase() && emp.id !== excludeId
-    );
+  // Check for duplicates (email, mobile, PAN, Aadhar)
+  const checkDuplicates = () => {
+    const duplicateErrors = {};
     
-    if (duplicate) {
-      toast.error(`Email ${email} already exists for employee: ${duplicate.name}`);
-      return true;
-    }
-    
-    // Also check with backend for additional safety
-    try {
-      const res = await fetch(`${API_URL}/check-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, excludeId })
-      });
-      
-      if (res.ok) {
-        const data = await res.json();
-        if (data.exists) {
-          toast.error(`Email ${email} already exists in the system`);
-          return true;
-        }
+    // Check duplicate email
+    if (formData.email) {
+      const duplicateEmail = employees.find(emp => 
+        emp.email.toLowerCase() === formData.email.toLowerCase() && 
+        emp.id !== editId
+      );
+      if (duplicateEmail) {
+        duplicateErrors.email = `Email already exists for employee: ${duplicateEmail.name}`;
       }
-    } catch (error) {
-      console.error("Error checking email:", error);
     }
     
-    return false;
+    // Check duplicate mobile
+    if (formData.mobile) {
+      const duplicateMobile = employees.find(emp => 
+        emp.mobile === formData.mobile && 
+        emp.id !== editId
+      );
+      if (duplicateMobile) {
+        duplicateErrors.mobile = `Mobile number already exists for employee: ${duplicateMobile.name}`;
+      }
+    }
+    
+    // Check duplicate alternate mobile
+    if (formData.altContact) {
+      const duplicateAltContact = employees.find(emp => 
+        (emp.mobile === formData.altContact || emp.altContact === formData.altContact) && 
+        emp.id !== editId
+      );
+      if (duplicateAltContact) {
+        duplicateErrors.altContact = `Alternate contact already exists for employee: ${duplicateAltContact.name}`;
+      }
+    }
+    
+    // Check duplicate PAN
+    if (formData.pan) {
+      const duplicatePAN = employees.find(emp => 
+        emp.pan && emp.pan.toUpperCase() === formData.pan.toUpperCase() && 
+        emp.id !== editId
+      );
+      if (duplicatePAN) {
+        duplicateErrors.pan = `PAN already exists for employee: ${duplicatePAN.name}`;
+      }
+    }
+    
+    // Check duplicate Aadhar
+    if (formData.aadhar) {
+      const duplicateAadhar = employees.find(emp => 
+        emp.aadhar === formData.aadhar && 
+        emp.id !== editId
+      );
+      if (duplicateAadhar) {
+        duplicateErrors.aadhar = `Aadhar number already exists for employee: ${duplicateAadhar.name}`;
+      }
+    }
+    
+    return duplicateErrors;
   };
 
   // Submit Form to Backend (handles both add and update)
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate all steps
+    const step1Errors = validateStep(1);
+    const step2Errors = validateStep(2);
+    const step3Errors = validateStep(3);
+    const allErrors = { ...step1Errors, ...step2Errors, ...step3Errors };
+    
+    // Check for duplicates
+    const duplicateErrors = checkDuplicates();
+    Object.assign(allErrors, duplicateErrors);
+    
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors);
+      toast.error("Please fix all errors before submitting");
+      return;
+    }
 
     // Validate password match
     if (!editId && formData.password !== formData.confirmPassword) {
@@ -220,14 +465,6 @@ const EmployeePage = () => {
     if (editId && formData.password && formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match!");
       return;
-    }
-
-    // Check for duplicate email before proceeding
-    if (formData.email) {
-      const isDuplicate = await checkDuplicateEmail(formData.email, editId);
-      if (isDuplicate) {
-        return; // Stop submission if duplicate found
-      }
     }
 
     const fd = new FormData();
@@ -310,27 +547,12 @@ const EmployeePage = () => {
     }
   };
 
-  // View employee (open card) - UPDATED with debug logs
+  // View employee (open card)
   const handleView = async (id) => {
     try {
       const res = await fetch(`${API_URL}/${id}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
-      
-      // Debug logs
-      console.log("✅ Employee data from backend:", data);
-      console.log("✅ Password in response:", data.password);
-      console.log("✅ Has password key:", 'password' in data);
-      console.log("✅ All keys:", Object.keys(data));
-      
-      // Also test debug endpoint
-      try {
-        const debugRes = await fetch(`${API_URL}/debug/${id}`);
-        const debugData = await debugRes.json();
-        console.log("🔍 Debug endpoint result:", debugData);
-      } catch (debugErr) {
-        console.log("Debug endpoint not available");
-      }
       
       setSelectedEmployee(data);
       setViewOpen(true);
@@ -339,17 +561,14 @@ const EmployeePage = () => {
     }
   };
 
-  // Edit employee - fetch data and populate form - UPDATED
+  // Edit employee - fetch data and populate form
   const handleEdit = async (id) => {
     try {
       const res = await fetch(`${API_URL}/${id}`);
       if (!res.ok) throw new Error("Failed to fetch");
       const data = await res.json();
 
-      // Debug log
-      console.log("Edit employee data:", data);
-
-      // populate form fields - FIXED
+      // populate form fields
       setFormData({
         photo: null,
         photoPreview: data.photo
@@ -370,12 +589,13 @@ const EmployeePage = () => {
         aadhar: data.aadhar || "",
         panAttachment: null,
         aadharAttachment: null,
-        password: data.password || "", // ✅ Now includes actual password
-        confirmPassword: data.password || "", // ✅ Auto-fill confirm password too
+        password: "", // Don't pre-fill password for security
+        confirmPassword: "", // Don't pre-fill confirm password
         esiPfStatus: data.esiPfStatus || "",
       });
       setEditId(id);
       setStep(1);
+      setErrors({});
       setFormOpen(true);
     } catch {
       toast.error("Error loading employee for edit");
@@ -540,6 +760,15 @@ const EmployeePage = () => {
     setEditId(null);
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setErrors({});
+  };
+
+  // Handle Enter key for search
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Search is already handled by useEffect
+    }
   };
 
   return (
@@ -552,9 +781,10 @@ const EmployeePage = () => {
           <FaSearch style={styles.searchIcon} />
           <input
             type="text"
-            placeholder="Search by name, email, department, designation, or mobile..."
+            placeholder="Search by name, email, department, designation, mobile, PAN, or Aadhar..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyPress={handleKeyPress}
             style={styles.searchInput}
           />
           {searchTerm && (
@@ -572,6 +802,7 @@ const EmployeePage = () => {
             style={styles.excelButton}
             onClick={exportToExcel}
             title="Export to Excel"
+            disabled={filteredEmployees.length === 0}
           >
             <FaFileExcel style={{ marginRight: 6 }} /> Excel
           </button>
@@ -580,6 +811,7 @@ const EmployeePage = () => {
             style={styles.pdfButton}
             onClick={exportToPDF}
             title="Export to PDF"
+            disabled={filteredEmployees.length === 0}
           >
             <FaFilePdf style={{ marginRight: 6 }} /> PDF
           </button>
@@ -598,10 +830,20 @@ const EmployeePage = () => {
       </div>
 
       {/* Results Count */}
-      <div style={styles.resultsCount}>
-        Showing {filteredEmployees.length} of {employees.length} employees
-        {searchTerm && ` for "${searchTerm}"`}
-      </div>
+      {searchTerm && (
+        <div style={styles.resultsCount}>
+          Found {filteredEmployees.length} employees matching "{searchTerm}"
+          {filteredEmployees.length === 0 && " - Try a different search term"}
+          {filteredEmployees.length > 0 && (
+            <button 
+              onClick={() => setSearchTerm("")} 
+              style={styles.clearResultsButton}
+            >
+              Clear Search
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Form Modal (Add / Edit) */}
       {formOpen && (
@@ -624,7 +866,7 @@ const EmployeePage = () => {
               {step === 1 && (
                 <div style={styles.gridForm}>
                   <div style={styles.gridItemFull}>
-                    <label style={styles.label}>Upload Photo</label>
+                    <label style={styles.label}>Upload Photo (JPEG/PNG, max 2MB)</label>
                     <input
                       type="file"
                       accept="image/*"
@@ -640,34 +882,37 @@ const EmployeePage = () => {
                     )}
                   </div>
                   <div>
-                    <label style={styles.label}>Full Name</label>
+                    <label style={styles.label}>Full Name *</label>
                     <input
                       type="text"
                       name="name"
                       value={formData.name}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.name ? "#ff4d4d" : "#ddd"}}
                       required
+                      placeholder="Enter full name"
                     />
+                    {errors.name && <div style={styles.errorText}>{errors.name}</div>}
                   </div>
                   <div>
-                    <label style={styles.label}>Date of Birth</label>
+                    <label style={styles.label}>Date of Birth *</label>
                     <input
                       type="date"
                       name="dob"
                       value={formData.dob}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.dob ? "#ff4d4d" : "#ddd"}}
                       required
                     />
+                    {errors.dob && <div style={styles.errorText}>{errors.dob}</div>}
                   </div>
                   <div>
-                    <label style={styles.label}>Gender</label>
+                    <label style={styles.label}>Gender *</label>
                     <select
                       name="gender"
                       value={formData.gender}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.gender ? "#ff4d4d" : "#ddd"}}
                       required
                     >
                       <option value="">Select Gender</option>
@@ -675,6 +920,7 @@ const EmployeePage = () => {
                       <option>Female</option>
                       <option>Other</option>
                     </select>
+                    {errors.gender && <div style={styles.errorText}>{errors.gender}</div>}
                   </div>
                   <div style={styles.buttonGroupStep}>
                     <button type="button" style={styles.nextButton} onClick={nextStep}>
@@ -684,61 +930,64 @@ const EmployeePage = () => {
                 </div>
               )}
 
-              {/* Step 2 - UPDATED */}
+              {/* Step 2 */}
               {step === 2 && (
                 <div style={styles.gridForm}>
                   <div>
-                    <label style={styles.label}>Email</label>
+                    <label style={styles.label}>Email *</label>
                     <input
                       type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.email ? "#ff4d4d" : "#ddd"}}
                       required
+                      placeholder="example@company.com"
                     />
+                    {errors.email && <div style={styles.errorText}>{errors.email}</div>}
                   </div>
                   <div>
-                    <label style={styles.label}>Mobile</label>
+                    <label style={styles.label}>Mobile *</label>
                     <input
                       type="text"
                       name="mobile"
                       value={formData.mobile}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.mobile ? "#ff4d4d" : "#ddd"}}
                       required
+                      placeholder="10-digit mobile number"
                     />
+                    {errors.mobile && <div style={styles.errorText}>{errors.mobile}</div>}
                   </div>
                   <div>
-                    <label style={styles.label}>Personal Contact</label>
+                    <label style={styles.label}>Alternate Contact</label>
                     <input
                       type="text"
                       name="altContact"
                       value={formData.altContact}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.altContact ? "#ff4d4d" : "#ddd"}}
+                      placeholder="10-digit alternate number"
                     />
+                    {errors.altContact && <div style={styles.errorText}>{errors.altContact}</div>}
                   </div>
                   <div style={styles.gridItemFull}>
-                    <label style={styles.label}>Address</label>
+                    <label style={styles.label}>Address *</label>
                     <textarea
                       name="address"
                       value={formData.address}
                       onChange={handleChange}
-                      style={styles.textarea}
+                      style={{...styles.textarea, borderColor: errors.address ? "#ff4d4d" : "#ddd"}}
                       required
+                      placeholder="Full address"
                     />
+                    {errors.address && <div style={styles.errorText}>{errors.address}</div>}
                   </div>
                   
-                  {/* Password Field with Eye Icon - UPDATED */}
+                  {/* Password Field with Eye Icon */}
                   <div>
                     <label style={styles.label}>
-                      Password {editId ? "(leave blank to keep current)" : ""}
-                      {editId && formData.password && (
-                        <span style={{fontSize: "12px", color: "green", marginLeft: "8px"}}>
-                          ✓ Current password loaded
-                        </span>
-                      )}
+                      Password {editId ? "(leave blank to keep current)" : "*"}
                     </label>
                     <div style={styles.passwordContainer}>
                       <input
@@ -746,9 +995,13 @@ const EmployeePage = () => {
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        style={{...styles.input, paddingRight: "40px"}}
+                        style={{
+                          ...styles.input, 
+                          paddingRight: "40px",
+                          borderColor: errors.password ? "#ff4d4d" : "#ddd"
+                        }}
                         required={!editId}
-                        placeholder={editId ? "Enter new password or leave blank" : "Enter password"}
+                        placeholder={editId ? "Enter new password or leave blank" : "Minimum 6 characters"}
                       />
                       <button
                         type="button"
@@ -759,23 +1012,23 @@ const EmployeePage = () => {
                         {showPassword ? <FaEyeSlash /> : <FaEye />}
                       </button>
                     </div>
-                    {editId && (
-                      <div style={{fontSize: "12px", color: "#666", marginTop: "4px"}}>
-                        Leave empty to keep current password: {formData.password ? "••••••••" : "Not loaded"}
-                      </div>
-                    )}
+                    {errors.password && <div style={styles.errorText}>{errors.password}</div>}
                   </div>
                   
                   {/* Confirm Password Field with Eye Icon */}
                   <div>
-                    <label style={styles.label}>Confirm Password</label>
+                    <label style={styles.label}>Confirm Password {!editId && "*"}</label>
                     <div style={styles.passwordContainer}>
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         name="confirmPassword"
                         value={formData.confirmPassword}
                         onChange={handleChange}
-                        style={{...styles.input, paddingRight: "40px"}}
+                        style={{
+                          ...styles.input, 
+                          paddingRight: "40px",
+                          borderColor: errors.confirmPassword ? "#ff4d4d" : "#ddd"
+                        }}
                         required={!editId}
                         placeholder={editId ? "Leave blank to keep current" : "Confirm password"}
                       />
@@ -788,6 +1041,7 @@ const EmployeePage = () => {
                         {showConfirmPassword ? <FaEyeSlash /> : <FaEye />}
                       </button>
                     </div>
+                    {errors.confirmPassword && <div style={styles.errorText}>{errors.confirmPassword}</div>}
                   </div>
                   
                   <div style={styles.buttonGroupStep}>
@@ -845,8 +1099,9 @@ const EmployeePage = () => {
                       name="doj"
                       value={formData.doj}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.doj ? "#ff4d4d" : "#ddd"}}
                     />
+                    {errors.doj && <div style={styles.errorText}>{errors.doj}</div>}
                   </div>
 
                   <div>
@@ -873,12 +1128,14 @@ const EmployeePage = () => {
                       name="pan"
                       value={formData.pan}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.pan ? "#ff4d4d" : "#ddd", textTransform: 'uppercase'}}
+                      placeholder="ABCDE1234F"
                     />
+                    {errors.pan && <div style={styles.errorText}>{errors.pan}</div>}
                   </div>
 
                   <div>
-                    <label style={styles.label}>PAN Attachment</label>
+                    <label style={styles.label}>PAN Attachment (PDF/Image, max 5MB)</label>
                     <div style={styles.fileInputContainer}>
                       <input
                         type="file"
@@ -900,12 +1157,14 @@ const EmployeePage = () => {
                       name="aadhar"
                       value={formData.aadhar}
                       onChange={handleChange}
-                      style={styles.input}
+                      style={{...styles.input, borderColor: errors.aadhar ? "#ff4d4d" : "#ddd"}}
+                      placeholder="12-digit number"
                     />
+                    {errors.aadhar && <div style={styles.errorText}>{errors.aadhar}</div>}
                   </div>
 
                   <div>
-                    <label style={styles.label}>Aadhar Attachment</label>
+                    <label style={styles.label}>Aadhar Attachment (PDF/Image, max 5MB)</label>
                     <div style={styles.fileInputContainer}>
                       <input
                         type="file"
@@ -943,7 +1202,7 @@ const EmployeePage = () => {
                       Previous
                     </button>
                     <button type="submit" style={styles.submitButton}>
-                      {editId ? "Update" : "Submit"}
+                      {editId ? "Update Employee" : "Add Employee"}
                     </button>
                   </div>
                 </div>
@@ -953,7 +1212,7 @@ const EmployeePage = () => {
         </div>
       )}
 
-      {/* View Card Modal - UPDATED */}
+      {/* View Card Modal */}
       {viewOpen && selectedEmployee && (
         <div style={styles.modalOverlay}>
           <div style={styles.viewModal}>
@@ -993,6 +1252,9 @@ const EmployeePage = () => {
                   <strong>Mobile:</strong> <span>{selectedEmployee.mobile}</span>
                 </div>
                 <div style={styles.viewRow}>
+                  <strong>Alternate Contact:</strong> <span>{selectedEmployee.altContact || "N/A"}</span>
+                </div>
+                <div style={styles.viewRow}>
                   <strong>Department:</strong> <span>{selectedEmployee.department}</span>
                 </div>
                 <div style={styles.viewRow}>
@@ -1024,7 +1286,7 @@ const EmployeePage = () => {
                 </div>
                 
                 {/* PAN Attachment Section */}
-                {selectedEmployee.pan && (
+                {selectedEmployee.pan && selectedEmployee.panAttachment && (
                   <div style={styles.viewRow}>
                     <strong>PAN Attachment:</strong> 
                     <div style={styles.attachmentActions}>
@@ -1049,7 +1311,7 @@ const EmployeePage = () => {
                 </div>
                 
                 {/* Aadhar Attachment Section */}
-                {selectedEmployee.aadhar && (
+                {selectedEmployee.aadhar && selectedEmployee.aadharAttachment && (
                   <div style={styles.viewRow}>
                     <strong>Aadhar Attachment:</strong> 
                     <div style={styles.attachmentActions}>
@@ -1071,44 +1333,6 @@ const EmployeePage = () => {
 
                 <div style={styles.viewRow}>
                   <strong>Address:</strong> <span>{selectedEmployee.address}</span>
-                </div>
-                
-                {/* Password Row with Eye Icon - UPDATED */}
-                <div style={styles.viewRow}>
-                  <strong>Password:</strong> 
-                  <div style={{display: "flex", alignItems: "center", gap: "8px"}}>
-                    <span style={{fontFamily: "monospace"}}>
-                      {showViewPassword ? 
-                        (selectedEmployee?.password ? selectedEmployee.password : "Not set") 
-                        : "••••••••"
-                      }
-                    </span>
-                    {selectedEmployee?.password && (
-                      <button
-                        type="button"
-                        onClick={() => setShowViewPassword(!showViewPassword)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          color: "#666",
-                          fontSize: "16px",
-                          padding: "4px",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center"
-                        }}
-                        title={showViewPassword ? "Hide password" : "Show password"}
-                      >
-                        {showViewPassword ? <FaEyeSlash /> : <FaEye />}
-                      </button>
-                    )}
-                  </div>
-                  {!selectedEmployee?.password && (
-                    <div style={{fontSize: "12px", color: "red", marginTop: "4px"}}>
-                      Password not loaded from backend
-                    </div>
-                  )}
                 </div>
                 
                 <div style={styles.viewRow}>
@@ -1133,6 +1357,8 @@ const EmployeePage = () => {
               <th style={styles.th}>Name</th>
               <th style={styles.th}>Department</th>
               <th style={styles.th}>Designation</th>
+              <th style={styles.th}>Email</th>
+              <th style={styles.th}>Mobile</th>
               <th style={styles.th}>ESI/PF Status</th>
               <th style={styles.th}>Created By</th>
               <th style={styles.th}>Created At</th>
@@ -1158,6 +1384,8 @@ const EmployeePage = () => {
                   <td style={styles.td}>{emp.name}</td>
                   <td style={styles.td}>{emp.department}</td>
                   <td style={styles.td}>{emp.designation}</td>
+                  <td style={styles.td}>{emp.email}</td>
+                  <td style={styles.td}>{emp.mobile}</td>
                   <td style={styles.td}>
                     <span style={{
                       color: emp.esiPfStatus && emp.esiPfStatus !== "None" ? 'green' : 'red',
@@ -1197,7 +1425,7 @@ const EmployeePage = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="9" style={styles.noData}>
+                <td colSpan="11" style={styles.noData}>
                   {searchTerm ? `No employees found for "${searchTerm}"` : "No employees found."}
                 </td>
               </tr>
@@ -1274,7 +1502,7 @@ const EmployeePage = () => {
   );
 };
 
-// Updated Styles
+// Updated Styles with error styling
 const styles = {
   container: { padding: "30px", fontFamily: "Poppins, sans-serif", background: "#fff" },
   heading: { marginBottom: "20px" },
@@ -1336,7 +1564,9 @@ const styles = {
     fontWeight: "600",
     display: "flex",
     alignItems: "center",
-    fontSize: "14px"
+    fontSize: "14px",
+    opacity: 1,
+    transition: "opacity 0.3s"
   },
   pdfButton: {
     background: "#ff4d4d",
@@ -1348,7 +1578,9 @@ const styles = {
     fontWeight: "600",
     display: "flex",
     alignItems: "center",
-    fontSize: "14px"
+    fontSize: "14px",
+    opacity: 1,
+    transition: "opacity 0.3s"
   },
   addButton: {
     background: "#f5c518",
@@ -1364,7 +1596,23 @@ const styles = {
     marginBottom: "15px",
     color: "#666",
     fontSize: "14px",
-    fontStyle: "italic"
+    fontStyle: "italic",
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "8px 12px",
+    backgroundColor: "#fff8d6",
+    borderRadius: "6px"
+  },
+  clearResultsButton: {
+    background: "transparent",
+    border: "1px solid #f5c518",
+    color: "#f5c518",
+    padding: "4px 10px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "12px",
+    marginLeft: "10px"
   },
   table: { width: "100%", borderCollapse: "collapse", marginBottom: "20px" },
   th: { 
@@ -1647,6 +1895,13 @@ const styles = {
     justifyContent: "center",
     width: "30px",
     height: "30px"
+  },
+  // Error text style
+  errorText: {
+    color: "#ff4d4d",
+    fontSize: "12px",
+    marginTop: "4px",
+    fontStyle: "italic"
   },
   // Pagination styles
   paginationContainer: {
