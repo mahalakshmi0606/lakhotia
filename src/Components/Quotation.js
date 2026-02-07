@@ -11,6 +11,28 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 export default function QuotationModal() {
   const idRef = useRef(1000);
 
+  // Get user details from localStorage
+  const [currentUser, setCurrentUser] = useState({
+    username: '',
+    email: '',
+    userId: ''
+  });
+
+  // Get user details on component mount
+  useEffect(() => {
+    const username = localStorage.getItem('username') || '';
+    const email = localStorage.getItem('email') || '';
+    const userId = localStorage.getItem('user_id') || '';
+    
+    setCurrentUser({
+      username,
+      email,
+      userId
+    });
+    
+    console.log('Current User:', { username, email, userId });
+  }, []);
+
   // Helper to create item with status
   function createEmptyItem(seq) {
     idRef.current += 1;
@@ -55,6 +77,13 @@ export default function QuotationModal() {
     placeOfSupply: "33-Tamil Nadu",
   };
 
+  // Bank details
+  const bankDetails = {
+    accountNo: "12378630000183",
+    accountTitle: "LAKHOTIA ENTERPRISE",
+    ifscCode: "HDFC0001237"
+  };
+
   // Logo path
   const companyLogo = "/Asset/Name1.jpg";
 
@@ -68,7 +97,7 @@ export default function QuotationModal() {
   const [billTo, setBillTo] = useState("");
   const [companyAddress, setCompanyAddress] = useState("");
   const [companyGstin, setCompanyGstin] = useState("");
-  const [companyPincode, setCompanyPincode] = useState(""); // NEW: For pincode
+  const [companyPincode, setCompanyPincode] = useState("");
   const [contactPerson, setContactPerson] = useState("");
   const [contactMob, setContactMob] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -128,7 +157,7 @@ export default function QuotationModal() {
   const [loadingQuotations, setLoadingQuotations] = useState(false);
   const [saving, setSaving] = useState(false);
   
-  // Pagination state
+  // Pagination state for quotations
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
@@ -147,22 +176,43 @@ export default function QuotationModal() {
     completed: 0,
   });
 
+  // Profit percentage
+  const [profitPercentage, setProfitPercentage] = useState(20); // Default 20% profit
+
   // DOM ref for quotation content
   const quotationRef = useRef(null);
 
   // API base URL
-  const API_BASE_URL = "http://127.0.0.1:5000";
+  const API_BASE_URL = "http://localhost:5000";
+
+  // ENQUIRY STATES - NEW
+  const [showEnquiriesModal, setShowEnquiriesModal] = useState(false);
+  const [enquiries, setEnquiries] = useState([]);
+  const [loadingEnquiries, setLoadingEnquiries] = useState(false);
+  const [enquirySearchTerm, setEnquirySearchTerm] = useState("");
+  const [selectedEnquiry, setSelectedEnquiry] = useState(null);
+  const [showEnquiryDetails, setShowEnquiryDetails] = useState(false);
+  
+  // Pagination for enquiries
+  const [enquiryCurrentPage, setEnquiryCurrentPage] = useState(1);
+  const [enquiryItemsPerPage] = useState(10);
+  const [enquiryTotalPages, setEnquiryTotalPages] = useState(1);
+  const [enquiryTotalItems, setEnquiryTotalItems] = useState(0);
 
   // Fetch saved quotations from backend on component mount
   useEffect(() => {
     fetchQuotations();
     fetchQuotationCounts();
-  }, [currentPage, searchTerm, statusFilter]);
+  }, [currentPage, searchTerm, statusFilter, currentUser.userId]);
 
-  // Fetch quotation counts by status
+  // Fetch quotation counts by status - UPDATED WITH USER FILTERING
   const fetchQuotationCounts = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`);
+      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`, {
+        params: {
+          user_id: currentUser.userId
+        }
+      });
       if (response.data.success) {
         setStatistics(response.data.data);
         const counts = {
@@ -175,15 +225,27 @@ export default function QuotationModal() {
       }
     } catch (err) {
       console.error("Error loading quotation counts:", err);
+      // Fallback to localStorage with user filtering
       const saved = localStorage.getItem("savedQuotations");
       if (saved) {
         try {
           const allQuotations = JSON.parse(saved);
+          
+          // Filter by current user
+          const userQuotations = allQuotations.filter(quote => {
+            if (quote.created_by_email && currentUser.email) {
+              return quote.created_by_email === currentUser.email;
+            } else if (quote.created_by_id && currentUser.userId) {
+              return quote.created_by_id === currentUser.userId;
+            }
+            return false; // Show none if no user info matches
+          });
+          
           const counts = {
-            all: allQuotations.length,
-            draft: allQuotations.filter(q => q.status === 'draft').length,
-            requote: allQuotations.filter(q => q.status === 'requote').length,
-            completed: allQuotations.filter(q => q.status === 'completed').length,
+            all: userQuotations.length,
+            draft: userQuotations.filter(q => q.status === 'draft').length,
+            requote: userQuotations.filter(q => q.status === 'requote').length,
+            completed: userQuotations.filter(q => q.status === 'completed').length,
           };
           setQuotationCounts(counts);
         } catch (e) {
@@ -193,80 +255,68 @@ export default function QuotationModal() {
     }
   };
 
-  // Fetch saved quotations with pagination
+  // Fetch saved quotations with pagination - UPDATED WITH USER FILTERING AND SEARCH
   const fetchQuotations = async () => {
     setLoadingQuotations(true);
     try {
-      const params = {
-        page: currentPage,
-        per_page: itemsPerPage
-      };
-      
+      // Use the search endpoint if search term is provided
       if (searchTerm.trim()) {
-        params.q = searchTerm.trim();
-      }
-      
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
-      
-      const response = await axios.get(`${API_BASE_URL}/api/quotations`, {
-        params
-      });
-      
-      if (response.data.success) {
-        const fetchedQuotations = response.data.data || [];
-        const pagination = response.data.pagination || {};
+        const params = {
+          q: searchTerm.trim(),
+          user_id: currentUser.userId
+        };
         
-        const quotationsWithItemStatus = fetchedQuotations.map(quotation => {
-          const transformedItems = (quotation.items || []).map(item => {
-            let brand_code = "";
-            let customer_description = "";
-            let original_description = item.description || "";
-            
-            if (original_description) {
-              try {
-                if (original_description.includes('[BRAND_CODE:') && original_description.includes('[CUSTOMER_DESC:')) {
-                  const brandCodeMatch = original_description.match(/\[BRAND_CODE:(.*?)\]/);
-                  const customerDescMatch = original_description.match(/\[CUSTOMER_DESC:(.*?)\]/);
-                  
-                  if (brandCodeMatch) brand_code = brandCodeMatch[1];
-                  if (customerDescMatch) customer_description = customerDescMatch[1];
-                  
-                  original_description = original_description
-                    .replace(/\[BRAND_CODE:.*?\]/, '')
-                    .replace(/\[CUSTOMER_DESC:.*?\]/, '')
-                    .trim();
-                }
-              } catch (e) {
-                console.error("Error parsing description:", e);
-              }
-            }
-            
-            return {
-              ...item,
-              item_status: item.item_status || "pending",
-              brand_code: brand_code || "",
-              customer_description: customer_description || "",
-              description: original_description,
-              count: 1,
-              packing_charges: 0,
-              other_charges: 0,
-              buy_price: 0
-            };
-          });
-          
-          return {
-            ...quotation,
-            items: transformedItems
-          };
+        if (statusFilter !== "all") {
+          params.status = statusFilter;
+        }
+        
+        const response = await axios.get(`${API_BASE_URL}/api/quotations/search`, {
+          params
         });
         
-        setSavedQuotations(quotationsWithItemStatus);
-        setTotalItems(pagination.total || fetchedQuotations.length);
-        setTotalPages(pagination.pages || Math.ceil((pagination.total || fetchedQuotations.length) / itemsPerPage) || 1);
+        if (response.data.success) {
+          const fetchedQuotations = response.data.data || [];
+          const transformedQuotations = await transformQuotationData(fetchedQuotations);
+          
+          // Implement client-side pagination for search results
+          const startIndex = (currentPage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          const paginatedData = transformedQuotations.slice(startIndex, endIndex);
+          
+          setSavedQuotations(paginatedData);
+          setTotalItems(transformedQuotations.length);
+          setTotalPages(Math.ceil(transformedQuotations.length / itemsPerPage));
+        } else {
+          throw new Error(response.data.message || "API response unsuccessful");
+        }
       } else {
-        throw new Error(response.data.message || "API response unsuccessful");
+        // Use regular paginated endpoint for non-search
+        const params = {
+          page: currentPage,
+          per_page: itemsPerPage,
+          created_by: currentUser.userId // Updated to match backend
+        };
+        
+        if (statusFilter !== "all") {
+          params.status = statusFilter;
+        }
+        
+        const response = await axios.get(`${API_BASE_URL}/api/quotations`, {
+          params
+        });
+        
+        if (response.data.success) {
+          const fetchedQuotations = response.data.data || [];
+          const pagination = response.data.pagination || {};
+          
+          const transformedQuotations = await transformQuotationData(fetchedQuotations);
+          
+          setSavedQuotations(transformedQuotations);
+          setTotalItems(pagination.total || fetchedQuotations.length);
+          setTotalPages(pagination.pages || Math.ceil((pagination.total || fetchedQuotations.length) / itemsPerPage) || 1);
+        } else {
+          throw new Error(response.data.message || "API response unsuccessful");
+        }
       }
     } catch (err) {
       console.error("Error loading quotations from API:", err);
@@ -276,18 +326,78 @@ export default function QuotationModal() {
     }
   };
 
-  // Load from localStorage with pagination
+  // Helper function to transform quotation data
+  const transformQuotationData = async (quotations) => {
+    return quotations.map(quotation => {
+      const transformedItems = (quotation.items || []).map(item => {
+        let brand_code = "";
+        let customer_description = "";
+        let original_description = item.description || "";
+        
+        if (original_description) {
+          try {
+            if (original_description.includes('[BRAND_CODE:') && original_description.includes('[CUSTOMER_DESC:')) {
+              const brandCodeMatch = original_description.match(/\[BRAND_CODE:(.*?)\]/);
+              const customerDescMatch = original_description.match(/\[CUSTOMER_DESC:(.*?)\]/);
+              
+              if (brandCodeMatch) brand_code = brandCodeMatch[1];
+              if (customerDescMatch) customer_description = customerDescMatch[1];
+              
+              original_description = original_description
+                .replace(/\[BRAND_CODE:.*?\]/, '')
+                .replace(/\[CUSTOMER_DESC:.*?\]/, '')
+                .trim();
+            }
+          } catch (e) {
+            console.error("Error parsing description:", e);
+          }
+        }
+        
+        return {
+          ...item,
+          item_status: item.item_status || "pending",
+          brand_code: brand_code || "",
+          customer_description: customer_description || "",
+          description: original_description,
+          count: 1,
+          packing_charges: 0,
+          other_charges: 0,
+          buy_price: 0
+        };
+      });
+      
+      return {
+        ...quotation,
+        items: transformedItems
+      };
+    });
+  };
+
+  // Load from localStorage with pagination - UPDATED WITH USER FILTERING
   const loadFromLocalStorage = () => {
     const saved = localStorage.getItem("savedQuotations");
     if (saved) {
       try {
         const allQuotations = JSON.parse(saved);
         
-        let filteredData = allQuotations;
+        // FILTER: Show only quotations created by current user
+        let filteredData = allQuotations.filter(quote => {
+          // Check if quotation has user information
+          if (quote.created_by_email && currentUser.email) {
+            return quote.created_by_email === currentUser.email;
+          } else if (quote.created_by_id && currentUser.userId) {
+            return quote.created_by_id === currentUser.userId;
+          }
+          // If no user info is stored, show none (strict filtering)
+          return false;
+        });
+        
+        // Apply status filter
         if (statusFilter !== "all") {
-          filteredData = allQuotations.filter(quote => quote.status === statusFilter);
+          filteredData = filteredData.filter(quote => quote.status === statusFilter);
         }
         
+        // Apply search filter
         if (searchTerm.trim()) {
           const term = searchTerm.toLowerCase();
           filteredData = filteredData.filter(quote => {
@@ -295,11 +405,17 @@ export default function QuotationModal() {
             const companyName = (quote.company_name || quote.billTo || "").toLowerCase();
             const contactPersonName = (quote.contact_person || quote.contactPerson || "").toLowerCase();
             const contactEmail = (quote.contact_email || quote.contactEmail || "").toLowerCase();
+            const notes = (quote.notes || "").toLowerCase();
+            const requoteNote = (quote.requote_note || "").toLowerCase();
+            const salesOrderNumber = (quote.sales_order_number || "").toLowerCase();
             
             return quoteNo.includes(term) ||
                    companyName.includes(term) ||
                    contactPersonName.includes(term) ||
-                   contactEmail.includes(term);
+                   contactEmail.includes(term) ||
+                   notes.includes(term) ||
+                   requoteNote.includes(term) ||
+                   salesOrderNumber.includes(term);
           });
         }
         
@@ -384,7 +500,11 @@ export default function QuotationModal() {
   useEffect(() => {
     const fetchStatistics = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`);
+        const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`, {
+          params: {
+            user_id: currentUser.userId
+          }
+        });
         if (response.data.success) {
           setStatistics(response.data.data);
         }
@@ -394,7 +514,7 @@ export default function QuotationModal() {
     };
 
     fetchStatistics();
-  }, []);
+  }, [currentUser.userId]);
 
   // Fetch companies when company modal opens
   useEffect(() => {
@@ -589,7 +709,7 @@ export default function QuotationModal() {
     }
   };
 
-  // Select company from search results - UPDATED TO MATCH BACKEND FIELDS
+  // Select company from search results
   const selectCompanyFromSearch = (company) => {
     const companyId = company.id || company.ID || company.company_id || "";
     const companyName = company.companyName || company.company_name || "";
@@ -604,7 +724,7 @@ export default function QuotationModal() {
     setSelectedCompany(company);
     setBillTo(companyName);
     setCompanyAddress(companyAddr);
-    setCompanyPincode(companyPincode); // NEW: Set pincode
+    setCompanyPincode(companyPincode);
     setCompanyGstin(companyGst);
     setContactPerson(customerName);
     setContactMob(customerMobile);
@@ -623,7 +743,7 @@ export default function QuotationModal() {
     return pincodeMatch ? pincodeMatch[0] : "";
   };
 
-  // When company selected from dropdown, autofill data - UPDATED
+  // When company selected from dropdown, autofill data
   useEffect(() => {
     if (!selectedCompanyId) return;
     
@@ -645,7 +765,7 @@ export default function QuotationModal() {
     
     setBillTo(companyName);
     setCompanyAddress(companyAddr);
-    setCompanyPincode(companyPincode); // NEW: Set pincode
+    setCompanyPincode(companyPincode);
     setCompanyGstin(companyGst);
     setContactPerson(customerName);
     setContactMob(customerMobile);
@@ -670,12 +790,12 @@ export default function QuotationModal() {
     setBillTo("");
     setCompanyAddress("");
     setCompanyGstin("");
-    setCompanyPincode(""); // NEW: Reset pincode
+    setCompanyPincode("");
     setContactPerson("");
     setContactMob("");
     setContactEmail("");
     setContactEmailSame(false);
-    setCcEmail(""); // Reset CC email
+    setCcEmail("");
     
     setFilteredCompanies([]);
     setShowCompanyDropdown(false);
@@ -719,16 +839,12 @@ export default function QuotationModal() {
         [field]: newValue
       };
       
-      // Remove auto-calculation of quantity from cut_width, length, count
-      // Quantity is now a text edit field (user input)
-      if (["cut_width", "length", "count"].includes(field)) {
-        // Only update if quantity is not already set
-        if (!updatedItems[index].quantity || updatedItems[index].quantity === 0) {
-          const width = updatedItems[index].cut_width || 1;
-          const length = updatedItems[index].length || 1;
-          const count = updatedItems[index].count || 1;
-          updatedItems[index].quantity = width * length * count;
-        }
+      // Auto-calculate count when width, length, or quantity changes
+      if (["cut_width", "length", "quantity"].includes(field)) {
+        const width = updatedItems[index].cut_width || 1;
+        const length = updatedItems[index].length || 1;
+        const qty = updatedItems[index].quantity || 1;
+        updatedItems[index].count = width * length * qty;
       }
       
       return updatedItems;
@@ -745,21 +861,36 @@ export default function QuotationModal() {
     setItems(prevItems => prevItems.filter((_, i) => i !== index));
   }
 
-  // Calculate price per unit (MRP × Length × Width × Count)
+  // Calculate price per unit (MRP × Length × Width)
   const pricePerUnit = (item) => {
     const mrp = parseFloat(item.mrp) || 0;
     const length = parseFloat(item.length) || 0;
     const width = parseFloat(item.cut_width) || 0;
-    const count = parseFloat(item.count) || 0;
-    const price = mrp * length * width * count;
+    const price = mrp * length * width;
     return parseFloat(price.toFixed(2)) || 0;
   };
 
-  // Calculate amount before discount (Price/Unit × Qty)
+  // Calculate count (Length × Width × Quantity)
+  const calculateCount = (item) => {
+    const length = parseFloat(item.length) || 0;
+    const width = parseFloat(item.cut_width) || 0;
+    const qty = parseFloat(item.quantity) || 0;
+    return length * width * qty;
+  };
+
+  // Calculate total with profit (Price/Unit + (Price/Unit × profit%))
+  const calculateTotalWithProfit = (item) => {
+    const pricePerUnitValue = pricePerUnit(item);
+    const profit = pricePerUnitValue * (profitPercentage / 100);
+    const total = pricePerUnitValue + profit;
+    return parseFloat(total.toFixed(2)) || 0;
+  };
+
+  // Calculate amount before discount (Total with profit × Quantity)
   const amountBeforeDiscount = (item) => {
-    const price = pricePerUnit(item);
+    const totalWithProfit = calculateTotalWithProfit(item);
     const quantity = parseFloat(item.quantity) || 0;
-    const amount = price * quantity;
+    const amount = totalWithProfit * quantity;
     return parseFloat(amount.toFixed(2)) || 0;
   };
 
@@ -775,7 +906,7 @@ export default function QuotationModal() {
     }
   };
 
-  // Calculate amount after discount (Price/Unit × Qty - Discount)
+  // Calculate amount after discount (Amount before discount - Discount)
   const amountAfterDiscount = (item) => {
     const amount = amountBeforeDiscount(item);
     const discount = discountAmount(item);
@@ -783,12 +914,12 @@ export default function QuotationModal() {
     return parseFloat(finalAmount.toFixed(2)) || 0;
   };
 
-  // Calculate item total (Total + Packing + Others)
+  // Calculate item total with GST (Amount after discount + Packing + Freight)
   const itemTotalBeforeGST = (item) => {
     const amount = amountAfterDiscount(item);
     const packing = parseFloat(item.packing_charges) || 0;
-    const other = parseFloat(item.other_charges) || 0;
-    return parseFloat((amount + packing + other).toFixed(2));
+    const freight = parseFloat(item.other_charges) || 0;
+    return parseFloat((amount + packing + freight).toFixed(2));
   };
 
   // Calculate GST amount (GST% of itemTotalBeforeGST)
@@ -811,7 +942,7 @@ export default function QuotationModal() {
     const subtotal = items.reduce((sum, item) => sum + amountBeforeDiscount(item), 0);
     const totalDiscount = items.reduce((sum, item) => sum + discountAmount(item), 0);
     const totalPacking = items.reduce((sum, item) => sum + (parseFloat(item.packing_charges) || 0), 0);
-    const totalOther = items.reduce((sum, item) => sum + (parseFloat(item.other_charges) || 0), 0);
+    const totalFreight = items.reduce((sum, item) => sum + (parseFloat(item.other_charges) || 0), 0);
     const totalBeforeGST = items.reduce((sum, item) => sum + itemTotalBeforeGST(item), 0);
     const totalGST = items.reduce((sum, item) => sum + gstAmount(item), 0);
     const grandTotal = items.reduce((sum, item) => sum + itemTotal(item), 0);
@@ -820,7 +951,7 @@ export default function QuotationModal() {
       subtotal: parseFloat(subtotal.toFixed(2)),
       totalDiscount: parseFloat(totalDiscount.toFixed(2)),
       totalPacking: parseFloat(totalPacking.toFixed(2)),
-      totalOther: parseFloat(totalOther.toFixed(2)),
+      totalFreight: parseFloat(totalFreight.toFixed(2)),
       totalBeforeGST: parseFloat(totalBeforeGST.toFixed(2)),
       totalGST: parseFloat(totalGST.toFixed(2)),
       grandTotal: parseFloat(grandTotal.toFixed(2))
@@ -855,7 +986,7 @@ export default function QuotationModal() {
     }
   }
 
-  // Save quotation to backend with item status - UPDATED WITH PINCODE
+  // Save quotation to backend with item status
   async function saveQuotation() {
     if (!selectedCompanyId) {
       alert("Please select a company first!");
@@ -893,7 +1024,7 @@ export default function QuotationModal() {
         description: enhancedDescription,
         cut_width: item.cut_width,
         length: item.length,
-        count: item.count,
+        count: calculateCount(item),
         batch_no: item.batch_no,
         mrp: item.mrp,
         quantity: item.quantity,
@@ -903,6 +1034,7 @@ export default function QuotationModal() {
         tax_rate: item.tax_rate,
         item_status: item.item_status,
         price_per_unit: pricePerUnit(item),
+        total_with_profit: calculateTotalWithProfit(item),
         amount_before_discount: amountBeforeDiscount(item),
         discount_amount: discountAmount(item),
         amount_after_discount: amountAfterDiscount(item),
@@ -922,24 +1054,28 @@ export default function QuotationModal() {
       company_id: selectedCompanyId,
       company_name: billTo,
       company_address: companyAddress,
-      company_pincode: companyPincode, // NEW: Include pincode
+      company_pincode: companyPincode,
       company_gstin: companyGstin,
       contact_person: contactPerson,
       contact_mobile: contactMob,
       contact_email: contactEmail,
-      cc_email: ccEmail, // NEW: Save CC email
+      cc_email: ccEmail,
       subtotal: totals.subtotal,
       total_discount: totals.totalDiscount,
       total_packing: totals.totalPacking,
-      total_other: totals.totalOther,
+      total_freight: totals.totalFreight,
       total_before_gst: totals.totalBeforeGST,
       total_tax: totals.totalGST,
       grand_total: totals.grandTotal,
+      profit_percentage: profitPercentage,
       notes: `Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`,
       status: "draft",
       items: preparedItems,
-      created_by: "User",
-      updated_by: "User"
+      // ADD USER INFORMATION HERE
+      created_by: currentUser.username || "User",
+      created_by_email: currentUser.email || "",
+      created_by_id: currentUser.userId || "",
+      updated_by: currentUser.username || "User"
     };
     
     try {
@@ -950,7 +1086,6 @@ export default function QuotationModal() {
       });
       
       if (response.data.success) {
-        // Show CC email in alert if provided
         const successMessage = ccEmail 
           ? `✅ Quotation saved successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nCC: ${ccEmail}`
           : `✅ Quotation saved successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}`;
@@ -978,12 +1113,15 @@ export default function QuotationModal() {
         contactPerson: contactPerson,
         contactMob: contactMob,
         contactEmail: contactEmail,
-        company_pincode: companyPincode, // NEW: Save pincode to localStorage
-        ccEmail: ccEmail, // NEW: Save to localStorage
+        company_pincode: companyPincode,
+        ccEmail: ccEmail,
         totals: totals,
+        profit_percentage: profitPercentage,
         items: items.map(item => ({
           ...item,
+          count: calculateCount(item),
           price_per_unit: pricePerUnit(item),
+          total_with_profit: calculateTotalWithProfit(item),
           amount_before_discount: amountBeforeDiscount(item),
           discount_amount: discountAmount(item),
           amount_after_discount: amountAfterDiscount(item),
@@ -1017,7 +1155,7 @@ export default function QuotationModal() {
     }
   }
 
-  // Edit quotation - open edit modal for requote status only - UPDATED WITH PINCODE
+  // Edit quotation - open edit modal for requote status only
   const editQuotation = async (quotation) => {
     if (quotation.status !== 'requote') {
       alert("Only quotations with 'requote' status can be edited.");
@@ -1058,7 +1196,7 @@ export default function QuotationModal() {
             brand_code: brand_code || "",
             customer_description: customer_description || "",
             description: description,
-            count: item.count || 1,
+            count: calculateCount(item),
             packing_charges: item.packing_charges || 0,
             other_charges: item.other_charges || 0,
             buy_price: 0
@@ -1074,12 +1212,12 @@ export default function QuotationModal() {
         setSelectedCompany(null);
         setBillTo(quoteData.company_name || "");
         setCompanyAddress(quoteData.company_address || "");
-        setCompanyPincode(quoteData.company_pincode || ""); // NEW: Load pincode
+        setCompanyPincode(quoteData.company_pincode || "");
         setCompanyGstin(quoteData.company_gstin || "");
         setContactPerson(quoteData.contact_person || "");
         setContactMob(quoteData.contact_mobile || "");
         setContactEmail(quoteData.contact_email || "");
-        setCcEmail(quoteData.cc_email || ""); // NEW: Load CC email
+        setCcEmail(quoteData.cc_email || "");
         setQuoteNo(quoteData.quote_number || "");
         setItems(parsedItems);
         
@@ -1096,12 +1234,12 @@ export default function QuotationModal() {
       setSelectedCompanyId("");
       setBillTo(quotation.company_name || quotation.billTo || "");
       setCompanyAddress(quotation.company_address || "");
-      setCompanyPincode(quotation.company_pincode || ""); // NEW: Load from local
+      setCompanyPincode(quotation.company_pincode || "");
       setCompanyGstin(quotation.company_gstin || "");
       setContactPerson(quotation.contact_person || quotation.contactPerson || "");
       setContactMob(quotation.contact_mobile || quotation.contactMob || "");
       setContactEmail(quotation.contact_email || quotation.contactEmail || "");
-      setCcEmail(quotation.cc_email || quotation.ccEmail || ""); // NEW: Load from local
+      setCcEmail(quotation.cc_email || quotation.ccEmail || "");
       setQuoteNo(quotation.quote_number || quotation.quoteNo || "");
       setItems(quotation.items || []);
       
@@ -1110,7 +1248,7 @@ export default function QuotationModal() {
     }
   };
 
-  // Update quotation after editing - UPDATED WITH PINCODE
+  // Update quotation after editing
   const updateQuotation = async () => {
     if (!editingQuotation) return;
     
@@ -1140,7 +1278,7 @@ export default function QuotationModal() {
         description: enhancedDescription,
         cut_width: item.cut_width,
         length: item.length,
-        count: item.count,
+        count: calculateCount(item),
         batch_no: item.batch_no,
         mrp: item.mrp,
         quantity: item.quantity,
@@ -1150,6 +1288,7 @@ export default function QuotationModal() {
         tax_rate: item.tax_rate,
         item_status: item.item_status,
         price_per_unit: pricePerUnit(item),
+        total_with_profit: calculateTotalWithProfit(item),
         amount_before_discount: amountBeforeDiscount(item),
         discount_amount: discountAmount(item),
         amount_after_discount: amountAfterDiscount(item),
@@ -1169,23 +1308,24 @@ export default function QuotationModal() {
       company_id: selectedCompanyId,
       company_name: billTo,
       company_address: companyAddress,
-      company_pincode: companyPincode, // NEW: Include pincode
+      company_pincode: companyPincode,
       company_gstin: companyGstin,
       contact_person: contactPerson,
       contact_mobile: contactMob,
       contact_email: contactEmail,
-      cc_email: ccEmail, // NEW: Include CC in update
+      cc_email: ccEmail,
       subtotal: totals.subtotal,
       total_discount: totals.totalDiscount,
       total_packing: totals.totalPacking,
-      total_other: totals.totalOther,
+      total_freight: totals.totalFreight,
       total_before_gst: totals.totalBeforeGST,
       total_tax: totals.totalGST,
       grand_total: totals.grandTotal,
+      profit_percentage: profitPercentage,
       notes: `Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`,
       status: "draft",
       items: preparedItems,
-      updated_by: "User"
+      updated_by: currentUser.username || "User"
     };
     
     try {
@@ -1214,11 +1354,11 @@ export default function QuotationModal() {
         setBillTo("");
         setCompanyAddress("");
         setCompanyGstin("");
-        setCompanyPincode(""); // NEW: Reset pincode
+        setCompanyPincode("");
         setContactPerson("");
         setContactMob("");
         setContactEmail("");
-        setCcEmail(""); // NEW: Reset CC
+        setCcEmail("");
         setQuoteNo("");
       } else {
         throw new Error(response.data.message || "Failed to update quotation");
@@ -1241,12 +1381,15 @@ export default function QuotationModal() {
                 contactPerson: contactPerson,
                 contactMob: contactMob,
                 contactEmail: contactEmail,
-                company_pincode: companyPincode, // NEW: Update pincode
-                ccEmail: ccEmail, // NEW: Update CC in localStorage
+                company_pincode: companyPincode,
+                ccEmail: ccEmail,
                 totals: totals,
+                profit_percentage: profitPercentage,
                 items: items.map(item => ({
                   ...item,
+                  count: calculateCount(item),
                   price_per_unit: pricePerUnit(item),
+                  total_with_profit: calculateTotalWithProfit(item),
                   amount_before_discount: amountBeforeDiscount(item),
                   discount_amount: discountAmount(item),
                   amount_after_discount: amountAfterDiscount(item),
@@ -1257,7 +1400,8 @@ export default function QuotationModal() {
                   item_total: itemTotal(item)
                 })),
                 status: "draft",
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                updated_by: currentUser.username || "User"
               };
             }
             return quote;
@@ -1282,11 +1426,11 @@ export default function QuotationModal() {
           setBillTo("");
           setCompanyAddress("");
           setCompanyGstin("");
-          setCompanyPincode(""); // NEW: Reset pincode
+          setCompanyPincode("");
           setContactPerson("");
           setContactMob("");
           setContactEmail("");
-          setCcEmail(""); // NEW: Reset CC
+          setCcEmail("");
           setQuoteNo("");
         } catch (e) {
           console.error("Error updating localStorage:", e);
@@ -1330,7 +1474,7 @@ export default function QuotationModal() {
     setShowViewModal(true);
   }
 
-  // Print quotation - UPDATED with pincode and CC
+  // Print quotation
   function printQuotation(quotation) {
     const printWindow = window.open('', '_blank');
     
@@ -1339,7 +1483,7 @@ export default function QuotationModal() {
       subtotal: quotation.subtotal || quotation.totals?.subtotal || 0,
       totalDiscount: quotation.total_discount || quotation.totals?.totalDiscount || 0,
       totalPacking: quotation.total_packing || quotation.totals?.totalPacking || 0,
-      totalOther: quotation.total_other || quotation.totals?.totalOther || 0,
+      totalFreight: quotation.total_freight || quotation.totals?.totalFreight || 0,
       totalBeforeGST: quotation.total_before_gst || quotation.totals?.totalBeforeGST || 0,
       totalGST: quotation.total_tax || quotation.totals?.totalGST || 0,
       grandTotal: quotation.grand_total || quotation.totals?.grandTotal || 0
@@ -1389,6 +1533,12 @@ export default function QuotationModal() {
           .company-logo { max-width: 120px; max-height: 120px; object-fit: contain; }
           .pincode-badge { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
           .cc-badge { background-color: #d1ecf1; color: #0c5460; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
+          .bank-details { 
+            background-color: #f8f9fa; 
+            border-left: 4px solid #0d6efd;
+            padding: 10px;
+            margin-top: 15px;
+          }
         </style>
       </head>
       <body>
@@ -1441,15 +1591,13 @@ export default function QuotationModal() {
                   <th>Brand Code</th>
                   <th>Cut Width</th>
                   <th>Cut Length</th>
-                  <th>Count</th>
                   <th>Customer Part No</th>
                   <th>Customer Description</th>
-                  <th>Batch No</th>
                   <th>Qty</th>
                   <th>UoM</th>
                   <th>Price/Unit</th>
                   <th>GST %</th>
-                  <th>Amount</th>
+                  <th>Total</th>
                 </tr>
               </thead>
               <tbody>
@@ -1477,16 +1625,40 @@ export default function QuotationModal() {
                     }
                   }
                   
-                  // Calculate price per unit according to new formula
+                  // Calculate price per unit according to new formula: MRP × Length × Width
                   const pricePerUnit = (item) => {
                     const mrp = parseFloat(item.mrp) || 0;
                     const length = parseFloat(item.length) || 0;
                     const width = parseFloat(item.cut_width) || 0;
-                    const count = parseFloat(item.count) || 0;
-                    return parseFloat((mrp * length * width * count).toFixed(2)) || 0;
+                    return parseFloat((mrp * length * width).toFixed(2)) || 0;
                   };
                   
                   const itemPricePerUnit = pricePerUnit(item);
+                  
+                  // Calculate total with profit: Price/Unit + (Price/Unit × profit%)
+                  const profitPercentage = quotation.profit_percentage || 20;
+                  const totalWithProfit = itemPricePerUnit + (itemPricePerUnit * (profitPercentage / 100));
+                  
+                  // Calculate amount before discount: Total with profit × Quantity
+                  const amountBeforeDiscount = totalWithProfit * (item.quantity || 1);
+                  
+                  // Calculate discount amount
+                  const discountAmount = (item) => {
+                    const amount = amountBeforeDiscount;
+                    const discount = parseFloat(item.discount) || 0;
+                    
+                    if (item.discount_type === "percentage") {
+                      return parseFloat((amount * discount / 100).toFixed(2));
+                    } else {
+                      return parseFloat(discount.toFixed(2));
+                    }
+                  };
+                  
+                  const discount = discountAmount(item);
+                  const amountAfterDiscount = amountBeforeDiscount - discount;
+                  
+                  // Calculate count: Length × Width × Quantity
+                  const count = (item.length || 0) * (item.cut_width || 0) * (item.quantity || 1);
                   
                   return `
                     <tr>
@@ -1495,15 +1667,13 @@ export default function QuotationModal() {
                       <td>${brand_code || item.brand_code || ''}</td>
                       <td>${item.cut_width || ''}</td>
                       <td>${item.length || ''}</td>
-                      <td>${item.count || ''}</td>
                       <td>${item.supplier_part_no || ''}</td>
                       <td>${customer_description || item.customer_description || ''}</td>
-                      <td>${item.batch_no || ''}</td>
                       <td>${item.quantity || ''}</td>
                       <td>${item.unit || ''}</td>
                       <td>₹${itemPricePerUnit.toFixed(2)}</td>
                       <td>${item.tax_rate || 18}%</td>
-                      <td><strong>₹${(item.amount_after_discount || 0).toFixed(2)}</strong></td>
+                      <td><strong>₹${amountAfterDiscount.toFixed(2)}</strong></td>
                     </tr>
                   `;
                 }).join('')}
@@ -1551,10 +1721,10 @@ export default function QuotationModal() {
                       <strong>₹${totals.totalPacking.toFixed(2)}</strong>
                     </div>
                   ` : ''}
-                  ${totals.totalOther > 0 ? `
+                  ${totals.totalFreight > 0 ? `
                     <div class="d-flex justify-content-between mb-1">
-                      <span>Other Charges:</span>
-                      <strong>₹${totals.totalOther.toFixed(2)}</strong>
+                      <span>Freight:</span>
+                      <strong>₹${totals.totalFreight.toFixed(2)}</strong>
                     </div>
                   ` : ''}
                   <div class="d-flex justify-content-between mb-1">
@@ -1571,6 +1741,21 @@ export default function QuotationModal() {
                     <strong class="text-primary">₹${totals.grandTotal.toFixed(2)}</strong>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Bank Details Section -->
+          <div class="bank-details mt-4">
+            <h5 class="mb-2">Bank Details:</h5>
+            <div class="row">
+              <div class="col-md-6">
+                <p class="mb-1"><strong>Account No:</strong> ${bankDetails.accountNo}</p>
+                <p class="mb-1"><strong>Account Title:</strong> ${bankDetails.accountTitle}</p>
+              </div>
+              <div class="col-md-6">
+                <p class="mb-1"><strong>IFSC Code:</strong> ${bankDetails.ifscCode}</p>
+                <p class="mb-1"><strong>Bank:</strong> HDFC Bank</p>
               </div>
             </div>
           </div>
@@ -1639,8 +1824,11 @@ export default function QuotationModal() {
       setShowItemPopup(false);
       setShowViewModal(false);
       setShowEditModal(false);
+      setShowEnquiriesModal(false);
+      setShowEnquiryDetails(false);
       setIsEditing(false);
       setEditingQuotation(null);
+      setSelectedEnquiry(null);
     }
   };
 
@@ -1656,22 +1844,276 @@ export default function QuotationModal() {
     setCurrentPage(1);
   };
 
+  // ENQUIRY FUNCTIONS - NEW WITH PAGINATION
+  const fetchEnquiries = async () => {
+    setLoadingEnquiries(true);
+    try {
+      const params = {
+        page: enquiryCurrentPage,
+        per_page: enquiryItemsPerPage,
+        user_id: currentUser.userId
+      };
+      
+      if (enquirySearchTerm.trim()) {
+        params.q = enquirySearchTerm.trim();
+      }
+      
+      const response = await axios.get(`${API_BASE_URL}/api/enquiries`, {
+        params
+      });
+      
+      if (response.data.success) {
+        const enquiriesData = response.data.data || [];
+        const pagination = response.data.pagination || {};
+        
+        setEnquiries(enquiriesData);
+        setEnquiryTotalItems(pagination.total || enquiriesData.length);
+        setEnquiryTotalPages(pagination.pages || Math.ceil((pagination.total || enquiriesData.length) / enquiryItemsPerPage) || 1);
+      } else {
+        // Fallback to mock data if API fails
+        throw new Error(response.data.message || "Failed to fetch enquiries");
+      }
+    } catch (err) {
+      console.error("Error fetching enquiries:", err);
+      // Fallback to mock data if API fails
+      const mockEnquiries = [
+        {
+          id: 1,
+          enquiry_number: "ENQ-001",
+          company_name: "ABC Corporation",
+          contact_person: "John Doe",
+          contact_email: "john@abccorp.com",
+          contact_mobile: "9876543210",
+          status: "draft",
+          total_items: 3,
+          total_quantity: 15,
+          created_at: "2024-01-15T10:30:00"
+        },
+        {
+          id: 2,
+          enquiry_number: "ENQ-002",
+          company_name: "XYZ Industries",
+          contact_person: "Jane Smith",
+          contact_email: "jane@xyz.com",
+          contact_mobile: "9876543211",
+          status: "in_progress",
+          total_items: 5,
+          total_quantity: 25,
+          created_at: "2024-01-16T14:45:00"
+        }
+      ];
+      
+      // Apply search filter to mock data
+      let filteredEnquiries = mockEnquiries;
+      if (enquirySearchTerm.trim()) {
+        const term = enquirySearchTerm.toLowerCase();
+        filteredEnquiries = mockEnquiries.filter(enquiry => 
+          enquiry.enquiry_number.toLowerCase().includes(term) ||
+          enquiry.company_name.toLowerCase().includes(term) ||
+          enquiry.contact_person.toLowerCase().includes(term) ||
+          enquiry.contact_email.toLowerCase().includes(term)
+        );
+      }
+      
+      // Apply pagination
+      const startIndex = (enquiryCurrentPage - 1) * enquiryItemsPerPage;
+      const endIndex = startIndex + enquiryItemsPerPage;
+      const paginatedEnquiries = filteredEnquiries.slice(startIndex, endIndex);
+      
+      setEnquiries(paginatedEnquiries);
+      setEnquiryTotalItems(filteredEnquiries.length);
+      setEnquiryTotalPages(Math.ceil(filteredEnquiries.length / enquiryItemsPerPage));
+    } finally {
+      setLoadingEnquiries(false);
+    }
+  };
+
+  const handleEnquirySearch = (term) => {
+    setEnquirySearchTerm(term);
+    setEnquiryCurrentPage(1);
+  };
+
+  const handleEnquiryPageChange = (pageNumber) => {
+    setEnquiryCurrentPage(pageNumber);
+  };
+
+  const getEnquiryPaginationItems = () => {
+    const items = [];
+    const maxVisiblePages = 5;
+    
+    if (enquiryTotalPages <= maxVisiblePages) {
+      for (let i = 1; i <= enquiryTotalPages; i++) {
+        items.push(i);
+      }
+    } else {
+      if (enquiryCurrentPage <= 3) {
+        for (let i = 1; i <= 4; i++) items.push(i);
+        items.push("...");
+        items.push(enquiryTotalPages);
+      } else if (enquiryCurrentPage >= enquiryTotalPages - 2) {
+        items.push(1);
+        items.push("...");
+        for (let i = enquiryTotalPages - 3; i <= enquiryTotalPages; i++) items.push(i);
+      } else {
+        items.push(1);
+        items.push("...");
+        items.push(enquiryCurrentPage - 1);
+        items.push(enquiryCurrentPage);
+        items.push(enquiryCurrentPage + 1);
+        items.push("...");
+        items.push(enquiryTotalPages);
+      }
+    }
+    
+    return items;
+  };
+
+  const resetEnquirySearch = () => {
+    setEnquirySearchTerm("");
+    setEnquiryCurrentPage(1);
+  };
+
+  const viewEnquiryDetails = async (enquiry) => {
+    try {
+      // Fetch full enquiry details with items
+      const response = await axios.get(`${API_BASE_URL}/api/enquiries/${enquiry.id}`);
+      if (response.data.success) {
+        setSelectedEnquiry(response.data.data);
+        setShowEnquiryDetails(true);
+      }
+    } catch (err) {
+      console.error("Error fetching enquiry details:", err);
+      // Use basic data if API fails
+      setSelectedEnquiry(enquiry);
+      setShowEnquiryDetails(true);
+    }
+  };
+
+  const convertEnquiryToQuotation = async () => {
+    if (!selectedEnquiry) return;
+
+    try {
+      // Fetch stock items for pricing
+      const stockResponse = await axios.get(`${API_BASE_URL}/api/stock/all`);
+      const stockItems = stockResponse.data.data || stockResponse.data || [];
+
+      // Fetch enquiry items
+      const itemsResponse = await axios.get(`${API_BASE_URL}/api/enquiries/${selectedEnquiry.id}/items`);
+      const enquiryItems = itemsResponse.data.data || [];
+
+      // Convert enquiry items to quotation items
+      const convertedItems = await Promise.all(enquiryItems.map(async (item) => {
+        // Find matching stock item for pricing
+        const stockItem = stockItems.find(stock => 
+          stock["Brand Code"] === item.brand_code || 
+          stock["Item Name"]?.toLowerCase().includes(item.item_name?.toLowerCase())
+        );
+
+        // Calculate price per unit: MRP × Length × Width
+        const mrp = stockItem ? parseFloat(stockItem["MRP"] || 0) : 0;
+        const length = item.length || 1;
+        const width = item.cut_width || 1;
+        const pricePerUnit = mrp * length * width;
+        
+        // Calculate count: Length × Width × Quantity
+        const count = (item.cut_width || 1) * (item.length || 1) * (item.quantity || 1);
+
+        return {
+          id: idRef.current + 1,
+          item_name: item.item_name || "",
+          hsn_sac: item.hsn_sac || "",
+          supplier_part_no: item.supplier_part_no || "",
+          description: item.description || "",
+          cut_width: item.cut_width || 1,
+          length: item.length || 1,
+          count: count,
+          batch_no: item.batch_no || `B-${Date.now().toString().slice(-6)}`,
+          mrp: mrp,
+          buy_price: stockItem ? parseFloat(stockItem["Buy Price"] || 0) : 0,
+          quantity: item.quantity || 1,
+          unit: item.unit || "pcs",
+          discount: 0,
+          discount_type: "amount",
+          tax_rate: 18.0,
+          packing_charges: 0,
+          other_charges: 0,
+          item_status: "pending",
+          customer_description: item.customer_description || "",
+          brand_code: item.brand_code || "",
+          price_per_unit: pricePerUnit
+        };
+      }));
+
+      idRef.current = idRef.current + convertedItems.length;
+
+      // Fill quotation form with enquiry data
+      setSelectedCompanyId(selectedEnquiry.company_id || "");
+      setBillTo(selectedEnquiry.company_name || "");
+      setCompanyAddress(selectedEnquiry.company_address || "");
+      setCompanyPincode(selectedEnquiry.company_pincode || "");
+      setCompanyGstin(selectedEnquiry.company_gstin || "");
+      setContactPerson(selectedEnquiry.contact_person || "");
+      setContactMob(selectedEnquiry.contact_mobile || "");
+      setContactEmail(selectedEnquiry.contact_email || "");
+      setItems(convertedItems);
+      setQuoteNo(`Q-${Date.now().toString().slice(-8)}`);
+
+      // Close modals and open company modal
+      setShowEnquiriesModal(false);
+      setShowEnquiryDetails(false);
+      setShowCompanyModal(true);
+
+      // Update enquiry status to converted
+      try {
+        await axios.put(`${API_BASE_URL}/api/enquiries/${selectedEnquiry.id}/status`, {
+          status: "converted",
+          updated_by: currentUser.username || "User"
+        });
+        alert(`Enquiry ${selectedEnquiry.enquiry_number} converted to quotation!`);
+      } catch (statusErr) {
+        console.error("Failed to update enquiry status:", statusErr);
+      }
+
+    } catch (err) {
+      console.error("Error converting enquiry:", err);
+      alert("Failed to convert enquiry. Please check console for details.");
+    }
+  };
+
+  const openEnquiriesModal = () => {
+    setShowEnquiriesModal(true);
+    fetchEnquiries();
+  };
+
   const totals = calculateTotals();
 
   return (
     <div className="container-fluid py-4">
-      {/* Header with New Quotation Button */}
+      {/* Header with User Info */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h1 className="h2 mb-1">Quotation Management</h1>
-          <p className="text-muted mb-0">Create, manage, and track your quotations</p>
+          <p className="text-muted mb-0">
+            Welcome, <span className="text-primary fw-bold">{currentUser.username || 'User'}</span>
+            {currentUser.email && (
+              <span className="ms-2 text-muted">({currentUser.email})</span>
+            )}
+          </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={startNewQuotation}
-        >
-          <i className="bi bi-file-earmark-plus me-2"></i>New Quotation
-        </button>
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-info"
+            onClick={openEnquiriesModal}
+          >
+            <i className="bi bi-question-circle me-2"></i>View Enquiries
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={startNewQuotation}
+          >
+            <i className="bi bi-file-earmark-plus me-2"></i>New Quotation
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -1768,7 +2210,293 @@ export default function QuotationModal() {
         </div>
       </div>
 
-      {/* Company Details Modal - UPDATED WITH PINCODE FIELD */}
+      {/* Enquiries Modal - UPDATED WITH PAGINATION */}
+      {showEnquiriesModal && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-info text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-question-circle me-2"></i>
+                  Enquiries List
+                  <span className="badge bg-light text-dark ms-2">Total: {enquiryTotalItems}</span>
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowEnquiriesModal(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-4">
+                  <div className="d-flex justify-content-between align-items-center">
+                    <h6>Select an enquiry to convert to quotation</h6>
+                    <div className="d-flex gap-2">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        style={{ width: '250px' }}
+                        placeholder="Search enquiries..."
+                        value={enquirySearchTerm}
+                        onChange={(e) => handleEnquirySearch(e.target.value)}
+                      />
+                      {enquirySearchTerm && (
+                        <button className="btn btn-sm btn-outline-danger" onClick={resetEnquirySearch} title="Clear search">
+                          <i className="bi bi-x-circle"></i>
+                        </button>
+                      )}
+                      <button className="btn btn-sm btn-outline-primary" onClick={fetchEnquiries} disabled={loadingEnquiries}>
+                        <i className="bi bi-arrow-clockwise"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {loadingEnquiries ? (
+                  <div className="text-center py-5">
+                    <div className="spinner-border text-info" role="status">
+                      <span className="visually-hidden">Loading...</span>
+                    </div>
+                    <p className="mt-2 text-muted">Loading enquiries...</p>
+                  </div>
+                ) : enquiries.length > 0 ? (
+                  <>
+                    <div className="table-responsive">
+                      <table className="table table-hover">
+                        <thead className="table-light">
+                          <tr>
+                            <th>#</th>
+                            <th>Enquiry No</th>
+                            <th>Company</th>
+                            <th>Contact Person</th>
+                            <th>Items</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {enquiries.map((enquiry, index) => (
+                            <tr key={enquiry.id}>
+                              <td>{((enquiryCurrentPage - 1) * enquiryItemsPerPage) + index + 1}</td>
+                              <td>
+                                <strong>{enquiry.enquiry_number}</strong>
+                              </td>
+                              <td>{enquiry.company_name}</td>
+                              <td>
+                                {enquiry.contact_person}<br/>
+                                <small className="text-muted">{enquiry.contact_mobile}</small>
+                              </td>
+                              <td>
+                                <span className="badge bg-primary">{enquiry.total_items || 0} items</span><br/>
+                                <small className="text-muted">Qty: {enquiry.total_quantity || 0}</small>
+                              </td>
+                              <td>
+                                <span className={`badge ${
+                                  enquiry.status === 'draft' ? 'bg-warning' :
+                                  enquiry.status === 'in_progress' ? 'bg-info' :
+                                  enquiry.status === 'responded' ? 'bg-primary' :
+                                  enquiry.status === 'converted' ? 'bg-success' :
+                                  'bg-secondary'
+                                }`}>
+                                  {enquiry.status || 'draft'}
+                                </span>
+                              </td>
+                              <td>
+                                {new Date(enquiry.created_at).toLocaleDateString()}<br/>
+                                <small className="text-muted">
+                                  {new Date(enquiry.created_at).toLocaleTimeString()}
+                                </small>
+                              </td>
+                              <td>
+                                <div className="btn-group btn-group-sm">
+                                  <button
+                                    className="btn btn-outline-info"
+                                    onClick={() => viewEnquiryDetails(enquiry)}
+                                    title="View Details"
+                                  >
+                                    <i className="bi bi-eye"></i>
+                                  </button>
+                                  {enquiry.status !== 'converted' && (
+                                    <button
+                                      className="btn btn-outline-success"
+                                      onClick={() => {
+                                        setSelectedEnquiry(enquiry);
+                                        convertEnquiryToQuotation();
+                                      }}
+                                      title="Convert to Quotation"
+                                    >
+                                      <i className="bi bi-arrow-right-circle"></i>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Enquiry Pagination */}
+                    {enquiryTotalPages > 1 && (
+                      <div className="d-flex justify-content-between align-items-center p-3 border-top">
+                        <div className="text-muted">
+                          Showing {((enquiryCurrentPage - 1) * enquiryItemsPerPage) + 1} to {Math.min(enquiryCurrentPage * enquiryItemsPerPage, enquiryTotalItems)} of {enquiryTotalItems} entries
+                        </div>
+                        <nav aria-label="Enquiry page navigation">
+                          <ul className="pagination pagination-sm mb-0">
+                            <li className={`page-item ${enquiryCurrentPage === 1 ? 'disabled' : ''}`}>
+                              <button 
+                                className="page-link" 
+                                onClick={() => handleEnquiryPageChange(enquiryCurrentPage - 1)}
+                                disabled={enquiryCurrentPage === 1}
+                              >
+                                <i className="bi bi-chevron-left"></i>
+                              </button>
+                            </li>
+                            
+                            {getEnquiryPaginationItems().map((pageNum, index) => (
+                              <li key={index} className={`page-item ${pageNum === enquiryCurrentPage ? 'active' : ''} ${pageNum === '...' ? 'disabled' : ''}`}>
+                                {pageNum === '...' ? (
+                                  <span className="page-link">...</span>
+                                ) : (
+                                  <button 
+                                    className="page-link" 
+                                    onClick={() => handleEnquiryPageChange(pageNum)}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                )}
+                              </li>
+                            ))}
+                            
+                            <li className={`page-item ${enquiryCurrentPage === enquiryTotalPages ? 'disabled' : ''}`}>
+                              <button 
+                                className="page-link" 
+                                onClick={() => handleEnquiryPageChange(enquiryCurrentPage + 1)}
+                                disabled={enquiryCurrentPage === enquiryTotalPages}
+                              >
+                                <i className="bi bi-chevron-right"></i>
+                              </button>
+                            </li>
+                          </ul>
+                        </nav>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-5">
+                    <div className="mb-3">
+                      <i className="bi bi-question-circle display-1 text-muted"></i>
+                    </div>
+                    <h5 className="text-muted">No enquiries found</h5>
+                    <p className="text-muted">Create enquiries to convert them to quotations</p>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEnquiriesModal(false)}>
+                  <i className="bi bi-x-circle me-1"></i>Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enquiry Details Modal */}
+      {showEnquiryDetails && selectedEnquiry && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-question-circle me-2"></i>
+                  Enquiry Details - {selectedEnquiry.enquiry_number}
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowEnquiryDetails(false)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <h6>Company Details</h6>
+                    <p><strong>{selectedEnquiry.company_name}</strong></p>
+                    <p className="mb-1">{selectedEnquiry.company_address}</p>
+                    {selectedEnquiry.company_pincode && (
+                      <p className="mb-1">Pincode: {selectedEnquiry.company_pincode}</p>
+                    )}
+                    {selectedEnquiry.company_gstin && (
+                      <p className="mb-1">GSTIN: {selectedEnquiry.company_gstin}</p>
+                    )}
+                  </div>
+                  <div className="col-md-6">
+                    <h6>Contact Details</h6>
+                    <p><strong>{selectedEnquiry.contact_person}</strong></p>
+                    <p className="mb-1">Phone: {selectedEnquiry.contact_mobile}</p>
+                    <p className="mb-1">Email: {selectedEnquiry.contact_email}</p>
+                    <div className="mt-2">
+                      <span className={`badge ${
+                        selectedEnquiry.status === 'draft' ? 'bg-warning' :
+                        selectedEnquiry.status === 'in_progress' ? 'bg-info' :
+                        selectedEnquiry.status === 'responded' ? 'bg-primary' :
+                        selectedEnquiry.status === 'converted' ? 'bg-success' :
+                        'bg-secondary'
+                      }`}>
+                        Status: {selectedEnquiry.status || 'draft'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <h6 className="mb-3">Items in Enquiry</h6>
+                {selectedEnquiry.items && selectedEnquiry.items.length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="table table-sm">
+                      <thead className="table-light">
+                        <tr>
+                          <th>Item Name</th>
+                          <th>Brand Code</th>
+                          <th>Cut Width</th>
+                          <th>Cut Length</th>
+                          <th>Qty</th>
+                          <th>Unit</th>
+                          <th>Customer Description</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedEnquiry.items.map((item, index) => (
+                          <tr key={index}>
+                            <td>{item.item_name}</td>
+                            <td>{item.brand_code || '-'}</td>
+                            <td>{item.cut_width || '-'}</td>
+                            <td>{item.length || '-'}</td>
+                            <td>{item.quantity}</td>
+                            <td>{item.unit}</td>
+                            <td>{item.customer_description || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="alert alert-info">
+                    <i className="bi bi-info-circle me-2"></i>
+                    No items found in this enquiry
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryDetails(false)}>
+                  <i className="bi bi-arrow-left me-1"></i>Back to List
+                </button>
+                {selectedEnquiry.status !== 'converted' && (
+                  <button type="button" className="btn btn-success" onClick={convertEnquiryToQuotation}>
+                    <i className="bi bi-arrow-right-circle me-1"></i>Convert to Quotation
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Company Details Modal */}
       {showCompanyModal && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-lg">
@@ -1954,7 +2682,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                {/* NEW: CC Email Field */}
+                {/* CC Email Field */}
                 <div className="mb-3">
                   <label className="form-label">
                     <i className="bi bi-person-badge me-1"></i>
@@ -1970,6 +2698,27 @@ export default function QuotationModal() {
                   />
                   <div className="form-text">
                     Enter email addresses to send a carbon copy of this quotation. Separate multiple emails with commas.
+                  </div>
+                </div>
+
+                {/* Profit Percentage Input */}
+                <div className="mb-3">
+                  <label className="form-label">
+                    <i className="bi bi-percent me-1"></i>
+                    Profit Percentage
+                  </label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={profitPercentage}
+                    onChange={(e) => setProfitPercentage(parseFloat(e.target.value) || 20)}
+                    placeholder="Enter profit percentage"
+                  />
+                  <div className="form-text">
+                    Used to calculate total: Price/Unit + (Price/Unit × profit%)
                   </div>
                 </div>
 
@@ -2092,13 +2841,9 @@ export default function QuotationModal() {
                                   />
                                 </td>
                                 <td>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    min="1"
-                                    value={item.count}
-                                    onChange={(e) => handleItemChange(index, "count", e.target.value)}
-                                  />
+                                  <div className="form-control form-control-sm bg-light">
+                                    {calculateCount(item).toFixed(2)}
+                                  </div>
                                 </td>
                                 <td>
                                   <input
@@ -2197,7 +2942,7 @@ export default function QuotationModal() {
         </div>
       )}
 
-      {/* Item Selection Popup Modal - REMOVED HSN AND GST COLUMNS */}
+      {/* Item Selection Popup Modal */}
       {showItemPopup && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-lg">
@@ -2400,27 +3145,11 @@ export default function QuotationModal() {
                         </div>
                         <div className="col-md-3">
                           <div className="mb-3">
-                            <label className="form-label">Count</label>
-                            <input
-                              type="number"
-                              className="form-control"
-                              min="1"
-                              value={newItemCount}
-                              onChange={(e) => setNewItemCount(e.target.value)}
-                              placeholder="Count"
-                            />
-                          </div>
-                        </div>
-                        <div className="col-md-3">
-                          <div className="mb-3">
                             <label className="form-label">MRP</label>
                             <input type="text" className="form-control" value={`₹${parseFloat(selectedStockItem["MRP"] || 0).toFixed(2)}`} readOnly />
                           </div>
                         </div>
-                      </div>
-
-                      <div className="row">
-                        <div className="col-md-6">
+                        <div className="col-md-3">
                           <div className="mb-3">
                             <label className="form-label">Quantity</label>
                             <input
@@ -2431,19 +3160,33 @@ export default function QuotationModal() {
                               onChange={(e) => setNewItemQuantity(e.target.value)}
                               placeholder="Enter quantity"
                             />
-                            <small className="text-muted">User input field (not auto-calculated)</small>
                           </div>
                         </div>
+                      </div>
+
+                      <div className="row">
                         <div className="col-md-6">
                           <div className="mb-3">
                             <label className="form-label">Price/Unit (Calculated)</label>
                             <input 
                               type="text" 
                               className="form-control" 
-                              value={`₹${((parseFloat(selectedStockItem["MRP"] || 0) * (parseFloat(newItemLength) || 0) * (parseFloat(newItemCutWidth) || 0) * (parseFloat(newItemCount) || 0)) || 0).toFixed(2)}`} 
+                              value={`₹${((parseFloat(selectedStockItem["MRP"] || 0) * (parseFloat(newItemLength) || 0) * (parseFloat(newItemCutWidth) || 0)) || 0).toFixed(2)}`} 
                               readOnly 
                             />
-                            <small className="text-muted">MRP × Length × Width × Count</small>
+                            <small className="text-muted">MRP × Length × Width</small>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="mb-3">
+                            <label className="form-label">Count (Calculated)</label>
+                            <input 
+                              type="text" 
+                              className="form-control" 
+                              value={((parseFloat(newItemLength) || 0) * (parseFloat(newItemCutWidth) || 0) * (parseFloat(newItemQuantity) || 0)).toFixed(2)} 
+                              readOnly 
+                            />
+                            <small className="text-muted">Length × Width × Quantity</small>
                           </div>
                         </div>
                       </div>
@@ -2505,7 +3248,7 @@ export default function QuotationModal() {
                         </div>
                         <div className="col-md-4">
                           <div className="mb-3">
-                            <label className="form-label">Other Charges</label>
+                            <label className="form-label">Freight Charges</label>
                             <input
                               type="number"
                               className="form-control"
@@ -2513,7 +3256,7 @@ export default function QuotationModal() {
                               step="0.01"
                               value={newItemOtherCharges}
                               onChange={(e) => setNewItemOtherCharges(e.target.value)}
-                              placeholder="Other charges"
+                              placeholder="Freight charges"
                             />
                           </div>
                         </div>
@@ -2549,12 +3292,12 @@ export default function QuotationModal() {
                             id: idRef.current + 1,
                             item_name: selectedStockItem["Item Name"] || "",
                             brand_code: newItemBrandCode || selectedStockItem["Brand Code"] || "",
-                            hsn_sac: selectedStockItem["HSN"] || "", // Still stored but not displayed
+                            hsn_sac: selectedStockItem["HSN"] || "",
                             supplier_part_no: newItemSupplierPartNo || "",
                             description: selectedStockItem["Brand Description"] || "",
                             cut_width: parseFloat(newItemCutWidth) || parseFloat(selectedStockItem["Width"]) || 1,
                             length: parseFloat(newItemLength) || parseFloat(selectedStockItem["Length"]) || 1,
-                            count: parseFloat(newItemCount) || 1,
+                            count: (parseFloat(newItemLength) || 1) * (parseFloat(newItemCutWidth) || 1) * (parseFloat(newItemQuantity) || 1),
                             batch_no: newItemBatchCode || `B-${Date.now().toString().slice(-6)}-${items.length + 1}`,
                             mrp: parseFloat(selectedStockItem["MRP"]) || 0,
                             buy_price: parseFloat(selectedStockItem["Buy Price"]) || 0,
@@ -2562,7 +3305,7 @@ export default function QuotationModal() {
                             unit: selectedStockItem["Unit"] || "pcs",
                             discount: parseFloat(newItemDiscount) || 0,
                             discount_type: newItemDiscountType,
-                            tax_rate: 18.0, // Default GST
+                            tax_rate: 18.0,
                             packing_charges: parseFloat(newItemPackingCharges) || 0,
                             other_charges: parseFloat(newItemOtherCharges) || 0,
                             customer_description: newItemCustomerDescription,
@@ -2598,7 +3341,7 @@ export default function QuotationModal() {
         </div>
       )}
 
-      {/* Preview Modal - UPDATED WITH CC AND PINCODE */}
+      {/* Preview Modal */}
       {showPreviewModal && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-xl">
@@ -2672,15 +3415,13 @@ export default function QuotationModal() {
                             <th>Brand Code</th>
                             <th>Cut Width</th>
                             <th>Cut Length</th>
-                            <th>Count</th>
                             <th>Customer Part No</th>
                             <th>Customer Description</th>
-                            <th>Batch No</th>
                             <th>Qty</th>
                             <th>UoM</th>
                             <th>Price/Unit</th>
                             <th>GST %</th>
-                            <th>Amount</th>
+                            <th>Total</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2691,10 +3432,8 @@ export default function QuotationModal() {
                               <td>{item.brand_code || ''}</td>
                               <td>{item.cut_width}</td>
                               <td>{item.length}</td>
-                              <td>{item.count}</td>
                               <td>{item.supplier_part_no}</td>
                               <td>{item.customer_description || ''}</td>
-                              <td>{item.batch_no}</td>
                               <td>{item.quantity}</td>
                               <td>{item.unit}</td>
                               <td>₹{pricePerUnit(item).toFixed(2)}</td>
@@ -2758,10 +3497,10 @@ export default function QuotationModal() {
                                 <strong>₹{totals.totalPacking.toFixed(2)}</strong>
                               </div>
                             )}
-                            {totals.totalOther > 0 && (
+                            {totals.totalFreight > 0 && (
                               <div className="d-flex justify-content-between mb-2">
-                                <span>Other Charges:</span>
-                                <strong>₹{totals.totalOther.toFixed(2)}</strong>
+                                <span>Freight:</span>
+                                <strong>₹{totals.totalFreight.toFixed(2)}</strong>
                               </div>
                             )}
                             <div className="d-flex justify-content-between mb-2">
@@ -2782,7 +3521,21 @@ export default function QuotationModal() {
                       </div>
                     </div>
                     
-                    <div className="mt-4 p-3 bg-light rounded">
+                    <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', borderLeft: '4px solid #0d6efd' }}>
+                      <h5 className="mb-2">Bank Details:</h5>
+                      <div className="row">
+                        <div className="col-md-6">
+                          <p className="mb-1"><strong>Account No:</strong> ${bankDetails.accountNo}</p>
+                          <p className="mb-1"><strong>Account Title:</strong> ${bankDetails.accountTitle}</p>
+                        </div>
+                        <div className="col-md-6">
+                          <p className="mb-1"><strong>IFSC Code:</strong> ${bankDetails.ifscCode}</p>
+                          <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 p-2 bg-light rounded">
                       <h5>Notes:</h5>
                       <p className="mb-0">Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.</p>
                       <p className="mb-0 mt-2"><strong>Valid for 30 days from the date of issue.</strong></p>
@@ -2816,7 +3569,7 @@ export default function QuotationModal() {
         </div>
       )}
 
-      {/* Edit Quotation Modal - UPDATED WITH CC AND PINCODE */}
+      {/* Edit Quotation Modal */}
       {showEditModal && editingQuotation && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-xl">
@@ -2944,7 +3697,7 @@ export default function QuotationModal() {
                         </div>
                       </div>
                     </div>
-                    {/* NEW: CC Field in Edit Modal */}
+                    {/* CC Field in Edit Modal */}
                     <div className="mb-3">
                       <label className="form-label">
                         <i className="bi bi-person-badge me-1"></i>
@@ -2956,6 +3709,23 @@ export default function QuotationModal() {
                         value={ccEmail}
                         onChange={(e) => setCcEmail(e.target.value)}
                         placeholder="cc@example.com"
+                      />
+                    </div>
+                    {/* Profit Percentage Input */}
+                    <div className="mb-3">
+                      <label className="form-label">
+                        <i className="bi bi-percent me-1"></i>
+                        Profit Percentage
+                      </label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={profitPercentage}
+                        onChange={(e) => setProfitPercentage(parseFloat(e.target.value) || 20)}
+                        placeholder="Enter profit percentage"
                       />
                     </div>
                   </div>
@@ -3036,13 +3806,9 @@ export default function QuotationModal() {
                                   />
                                 </td>
                                 <td>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    min="1"
-                                    value={item.count}
-                                    onChange={(e) => handleItemChange(index, "count", e.target.value)}
-                                  />
+                                  <div className="form-control form-control-sm bg-light">
+                                    {calculateCount(item).toFixed(2)}
+                                  </div>
                                 </td>
                                 <td>
                                   <input
@@ -3155,7 +3921,7 @@ export default function QuotationModal() {
         </div>
       )}
 
-      {/* View Quotation Modal - UPDATED WITH PINCODE AND CC */}
+      {/* View Quotation Modal */}
       {showViewModal && selectedQuotation && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-xl">
@@ -3228,15 +3994,13 @@ export default function QuotationModal() {
                           <th>Brand Code</th>
                           <th>Cut Width</th>
                           <th>Cut Length</th>
-                          <th>Count</th>
                           <th>Customer Part No</th>
                           <th>Customer Description</th>
-                          <th>Batch No</th>
                           <th>Qty</th>
                           <th>UoM</th>
                           <th>Price/Unit</th>
                           <th>GST %</th>
-                          <th>Amount</th>
+                          <th>Total</th>
                           <th>Status</th>
                         </tr>
                       </thead>
@@ -3265,16 +4029,37 @@ export default function QuotationModal() {
                             }
                           }
                           
-                          // Calculate price per unit according to new formula
+                          // Calculate price per unit according to new formula: MRP × Length × Width
                           const pricePerUnit = (item) => {
                             const mrp = parseFloat(item.mrp) || 0;
                             const length = parseFloat(item.length) || 0;
                             const width = parseFloat(item.cut_width) || 0;
-                            const count = parseFloat(item.count) || 0;
-                            return parseFloat((mrp * length * width * count).toFixed(2)) || 0;
+                            return parseFloat((mrp * length * width).toFixed(2)) || 0;
                           };
                           
                           const itemPricePerUnit = pricePerUnit(item);
+                          
+                          // Calculate total with profit: Price/Unit + (Price/Unit × profit%)
+                          const profitPercentage = selectedQuotation.profit_percentage || 20;
+                          const totalWithProfit = itemPricePerUnit + (itemPricePerUnit * (profitPercentage / 100));
+                          
+                          // Calculate amount before discount: Total with profit × Quantity
+                          const amountBeforeDiscount = totalWithProfit * (item.quantity || 1);
+                          
+                          // Calculate discount amount
+                          const discountAmount = (item) => {
+                            const amount = amountBeforeDiscount;
+                            const discount = parseFloat(item.discount) || 0;
+                            
+                            if (item.discount_type === "percentage") {
+                              return parseFloat((amount * discount / 100).toFixed(2));
+                            } else {
+                              return parseFloat(discount.toFixed(2));
+                            }
+                          };
+                          
+                          const discount = discountAmount(item);
+                          const amountAfterDiscount = amountBeforeDiscount - discount;
                           
                           return (
                             <tr key={index}>
@@ -3283,15 +4068,13 @@ export default function QuotationModal() {
                               <td>{brand_code || item.brand_code || ''}</td>
                               <td>{item.cut_width || ''}</td>
                               <td>{item.length || ''}</td>
-                              <td>{item.count || ''}</td>
                               <td>{item.supplier_part_no}</td>
                               <td>{customer_description || item.customer_description || ''}</td>
-                              <td>{item.batch_no}</td>
                               <td>{item.quantity}</td>
                               <td>{item.unit}</td>
                               <td>₹{itemPricePerUnit.toFixed(2)}</td>
                               <td>{item.tax_rate || 18}%</td>
-                              <td><strong>₹{(item.amount_after_discount || 0).toFixed(2)}</strong></td>
+                              <td><strong>₹{amountAfterDiscount.toFixed(2)}</strong></td>
                               <td>
                                 <span className={`badge ${item.item_status === 'pending' ? 'bg-warning' : item.item_status === 'approved' ? 'bg-success' : 'bg-danger'}`}>
                                   {item.item_status || 'pending'}
@@ -3356,10 +4139,10 @@ export default function QuotationModal() {
                               <strong>₹{(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0).toFixed(2)}</strong>
                             </div>
                           )}
-                          {(selectedQuotation.total_other || selectedQuotation.totals?.totalOther || 0) > 0 && (
+                          {(selectedQuotation.total_freight || selectedQuotation.totals?.totalFreight || 0) > 0 && (
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Other Charges:</span>
-                              <strong>₹{(selectedQuotation.total_other || selectedQuotation.totals?.totalOther || 0).toFixed(2)}</strong>
+                              <span>Freight:</span>
+                              <strong>₹{(selectedQuotation.total_freight || selectedQuotation.totals?.totalFreight || 0).toFixed(2)}</strong>
                             </div>
                           )}
                           <div className="d-flex justify-content-between mb-2">
@@ -3376,6 +4159,21 @@ export default function QuotationModal() {
                             <strong className="text-primary">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</strong>
                           </div>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Bank Details Section */}
+                  <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', borderLeft: '4px solid #0d6efd' }}>
+                    <h5 className="mb-2">Bank Details:</h5>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <p className="mb-1"><strong>Account No:</strong> ${bankDetails.accountNo}</p>
+                        <p className="mb-1"><strong>Account Title:</strong> ${bankDetails.accountTitle}</p>
+                      </div>
+                      <div className="col-md-6">
+                        <p className="mb-1"><strong>IFSC Code:</strong> ${bankDetails.ifscCode}</p>
+                        <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
                       </div>
                     </div>
                   </div>
@@ -3405,6 +4203,7 @@ export default function QuotationModal() {
                 {statusFilter !== 'all' && (
                   <span className="badge bg-info ms-1">Filtered: {savedQuotations.length}</span>
                 )}
+                <span className="badge bg-secondary ms-1">User: {currentUser.username || 'You'}</span>
               </span>
             </h5>
             <div className="d-flex gap-2">
@@ -3412,7 +4211,7 @@ export default function QuotationModal() {
                 type="text"
                 className="form-control form-control-sm"
                 style={{ width: '250px' }}
-                placeholder="Search quotations..."
+                placeholder="Search by quote no, company, contact..."
                 value={searchTerm}
                 onChange={(e) => handleSearch(e.target.value)}
               />

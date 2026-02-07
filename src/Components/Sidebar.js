@@ -52,7 +52,10 @@ export const menuItems = [
   {
     category: "Dashboard",
     items: [
-      { name: "Dashboard", icon: <FaHome />, path: "/dashboard" }
+      { name: "Dashboard", icon: <FaHome />, path: "/dashboard" },
+      { name: "Customer Dashboard", path: "/company-dashboard" },
+      { name: "Admin Dashboard", path: "/dashboardsetter" },
+      
     ]
   },
 
@@ -130,9 +133,13 @@ export const menuItems = [
   {
     category: "Quotation & Projects",
     items: [
+      { name: "Enquiry", icon: <FaFileInvoice />, path: "/enquiry" },
       { name: "Quotation", icon: <FaFileInvoice />, path: "/quotation" },
       { name: "Quotation Approval", icon: <FaClipboardList />, path: "/quotationreport" },
-      { name: "Industrial Segmentation", icon: <FaProjectDiagram />, path: "/IndustrialSegmentation" }
+      { name: "Industrial Segmentation", icon: <FaProjectDiagram />, path: "/IndustrialSegmentation" },
+      { name: "Enquiry Report", icon: <FaFileInvoice />, path: "/enquiryreport" },
+      { name: "Quotation Report", icon: <FaFileInvoice />, path: "/QuotationWholeReport" }
+
     ]
   }
 ];

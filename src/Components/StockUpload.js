@@ -2,40 +2,48 @@ import React, { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 
 export default function StockUploadPage() {
+  // Updated column order with Brand included
   const fixedHeaders = [
+    "ID",
     "Item Name",
     "Brand",
+    "Length",
+    "Width",
+    "Qty",
+    "AutoCalculate Count",
+    "Buy Price",
+    "Batch Code",
     "Brand Code",
     "Brand Description",
     "HSN",
-    "Batch Code",
     "MRP",
-    "Buy Price",
-    "Width",
-    "Length",
     "Unit",
-    "GST",
+    "GST"
   ];
 
   // Configuration for duplicate detection
   const duplicateDetectionFields = [
     "Item Name",
-    "Brand", 
     "Batch Code",
     "HSN"
   ];
 
   const [rows, setRows] = useState([]);
   const [filteredRows, setFilteredRows] = useState([]);
-  const [unmatched, setUnmatched] = useState([]); // For both unmatched brands and duplicates
+  const [unmatched, setUnmatched] = useState([]);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [grnItems, setGrnItems] = useState([]);
+  const [soldItems, setSoldItems] = useState([]); // New state for sold items
+  const [showGrnModal, setShowGrnModal] = useState(false);
+  const [showSoldModal, setShowSoldModal] = useState(false); // New modal state
+  const [existingStockMap, setExistingStockMap] = useState({});
 
   // Loading states
   const [loadingStock, setLoadingStock] = useState(false);
-  const [loadingMRP, setLoadingMRP] = useState(false);
-  const [applyingMRP, setApplyingMRP] = useState(false);
+  const [loadingGrn, setLoadingGrn] = useState(false);
+  const [loadingSold, setLoadingSold] = useState(false); // New loading state
   const [saving, setSaving] = useState(false);
 
   // Pagination states
@@ -43,6 +51,36 @@ export default function StockUploadPage() {
   const [rowsPerPage] = useState(10);
 
   const fileInputRef = useRef(null);
+
+  // Calculate count whenever length, width, or qty changes
+  const calculateCount = (length, width, qty) => {
+    const l = parseFloat(length) || 0;
+    const w = parseFloat(width) || 0;
+    const q = parseFloat(qty) || 0;
+    return (l * w * q).toString();
+  };
+
+  // Update count when length, width, or qty changes
+  const updateCell = (id, key, value) => {
+    setRows((prev) => {
+      return prev.map((r) => {
+        if (r._id === id) {
+          const updatedRow = { ...r, [key]: value };
+          
+          // Recalculate count if length, width, or qty changes
+          if (key === "Length" || key === "Width" || key === "Qty") {
+            const length = key === "Length" ? value : r["Length"];
+            const width = key === "Width" ? value : r["Width"];
+            const qty = key === "Qty" ? value : r["Qty"];
+            updatedRow["AutoCalculate Count"] = calculateCount(length, width, qty);
+          }
+          
+          return updatedRow;
+        }
+        return r;
+      });
+    });
+  };
 
   // -------------------------
   // Utility: Excel download
@@ -95,6 +133,294 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
+  // Create a lookup map for existing stock items
+  // ----------------------------------------------------
+  const createStockLookupMap = (stockRows) => {
+    const map = {};
+    
+    stockRows.forEach(row => {
+      const itemName = (row["Item Name"] || "").toLowerCase().trim();
+      const brandCode = (row["Brand Code"] || "").toLowerCase().trim();
+      const brand = (row["Brand"] || "").toLowerCase().trim();
+      const batchCode = (row["Batch Code"] || "").toLowerCase().trim();
+      
+      // Create multiple lookup keys
+      if (itemName) {
+        if (!map[itemName]) map[itemName] = [];
+        map[itemName].push(row);
+      }
+      
+      if (brandCode) {
+        const key = `brandcode:${brandCode}`;
+        if (!map[key]) map[key] = [];
+        map[key].push(row);
+      }
+      
+      if (brand) {
+        const key = `brand:${brand}`;
+        if (!map[key]) map[key] = [];
+        map[key].push(row);
+      }
+      
+      if (batchCode) {
+        const key = `batch:${batchCode}`;
+        if (!map[key]) map[key] = [];
+        map[key].push(row);
+      }
+    });
+    
+    return map;
+  };
+
+  // ----------------------------------------------------
+  // Find matching stock item for a GRN/Sold item
+  // ----------------------------------------------------
+  const findMatchingStockItem = (importItem) => {
+    const itemName = (importItem["Item Name"] || "").toLowerCase().trim();
+    const brandCode = (importItem["Brand Code"] || "").toLowerCase().trim();
+    const brand = (importItem["Brand"] || "").toLowerCase().trim();
+    const batchCode = (importItem["Batch Code"] || "").toLowerCase().trim();
+    
+    // Try to find matching item by different criteria
+    if (itemName && existingStockMap[itemName]) {
+      // Return the first matching item with length and width
+      const match = existingStockMap[itemName].find(item => 
+        item["Length"] && item["Width"] && 
+        (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
+      );
+      if (match) return match;
+    }
+    
+    if (brandCode && existingStockMap[`brandcode:${brandCode}`]) {
+      const match = existingStockMap[`brandcode:${brandCode}`].find(item => 
+        item["Length"] && item["Width"] && 
+        (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
+      );
+      if (match) return match;
+    }
+    
+    if (brand && existingStockMap[`brand:${brand}`]) {
+      const match = existingStockMap[`brand:${brand}`].find(item => 
+        item["Length"] && item["Width"] && 
+        (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
+      );
+      if (match) return match;
+    }
+    
+    if (batchCode && existingStockMap[`batch:${batchCode}`]) {
+      const match = existingStockMap[`batch:${batchCode}`].find(item => 
+        item["Length"] && item["Width"] && 
+        (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
+      );
+      if (match) return match;
+    }
+    
+    return null;
+  };
+
+  // ----------------------------------------------------
+  // Fetch GRN items with intelligent matching
+  // ----------------------------------------------------
+  const fetchGrnItems = async () => {
+    try {
+      setLoadingGrn(true);
+      const res = await fetch("http://localhost:5000/api/grn/all");
+      const data = await res.json();
+      
+      if (data && data.success && Array.isArray(data.data)) {
+        // Map GRN items to match stock format with intelligent matching
+        const mappedGrnItems = data.data.map((grn, index) => {
+          const baseItem = {
+            "ID": `GRN${Date.now()}${index}`,
+            "Item Name": grn.item_name || "",
+            "Brand": grn.brand || "",
+            "Length": grn.length || 0,
+            "Width": grn.width || 0,
+            "Qty": grn.quantity || 0,
+            "AutoCalculate Count": calculateCount(grn.length || 0, grn.width || 0, grn.quantity || 0),
+            "Buy Price": grn.buy_price || 0,
+            "Batch Code": grn.batch_code || "",
+            "Brand Code": grn.brand_code || "",
+            "Brand Description": grn.brand_description || "",
+            "HSN": "",
+            "MRP": 0,
+            "Unit": grn.unit || "PCS",
+            "GST": 0,
+            _id: `grn_${index}_${Math.random().toString(36).slice(2, 9)}`,
+            _source: "grn",
+            _invoice: grn.invoice_number,
+            _po: grn.po_number,
+            _hasMatch: false,
+            _matchReason: ""
+          };
+          
+          // Try to find matching stock item
+          const matchingStockItem = findMatchingStockItem(baseItem);
+          
+          if (matchingStockItem) {
+            // Use dimensions from matching stock item
+            baseItem["Length"] = matchingStockItem["Length"] || grn.length || 0;
+            baseItem["Width"] = matchingStockItem["Width"] || grn.width || 0;
+            baseItem["AutoCalculate Count"] = calculateCount(
+              baseItem["Length"],
+              baseItem["Width"],
+              baseItem["Qty"]
+            );
+            baseItem._hasMatch = true;
+            baseItem._matchReason = matchingStockItem["Item Name"] || "Matching item found";
+          }
+          
+          return baseItem;
+        });
+        
+        setGrnItems(mappedGrnItems);
+      } else {
+        setGrnItems([]);
+      }
+    } catch (error) {
+      console.error("Error fetching GRN items:", error);
+      setGrnItems([]);
+    } finally {
+      setLoadingGrn(false);
+    }
+  };
+
+  // ----------------------------------------------------
+  // NEW: Fetch Stock Sold items with intelligent matching
+  // ----------------------------------------------------
+  const fetchSoldItems = async () => {
+    try {
+      setLoadingSold(true);
+      const res = await fetch("http://localhost:5000/api/stock_sold/all");
+      const data = await res.json();
+      
+      if (data && data.success && Array.isArray(data.data)) {
+        // Map Sold items to match stock format with intelligent matching
+        const mappedSoldItems = data.data.map((sold, index) => {
+          // Convert sold data to stock format
+          const baseItem = {
+            "ID": `SOLD${Date.now()}${index}`,
+            "Item Name": sold.item_name || "",
+            "Brand": sold.company_name || "", // Using company_name as Brand
+            "Length": 0, // Sold items may not have dimensions
+            "Width": 0,
+            "Qty": sold.quantity || 0,
+            "AutoCalculate Count": calculateCount(0, 0, sold.quantity || 0),
+            "Buy Price": 0, // Sold items may not have buy price
+            "Batch Code": "", // Could use production info if available
+            "Brand Code": "", // May need to map from other fields
+            "Brand Description": "",
+            "HSN": sold.hsn_sac || "",
+            "MRP": sold.mrp || 0,
+            "Unit": sold.unit || "PCS",
+            "GST": 0,
+            _id: `sold_${index}_${Math.random().toString(36).slice(2, 9)}`,
+            _source: "stock_sold",
+            _customer: sold.customer_name,
+            _soldDate: sold.sold_date,
+            _taskId: sold.task_id,
+            _remarks: sold.sold_remarks,
+            _hasMatch: false,
+            _matchReason: ""
+          };
+          
+          // Try to find matching stock item
+          const matchingStockItem = findMatchingStockItem(baseItem);
+          
+          if (matchingStockItem) {
+            // Use dimensions from matching stock item
+            baseItem["Length"] = matchingStockItem["Length"] || 0;
+            baseItem["Width"] = matchingStockItem["Width"] || 0;
+            baseItem["AutoCalculate Count"] = calculateCount(
+              baseItem["Length"],
+              baseItem["Width"],
+              baseItem["Qty"]
+            );
+            baseItem["Batch Code"] = matchingStockItem["Batch Code"] || "";
+            baseItem["Brand Code"] = matchingStockItem["Brand Code"] || "";
+            baseItem["Brand Description"] = matchingStockItem["Brand Description"] || "";
+            baseItem._hasMatch = true;
+            baseItem._matchReason = matchingStockItem["Item Name"] || "Matching item found";
+          }
+          
+          return baseItem;
+        });
+        
+        setSoldItems(mappedSoldItems);
+      } else {
+        setSoldItems([]);
+      }
+    } catch (error) {
+      console.error("Error fetching Stock Sold items:", error);
+      setSoldItems([]);
+    } finally {
+      setLoadingSold(false);
+    }
+  };
+
+  // ----------------------------------------------------
+  // Load GRN items into stock table
+  // ----------------------------------------------------
+  const loadGrnItemsToStock = (selectedItems = []) => {
+    let itemsToAdd;
+    
+    if (selectedItems.length === 0) {
+      // If no selection, load all GRN items
+      itemsToAdd = grnItems.map(item => ({
+        ...item,
+        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _source: "grn_imported"
+      }));
+    } else {
+      // Load only selected items
+      itemsToAdd = selectedItems.map(item => ({
+        ...item,
+        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _source: "grn_imported"
+      }));
+    }
+    
+    // Count items with matches
+    const matchedItems = itemsToAdd.filter(item => item._hasMatch).length;
+    
+    setRows(prev => [...prev, ...itemsToAdd]);
+    setSuccess(`Added ${itemsToAdd.length} items from GRN to stock table. ${matchedItems > 0 ? `(${matchedItems} items have matched dimensions)` : ''}`);
+    
+    setShowGrnModal(false);
+  };
+
+  // ----------------------------------------------------
+  // NEW: Load Stock Sold items into stock table
+  // ----------------------------------------------------
+  const loadSoldItemsToStock = (selectedItems = []) => {
+    let itemsToAdd;
+    
+    if (selectedItems.length === 0) {
+      // If no selection, load all Sold items
+      itemsToAdd = soldItems.map(item => ({
+        ...item,
+        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _source: "sold_imported"
+      }));
+    } else {
+      // Load only selected items
+      itemsToAdd = selectedItems.map(item => ({
+        ...item,
+        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _source: "sold_imported"
+      }));
+    }
+    
+    // Count items with matches
+    const matchedItems = itemsToAdd.filter(item => item._hasMatch).length;
+    
+    setRows(prev => [...prev, ...itemsToAdd]);
+    setSuccess(`Added ${itemsToAdd.length} items from Stock Sold to stock table. ${matchedItems > 0 ? `(${matchedItems} items have matched dimensions)` : ''}`);
+    
+    setShowSoldModal(false);
+  };
+
+  // ----------------------------------------------------
   // Search functionality
   // ----------------------------------------------------
   const handleSearch = (term) => {
@@ -123,6 +449,16 @@ export default function StockUploadPage() {
   }, [rows]);
 
   // ----------------------------------------------------
+  // Update existing stock map when rows change
+  // ----------------------------------------------------
+  useEffect(() => {
+    if (rows.length > 0) {
+      const map = createStockLookupMap(rows);
+      setExistingStockMap(map);
+    }
+  }, [rows]);
+
+  // ----------------------------------------------------
   // Pagination calculations
   // ----------------------------------------------------
   const displayRows = searchTerm ? filteredRows : rows;
@@ -145,13 +481,13 @@ export default function StockUploadPage() {
   const handlePrevPage = () => goToPage(currentPage - 1);
   const handleNextPage = () => goToPage(currentPage + 1);
 
-  // Reset to first page when rows change (upload, delete, etc.)
+  // Reset to first page when rows change
   useEffect(() => {
     setCurrentPage(1);
   }, [rows.length, searchTerm]);
 
   // ----------------------------------------------------
-  // Add multiple empty rows (prompt count)
+  // Add multiple empty rows
   // ----------------------------------------------------
   const handleAddRows = () => {
     const count = prompt("Enter number of rows to add:");
@@ -161,16 +497,24 @@ export default function StockUploadPage() {
       alert("Enter a valid positive number");
       return;
     }
-    const emptyRows = Array.from({ length: n }).map(() => {
+    const emptyRows = Array.from({ length: n }).map((_, index) => {
       const row = {};
-      fixedHeaders.forEach((h) => (row[h] = ""));
+      fixedHeaders.forEach((h) => {
+        if (h === "ID") {
+          row[h] = `ID${Date.now()}${index}`;
+        } else if (h === "AutoCalculate Count") {
+          row[h] = "0";
+        } else {
+          row[h] = "";
+        }
+      });
       return { ...row, _id: Math.random().toString(36).slice(2, 9) };
     });
     setRows((prev) => [...prev, ...emptyRows]);
   };
 
   // ----------------------------------------------------
-  // Fetch stock (initial load) — optimized
+  // Fetch stock (initial load)
   // ----------------------------------------------------
   useEffect(() => {
     const fetchStock = async () => {
@@ -179,40 +523,71 @@ export default function StockUploadPage() {
         setError("");
         const res = await fetch("http://localhost:5000/api/stock/all");
         const data = await res.json();
+        
         if (data && data.success && Array.isArray(data.data)) {
-          const finalRows = data.data.map((row, index) => ({
-            ...row,
-            _id: index + "_" + Math.random().toString(36).slice(2, 7),
-          }));
+          const finalRows = data.data.map((row, index) => {
+            const updatedRow = {
+              "ID": row.ID || row.stock_id || "",
+              "Item Name": row["Item Name"] || row.item_name || "",
+              "Brand": row["Brand"] || row.brand || "",
+              "Length": row.Length || row.length || 0,
+              "Width": row.Width || row.width || 0,
+              "Qty": row.Qty || row.quantity || 0,
+              "AutoCalculate Count": row["AutoCalculate Count"] || row.auto_calculate_count || 0,
+              "Buy Price": row["Buy Price"] || row.buy_price || 0,
+              "Batch Code": row["Batch Code"] || row.batch_code || "",
+              "Brand Code": row["Brand Code"] || row.brand_code || "",
+              "Brand Description": row["Brand Description"] || row.brand_description || "",
+              "HSN": row.HSN || row.hsn || "",
+              "MRP": row.MRP || row.mrp || 0,
+              "Unit": row.Unit || row.unit || "",
+              "GST": row.GST || row.gst || 0,
+              _id: index + "_" + Math.random().toString(36).slice(2, 7),
+            };
+            
+            if (!updatedRow["AutoCalculate Count"] || updatedRow["AutoCalculate Count"] === 0) {
+              updatedRow["AutoCalculate Count"] = calculateCount(
+                updatedRow["Length"],
+                updatedRow["Width"],
+                updatedRow["Qty"]
+              );
+            }
+            
+            if (!updatedRow["ID"]) {
+              updatedRow["ID"] = `ID${Date.now()}${index}`;
+            }
+            
+            return updatedRow;
+          });
+          
           setRows(finalRows);
           setFilteredRows(finalRows);
+          
+          // Create stock lookup map
+          const map = createStockLookupMap(finalRows);
+          setExistingStockMap(map);
+          
         } else {
-          // If API returns differently, tolerate gracefully
-          if (Array.isArray(data)) {
-            const finalRows = data.map((row, index) => ({
-              ...row,
-              _id: index + "_" + Math.random().toString(36).slice(2, 7),
-            }));
-            setRows(finalRows);
-            setFilteredRows(finalRows);
-          } else {
-            setRows([]);
-            setFilteredRows([]);
+          setRows([]);
+          setFilteredRows([]);
+          if (data && !data.success) {
+            setError(data.message || "Failed to load stock data");
           }
         }
       } catch (e) {
         console.error("Error loading stock:", e);
-        setError("Error loading stock data.");
+        setError("Error loading stock data. Check if server is running.");
       } finally {
         setLoadingStock(false);
       }
     };
 
     fetchStock();
+    fetchGrnItems(); // Also fetch GRN items on initial load
   }, []);
 
   // ----------------------------------------------------
-  // Handle Excel upload (parse & normalize) with duplicate detection
+  // Handle Excel upload
   // ----------------------------------------------------
   const handleFile = (e) => {
     setError("");
@@ -237,9 +612,8 @@ export default function StockUploadPage() {
           return;
         }
 
-        // Normalize keys once and map to fixed headers
+        // Normalize keys
         const finalRows = json.map((rawRow, idx) => {
-          // Build lowercase keyed map for quick lookup
           const lookup = {};
           Object.keys(rawRow).forEach((k) => {
             if (!k) return;
@@ -249,11 +623,30 @@ export default function StockUploadPage() {
           const mapped = {};
           for (const header of fixedHeaders) {
             const keyLower = header.toLowerCase();
-            mapped[header] =
-              lookup[keyLower] ??
-              lookup[keyLower.replace(/ /g, "")] ??
-              lookup[keyLower.replace(/[-_]/g, "")] ??
-              "";
+            const altKey1 = keyLower.replace(/ /g, "");
+            const altKey2 = keyLower.replace(/[-_]/g, "");
+            
+            if (header === "AutoCalculate Count") {
+              const length = lookup["length"] || lookup["len"] || "";
+              const width = lookup["width"] || lookup["wid"] || "";
+              const qty = lookup["qty"] || lookup["quantity"] || "";
+              
+              if (lookup[keyLower] || lookup[altKey1] || lookup[altKey2]) {
+                mapped[header] = lookup[keyLower] || lookup[altKey1] || lookup[altKey2] || "";
+              } else if (length && width && qty) {
+                mapped[header] = calculateCount(length, width, qty);
+              } else {
+                mapped[header] = "";
+              }
+            } else if (header === "ID" && !lookup[keyLower] && !lookup[altKey1] && !lookup[altKey2]) {
+              mapped[header] = `ID${Date.now()}${idx}`;
+            } else {
+              mapped[header] =
+                lookup[keyLower] ??
+                lookup[altKey1] ??
+                lookup[altKey2] ??
+                "";
+            }
           }
 
           return {
@@ -262,11 +655,10 @@ export default function StockUploadPage() {
           };
         });
 
-        // Duplicate detection logic
+        // Duplicate detection
         const existingRows = rows;
         const { duplicates, uniqueNewRows } = checkForDuplicates(finalRows, existingRows);
 
-        // Ask user what to do with duplicates
         if (duplicates.length > 0) {
           const shouldSkipDuplicates = window.confirm(
             `Found ${duplicates.length} duplicate row(s) based on:\n` +
@@ -277,34 +669,28 @@ export default function StockUploadPage() {
           );
 
           if (shouldSkipDuplicates) {
-            // Option 1: Skip duplicates (only add unique rows)
             setRows(prev => [...prev, ...uniqueNewRows]);
             setSuccess(`Added ${uniqueNewRows.length} unique rows. Skipped ${duplicates.length} duplicate(s).`);
             
-            // Show duplicate details
             const duplicateDisplay = duplicates.map(dup => ({
               Item: dup["Item Name"] || "(No Item Name)",
-              Brand: dup.Brand || "(Empty Brand)",
+              Brand: dup["Brand"] || "(No Brand)",
               Batch: dup["Batch Code"] || "(No Batch)",
               HSN: dup.HSN || "(No HSN)",
               MRP: dup.MRP || "(No MRP)",
               Status: "Duplicate - Skipped"
             }));
             
-            // Keep existing unmatched plus new duplicates
             setUnmatched(prev => [...prev, ...duplicateDisplay]);
           } else {
-            // Option 2: Add all rows (including duplicates)
             setRows(prev => [...prev, ...finalRows]);
             setSuccess(`Added all ${finalRows.length} rows (including ${duplicates.length} duplicates).`);
           }
         } else {
-          // No duplicates found, add all rows
           setRows(prev => [...prev, ...finalRows]);
           setSuccess(`Added ${finalRows.length} unique rows successfully.`);
         }
 
-        // Reset file input
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -329,11 +715,11 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Save to backend with loading indicator
+  // Intelligent Save Function
   // ----------------------------------------------------
   const saveToBackend = async () => {
     if (rows.length === 0) {
-      setError("Upload a file before saving.");
+      setError("No data to save.");
       return;
     }
 
@@ -342,42 +728,327 @@ export default function StockUploadPage() {
     setSuccess("");
 
     try {
-      // Clean once
+      // Clean data
       const cleaned = rows.map((r) => {
         const copy = { ...r };
         delete copy._id;
+        delete copy._source;
+        delete copy._invoice;
+        delete copy._po;
+        delete copy._customer;
+        delete copy._soldDate;
+        delete copy._taskId;
+        delete copy._remarks;
+        delete copy._hasMatch;
+        delete copy._matchReason;
+        
+        const numericFields = ["Length", "Width", "Qty", "Buy Price", "MRP", "GST"];
+        numericFields.forEach(field => {
+          if (copy[field] !== undefined && copy[field] !== null && copy[field] !== "") {
+            copy[field] = parseFloat(copy[field]) || 0;
+          }
+        });
+        
+        if ((!copy["AutoCalculate Count"] || copy["AutoCalculate Count"] === 0) && 
+            copy["Length"] && copy["Width"] && copy["Qty"]) {
+          copy["AutoCalculate Count"] = calculateCount(copy["Length"], copy["Width"], copy["Qty"]);
+        }
+        
         return copy;
       });
 
-      const res = await fetch("http://localhost:5000/api/stock/bulk-save", {
+      // Check for existing items
+      const brandCodes = cleaned.map(r => r["Brand Code"]).filter(code => code && code.trim());
+      
+      if (brandCodes.length === 0) {
+        const saveRes = await fetch("http://localhost:5000/api/stock/bulk-save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ records: cleaned }),
+        });
+        
+        const saveData = await saveRes.json();
+        if (saveData && saveData.success) {
+          const savedCount = saveData.saved || cleaned.length;
+          setSuccess(`Successfully saved ${savedCount} new items.`);
+          
+          if (saveData.duplicates && saveData.duplicates.length > 0) {
+            setUnmatched(prev => [
+              ...prev,
+              ...saveData.duplicates.map(dup => ({
+                Item: "Duplicate",
+                Brand: "",
+                Batch: dup,
+                HSN: "",
+                MRP: "",
+                Status: "Duplicate - Skipped"
+              }))
+            ]);
+          }
+          
+          // Refresh data
+          const refreshRes = await fetch("http://localhost:5000/api/stock/all");
+          const refreshData = await refreshRes.json();
+          if (refreshData && refreshData.success && Array.isArray(refreshData.data)) {
+            const refreshedRows = refreshData.data.map((row, index) => ({
+              "ID": row.ID || row.stock_id || "",
+              "Item Name": row["Item Name"] || row.item_name || "",
+              "Brand": row["Brand"] || row.brand || "",
+              "Length": row.Length || row.length || 0,
+              "Width": row.Width || row.width || 0,
+              "Qty": row.Qty || row.quantity || 0,
+              "AutoCalculate Count": row["AutoCalculate Count"] || row.auto_calculate_count || 0,
+              "Buy Price": row["Buy Price"] || row.buy_price || 0,
+              "Batch Code": row["Batch Code"] || row.batch_code || "",
+              "Brand Code": row["Brand Code"] || row.brand_code || "",
+              "Brand Description": row["Brand Description"] || row.brand_description || "",
+              "HSN": row.HSN || row.hsn || "",
+              "MRP": row.MRP || row.mrp || 0,
+              "Unit": row.Unit || row.unit || "",
+              "GST": row.GST || row.gst || 0,
+              _id: index + "_" + Math.random().toString(36).slice(2, 7),
+            }));
+            setRows(refreshedRows);
+            setFilteredRows(refreshedRows);
+          }
+        } else {
+          setError(saveData?.message || "Failed to save items.");
+        }
+        return;
+      }
+
+      const checkExistingRes = await fetch("http://localhost:5000/api/stock/bulk-buy-prices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ records: cleaned }),
+        body: JSON.stringify({ brand_codes: brandCodes }),
       });
-      const data = await res.json();
-
-      if (data && data.success) {
-        setSuccess("Stock data saved successfully!");
-      } else {
-        setError(data?.message || "Failed to save data.");
+      
+      const checkData = await checkExistingRes.json();
+      
+      if (!checkData || !checkData.success) {
+        setError("Failed to check existing items.");
+        return;
       }
+      
+      const existingBrandCodes = checkData.data ? checkData.data.map(item => item.brand_code) : [];
+      const newItems = cleaned.filter(item => {
+        const brandCode = item["Brand Code"];
+        return !brandCode || !existingBrandCodes.includes(brandCode);
+      });
+      
+      const existingItems = cleaned.filter(item => {
+        const brandCode = item["Brand Code"];
+        return brandCode && existingBrandCodes.includes(brandCode);
+      });
+
+      let savedNewCount = 0;
+      let updatedCount = 0;
+      let errors = [];
+
+      // Save new items
+      if (newItems.length > 0) {
+        const saveRes = await fetch("http://localhost:5000/api/stock/bulk-save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ records: newItems }),
+        });
+        
+        const saveData = await saveRes.json();
+        if (saveData && saveData.success) {
+          savedNewCount = saveData.saved || newItems.length;
+          
+          if (saveData.duplicates && saveData.duplicates.length > 0) {
+            setUnmatched(prev => [
+              ...prev,
+              ...saveData.duplicates.map(dup => ({
+                Item: "Duplicate",
+                Brand: "",
+                Batch: dup,
+                HSN: "",
+                MRP: "",
+                Status: "Duplicate - Skipped"
+              }))
+            ]);
+          }
+        } else {
+          errors.push(`Failed to save new items: ${saveData?.message || "Unknown error"}`);
+        }
+      }
+
+      // Update existing items
+      if (existingItems.length > 0) {
+        const updateRes = await fetch("http://localhost:5000/api/stock/update", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ records: existingItems }),
+        });
+        
+        const updateData = await updateRes.json();
+        if (updateData && updateData.success) {
+          updatedCount = updateData.updated || existingItems.length;
+          
+          if (updateData.not_found && updateData.not_found.length > 0) {
+            const notFoundDisplay = updateData.not_found.map(item => ({
+              Item: "Not Found",
+              Brand: "",
+              Batch: item,
+              HSN: "",
+              MRP: "",
+              Status: "Not Found in Database"
+            }));
+            setUnmatched(prev => [...prev, ...notFoundDisplay]);
+          }
+        } else {
+          errors.push(`Failed to update existing items: ${updateData?.message || "Unknown error"}`);
+        }
+      }
+
+      if (errors.length === 0) {
+        let message = "Stock data processed successfully!";
+        if (savedNewCount > 0) message += ` Added ${savedNewCount} new items.`;
+        if (updatedCount > 0) message += ` Updated ${updatedCount} existing items.`;
+        setSuccess(message);
+        
+        // Refresh data
+        const refreshRes = await fetch("http://localhost:5000/api/stock/all");
+        const refreshData = await refreshRes.json();
+        if (refreshData && refreshData.success && Array.isArray(refreshData.data)) {
+          const refreshedRows = refreshData.data.map((row, index) => ({
+            "ID": row.ID || row.stock_id || "",
+            "Item Name": row["Item Name"] || row.item_name || "",
+            "Brand": row["Brand"] || row.brand || "",
+            "Length": row.Length || row.length || 0,
+            "Width": row.Width || row.width || 0,
+            "Qty": row.Qty || row.quantity || 0,
+            "AutoCalculate Count": row["AutoCalculate Count"] || row.auto_calculate_count || 0,
+            "Buy Price": row["Buy Price"] || row.buy_price || 0,
+            "Batch Code": row["Batch Code"] || row.batch_code || "",
+            "Brand Code": row["Brand Code"] || row.brand_code || "",
+            "Brand Description": row["Brand Description"] || row.brand_description || "",
+            "HSN": row.HSN || row.hsn || "",
+            "MRP": row.MRP || row.mrp || 0,
+            "Unit": row.Unit || row.unit || "",
+            "GST": row.GST || row.gst || 0,
+            _id: index + "_" + Math.random().toString(36).slice(2, 7),
+          }));
+          setRows(refreshedRows);
+          setFilteredRows(refreshedRows);
+        }
+      } else {
+        setError(errors.join(" "));
+      }
+
     } catch (err) {
       console.error("Save error:", err);
-      setError("Backend error. Check API connection.");
+      setError("Backend error. Check API connection and make sure server is running.");
     } finally {
       setSaving(false);
     }
   };
 
   // ----------------------------------------------------
-  // Small helpers: update / delete
+  // DELETE FUNCTION
   // ----------------------------------------------------
-  const deleteRow = (id) => {
-    setRows((prev) => prev.filter((r) => r._id !== id));
+  const deleteRow = async (id, rowData) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) {
+      return;
+    }
+
+    try {
+      const deleteData = {};
+      if (rowData["ID"] && rowData["ID"].trim()) {
+        deleteData.ID = rowData["ID"];
+      }
+      if (rowData["Brand Code"] && rowData["Brand Code"].trim()) {
+        deleteData["Brand Code"] = rowData["Brand Code"];
+      }
+
+      if (!deleteData.ID && !deleteData["Brand Code"]) {
+        setError("Cannot delete item: No ID or Brand Code found");
+        return;
+      }
+
+      const res = await fetch("http://localhost:5000/api/stock/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(deleteData),
+      });
+
+      const data = await res.json();
+      
+      if (data && data.success) {
+        setRows(prev => prev.filter((r) => r._id !== id));
+        setSuccess("Item deleted successfully!");
+        
+        const refreshRes = await fetch("http://localhost:5000/api/stock/all");
+        const refreshData = await refreshRes.json();
+        if (refreshData && refreshData.success && Array.isArray(refreshData.data)) {
+          const refreshedRows = refreshData.data.map((row, index) => ({
+            "ID": row.ID || row.stock_id || "",
+            "Item Name": row["Item Name"] || row.item_name || "",
+            "Brand": row["Brand"] || row.brand || "",
+            "Length": row.Length || row.length || 0,
+            "Width": row.Width || row.width || 0,
+            "Qty": row.Qty || row.quantity || 0,
+            "AutoCalculate Count": row["AutoCalculate Count"] || row.auto_calculate_count || 0,
+            "Buy Price": row["Buy Price"] || row.buy_price || 0,
+            "Batch Code": row["Batch Code"] || row.batch_code || "",
+            "Brand Code": row["Brand Code"] || row.brand_code || "",
+            "Brand Description": row["Brand Description"] || row.brand_description || "",
+            "HSN": row.HSN || row.hsn || "",
+            "MRP": row.MRP || row.mrp || 0,
+            "Unit": row.Unit || row.unit || "",
+            "GST": row.GST || row.gst || 0,
+            _id: index + "_" + Math.random().toString(36).slice(2, 7),
+          }));
+          setRows(refreshedRows);
+          setFilteredRows(refreshedRows);
+        }
+      } else {
+        setError(data?.message || "Failed to delete item.");
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      setError("Backend error during deletion.");
+    }
   };
-  
-  const updateCell = (id, key, value) =>
-    setRows((prev) => prev.map((r) => (r._id === id ? { ...r, [key]: value } : r)));
+
+  // ----------------------------------------------------
+  // Export current data to Excel
+  // ----------------------------------------------------
+  const exportToExcel = () => {
+    if (rows.length === 0) {
+      alert("No data to export.");
+      return;
+    }
+
+    const exportData = rows.map(row => {
+      const exportRow = {};
+      fixedHeaders.forEach(header => {
+        exportRow[header] = row[header] || "";
+      });
+      return exportRow;
+    });
+
+    downloadExcel(exportData, "stock_data.xlsx", "Stock");
+    setSuccess(`Exported ${exportData.length} rows to Excel.`);
+  };
+
+  // ----------------------------------------------------
+  // Refresh GRN items
+  // ----------------------------------------------------
+  const refreshGrnItems = () => {
+    fetchGrnItems();
+    setSuccess("GRN items refreshed.");
+  };
+
+  // ----------------------------------------------------
+  // NEW: Refresh Sold items
+  // ----------------------------------------------------
+  const refreshSoldItems = () => {
+    fetchSoldItems();
+    setSuccess("Stock Sold items refreshed.");
+  };
 
   // ----------------------------------------------------
   // Simple inline spinner style
@@ -406,12 +1077,10 @@ export default function StockUploadPage() {
     const maxVisiblePages = 5;
 
     if (totalPages <= maxVisiblePages) {
-      // Show all pages if total is small
       for (let i = 1; i <= totalPages; i++) {
         pageNumbers.push(i);
       }
     } else {
-      // Show limited pages with ellipsis
       let startPage = Math.max(1, currentPage - 2);
       let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
@@ -438,13 +1107,544 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
+  // GRN Modal Component
+  // ----------------------------------------------------
+  const GrnModal = () => {
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [searchGrnTerm, setSearchGrnTerm] = useState("");
+
+    const filteredGrnItems = grnItems.filter(item => {
+      if (!searchGrnTerm) return true;
+      const term = searchGrnTerm.toLowerCase();
+      return (
+        (item["Item Name"] || "").toLowerCase().includes(term) ||
+        (item["Brand"] || "").toLowerCase().includes(term) ||
+        (item["Batch Code"] || "").toLowerCase().includes(term) ||
+        (item["Brand Code"] || "").toLowerCase().includes(term) ||
+        (item._invoice || "").toLowerCase().includes(term) ||
+        (item._po || "").toLowerCase().includes(term)
+      );
+    });
+
+    const toggleSelectItem = (id) => {
+      setSelectedItems(prev => 
+        prev.includes(id) 
+          ? prev.filter(itemId => itemId !== id)
+          : [...prev, id]
+      );
+    };
+
+    const selectAll = () => {
+      if (selectedItems.length === filteredGrnItems.length) {
+        setSelectedItems([]);
+      } else {
+        setSelectedItems(filteredGrnItems.map(item => item._id));
+      }
+    };
+
+    const handleLoadSelected = () => {
+      const itemsToLoad = filteredGrnItems.filter(item => selectedItems.includes(item._id));
+      loadGrnItemsToStock(itemsToLoad);
+    };
+
+    const handleLoadAll = () => {
+      loadGrnItemsToStock();
+    };
+
+    return (
+      <div style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+      }}>
+        <div style={{
+          backgroundColor: "white",
+          padding: "20px",
+          borderRadius: "8px",
+          maxWidth: "90%",
+          maxHeight: "90%",
+          overflow: "auto",
+          width: "1200px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Import Items from GRN</h3>
+              <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>
+                Items with matching stock entries will automatically get Length & Width values
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowGrnModal(false)}
+              style={{ background: "#dc3545", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+            >
+              Close
+            </button>
+          </div>
+
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+              <input
+                type="text"
+                placeholder="Search GRN items by Item Name, Brand, Batch Code, etc..."
+                value={searchGrnTerm}
+                onChange={(e) => setSearchGrnTerm(e.target.value)}
+                style={{ flex: 1, padding: "8px", border: "1px solid #ddd", borderRadius: "4px" }}
+              />
+              <button
+                onClick={refreshGrnItems}
+                disabled={loadingGrn}
+                style={{ background: "#17a2b8", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+              >
+                {loadingGrn ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ color: "#666" }}>
+                Found {filteredGrnItems.length} items • Selected {selectedItems.length} items • 
+                <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
+                  {filteredGrnItems.filter(item => item._hasMatch).length} items have matched dimensions
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={selectAll}
+                  style={{ background: "#6c757d", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                >
+                  {selectedItems.length === filteredGrnItems.length ? "Deselect All" : "Select All"}
+                </button>
+                <button
+                  onClick={handleLoadSelected}
+                  disabled={selectedItems.length === 0}
+                  style={{ 
+                    background: selectedItems.length > 0 ? "#28a745" : "#ccc", 
+                    color: "white", 
+                    border: "none", 
+                    padding: "8px 16px", 
+                    borderRadius: "4px", 
+                    cursor: selectedItems.length > 0 ? "pointer" : "default" 
+                  }}
+                >
+                  Load Selected ({selectedItems.length})
+                </button>
+                <button
+                  onClick={handleLoadAll}
+                  disabled={filteredGrnItems.length === 0}
+                  style={{ 
+                    background: filteredGrnItems.length > 0 ? "#007bff" : "#ccc", 
+                    color: "white", 
+                    border: "none", 
+                    padding: "8px 16px", 
+                    borderRadius: "4px", 
+                    cursor: filteredGrnItems.length > 0 ? "pointer" : "default" 
+                  }}
+                >
+                  Load All ({filteredGrnItems.length})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {loadingGrn ? (
+            <div style={{ textAlign: "center", padding: "40px" }}>
+              <div style={spinnerStyle}></div>
+              <p>Loading GRN items...</p>
+            </div>
+          ) : filteredGrnItems.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
+              No GRN items found.
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead style={{ background: "#f3f3f3" }}>
+                  <tr>
+                    <th style={{ width: "40px" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.length === filteredGrnItems.length && filteredGrnItems.length > 0}
+                        onChange={selectAll}
+                        disabled={filteredGrnItems.length === 0}
+                      />
+                    </th>
+                    <th>Item Name</th>
+                    <th>Brand</th>
+                    <th>Brand Code</th>
+                    <th>Batch Code</th>
+                    <th>Quantity</th>
+                    <th>Buy Price</th>
+                    <th>Length</th>
+                    <th>Width</th>
+                    <th>Auto Calc</th>
+                    <th>Status</th>
+                    <th>Invoice</th>
+                    <th>PO</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredGrnItems.map((item) => (
+                    <tr key={item._id} style={{ 
+                      background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
+                      borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd"
+                    }}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item._id)}
+                          onChange={() => toggleSelectItem(item._id)}
+                        />
+                      </td>
+                      <td>{item["Item Name"]}</td>
+                      <td>{item["Brand"]}</td>
+                      <td>{item["Brand Code"]}</td>
+                      <td>{item["Batch Code"]}</td>
+                      <td>{item["Qty"]}</td>
+                      <td>{item["Buy Price"]}</td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["Length"] || "-"}
+                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                      </td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["Width"] || "-"}
+                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                      </td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["AutoCalculate Count"] || "-"}
+                      </td>
+                      <td>
+                        {item._hasMatch ? (
+                          <span style={{
+                            background: "#28a745",
+                            color: "white",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                            fontWeight: "bold"
+                          }}
+                          title={item._matchReason}
+                          >
+                            Matched
+                          </span>
+                        ) : (
+                          <span style={{
+                            background: "#6c757d",
+                            color: "white",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "12px"
+                          }}>
+                            No Match
+                          </span>
+                        )}
+                      </td>
+                      <td>{item._invoice}</td>
+                      <td>{item._po}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ----------------------------------------------------
+  // NEW: Stock Sold Modal Component
+  // ----------------------------------------------------
+  const SoldModal = () => {
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [searchSoldTerm, setSearchSoldTerm] = useState("");
+
+    const filteredSoldItems = soldItems.filter(item => {
+      if (!searchSoldTerm) return true;
+      const term = searchSoldTerm.toLowerCase();
+      return (
+        (item["Item Name"] || "").toLowerCase().includes(term) ||
+        (item["Brand"] || "").toLowerCase().includes(term) ||
+        (item["HSN"] || "").toLowerCase().includes(term) ||
+        (item._customer || "").toLowerCase().includes(term) ||
+        (item._taskId || "").toLowerCase().includes(term) ||
+        (item._remarks || "").toLowerCase().includes(term)
+      );
+    });
+
+    const toggleSelectItem = (id) => {
+      setSelectedItems(prev => 
+        prev.includes(id) 
+          ? prev.filter(itemId => itemId !== id)
+          : [...prev, id]
+      );
+    };
+
+    const selectAll = () => {
+      if (selectedItems.length === filteredSoldItems.length) {
+        setSelectedItems([]);
+      } else {
+        setSelectedItems(filteredSoldItems.map(item => item._id));
+      }
+    };
+
+    const handleLoadSelected = () => {
+      const itemsToLoad = filteredSoldItems.filter(item => selectedItems.includes(item._id));
+      loadSoldItemsToStock(itemsToLoad);
+    };
+
+    const handleLoadAll = () => {
+      loadSoldItemsToStock();
+    };
+
+    return (
+      <div style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 1000,
+      }}>
+        <div style={{
+          backgroundColor: "white",
+          padding: "20px",
+          borderRadius: "8px",
+          maxWidth: "90%",
+          maxHeight: "90%",
+          overflow: "auto",
+          width: "1200px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Import Items from Stock Sold</h3>
+              <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>
+                Items with matching stock entries will automatically get Length, Width, Batch Code & Brand Code values
+              </p>
+            </div>
+            <button 
+              onClick={() => setShowSoldModal(false)}
+              style={{ background: "#dc3545", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+            >
+              Close
+            </button>
+          </div>
+
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+              <input
+                type="text"
+                placeholder="Search Stock Sold items by Item Name, Customer, Task ID, etc..."
+                value={searchSoldTerm}
+                onChange={(e) => setSearchSoldTerm(e.target.value)}
+                style={{ flex: 1, padding: "8px", border: "1px solid #ddd", borderRadius: "4px" }}
+              />
+              <button
+                onClick={() => {
+                  fetchSoldItems();
+                  setSearchSoldTerm("");
+                }}
+                disabled={loadingSold}
+                style={{ background: "#17a2b8", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+              >
+                {loadingSold ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ color: "#666" }}>
+                Found {filteredSoldItems.length} items • Selected {selectedItems.length} items • 
+                <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
+                  {filteredSoldItems.filter(item => item._hasMatch).length} items have matched dimensions
+                </span>
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={selectAll}
+                  style={{ background: "#6c757d", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                >
+                  {selectedItems.length === filteredSoldItems.length ? "Deselect All" : "Select All"}
+                </button>
+                <button
+                  onClick={handleLoadSelected}
+                  disabled={selectedItems.length === 0}
+                  style={{ 
+                    background: selectedItems.length > 0 ? "#28a745" : "#ccc", 
+                    color: "white", 
+                    border: "none", 
+                    padding: "8px 16px", 
+                    borderRadius: "4px", 
+                    cursor: selectedItems.length > 0 ? "pointer" : "default" 
+                  }}
+                >
+                  Load Selected ({selectedItems.length})
+                </button>
+                <button
+                  onClick={handleLoadAll}
+                  disabled={filteredSoldItems.length === 0}
+                  style={{ 
+                    background: filteredSoldItems.length > 0 ? "#007bff" : "#ccc", 
+                    color: "white", 
+                    border: "none", 
+                    padding: "8px 16px", 
+                    borderRadius: "4px", 
+                    cursor: filteredSoldItems.length > 0 ? "pointer" : "default" 
+                  }}
+                >
+                  Load All ({filteredSoldItems.length})
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {loadingSold ? (
+            <div style={{ textAlign: "center", padding: "40px" }}>
+              <div style={spinnerStyle}></div>
+              <p>Loading Stock Sold items...</p>
+            </div>
+          ) : filteredSoldItems.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
+              No Stock Sold items found.
+              <div style={{ marginTop: "10px" }}>
+                <button
+                  onClick={() => fetchSoldItems()}
+                  style={{ background: "#007bff", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                >
+                  Load Stock Sold Items
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead style={{ background: "#f3f3f3" }}>
+                  <tr>
+                    <th style={{ width: "40px" }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.length === filteredSoldItems.length && filteredSoldItems.length > 0}
+                        onChange={selectAll}
+                        disabled={filteredSoldItems.length === 0}
+                      />
+                    </th>
+                    <th>Item Name</th>
+                    <th>Brand (Company)</th>
+                    <th>HSN/SAC</th>
+                    <th>Quantity</th>
+                    <th>MRP</th>
+                    <th>Length</th>
+                    <th>Width</th>
+                    <th>Auto Calc</th>
+                    <th>Status</th>
+                    <th>Customer</th>
+                    <th>Sold Date</th>
+                    <th>Task ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSoldItems.map((item) => (
+                    <tr key={item._id} style={{ 
+                      background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
+                      borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd"
+                    }}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item._id)}
+                          onChange={() => toggleSelectItem(item._id)}
+                        />
+                      </td>
+                      <td>{item["Item Name"]}</td>
+                      <td>{item["Brand"]}</td>
+                      <td>{item["HSN"] || "-"}</td>
+                      <td>{item["Qty"]}</td>
+                      <td>{item["MRP"] || "-"}</td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["Length"] || "-"}
+                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                      </td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["Width"] || "-"}
+                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                      </td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["AutoCalculate Count"] || "-"}
+                      </td>
+                      <td>
+                        {item._hasMatch ? (
+                          <span style={{
+                            background: "#28a745",
+                            color: "white",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                            fontWeight: "bold"
+                          }}
+                          title={item._matchReason}
+                          >
+                            Matched
+                          </span>
+                        ) : (
+                          <span style={{
+                            background: "#6c757d",
+                            color: "white",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "12px"
+                          }}>
+                            No Match
+                          </span>
+                        )}
+                      </td>
+                      <td>{item._customer || "-"}</td>
+                      <td>{item._soldDate || "-"}</td>
+                      <td>{item._taskId || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // ----------------------------------------------------
   // Render UI
   // ----------------------------------------------------
   return (
     <div style={{ width: "100%", padding: 20, fontFamily: "Segoe UI, Arial" }}>
       <Keyframes />
 
-      {/* Issues box (for both unmatched brands and duplicates) */}
+      {/* Issues box */}
       {unmatched.length > 0 && (
         <div
           style={{
@@ -462,7 +1662,8 @@ export default function StockUploadPage() {
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ minWidth: 180, fontWeight: 600 }}>Item</div>
             <div style={{ minWidth: 120, fontWeight: 600 }}>Brand</div>
-            <div style={{ minWidth: 100, fontWeight: 600 }}>Batch</div>
+            <div style={{ minWidth: 120, fontWeight: 600 }}>Batch</div>
+            <div style={{ minWidth: 80, fontWeight: 600 }}>HSN</div>
             <div style={{ minWidth: 80, fontWeight: 600 }}>MRP</div>
             <div style={{ minWidth: 120, fontWeight: 600 }}>Status</div>
           </div>
@@ -473,8 +1674,11 @@ export default function StockUploadPage() {
                 <div style={{ minWidth: 180, color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1" }}>
                   {u.Item || "(No Item)"}
                 </div>
-                <div style={{ minWidth: 120 }}>{u.Brand}</div>
-                <div style={{ minWidth: 100 }}>{u.Batch}</div>
+                <div style={{ minWidth: 120, color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1" }}>
+                  {u.Brand || "(No Brand)"}
+                </div>
+                <div style={{ minWidth: 120 }}>{u.Batch}</div>
+                <div style={{ minWidth: 80 }}>{u.HSN}</div>
                 <div style={{ minWidth: 80 }}>{u.MRP}</div>
                 <div style={{ 
                   minWidth: 120, 
@@ -527,7 +1731,7 @@ export default function StockUploadPage() {
           <button
             onClick={handleAddRows}
             style={{ background: "#009688", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
-            disabled={loadingStock || loadingMRP || applyingMRP || saving}
+            disabled={loadingStock || saving}
             title="Add empty rows"
           >
             + Add Row
@@ -536,10 +1740,34 @@ export default function StockUploadPage() {
           <button
             onClick={() => fileInputRef.current?.click()}
             style={{ background: "#1e73e8", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
-            disabled={loadingStock || loadingMRP || applyingMRP || saving}
+            disabled={loadingStock || saving}
           >
             Bulk Upload
             {loadingStock && <span style={spinnerStyle} />}
+          </button>
+
+          <button
+            onClick={() => setShowGrnModal(true)}
+            style={{ background: "#ff9800", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            disabled={loadingGrn}
+            title="Import from GRN (items will get Length & Width from matching stock)"
+          >
+            Import from GRN
+            {loadingGrn && <span style={spinnerStyle} />}
+          </button>
+
+          {/* NEW: Import from Stock Sold button */}
+          <button
+            onClick={() => {
+              setShowSoldModal(true);
+              fetchSoldItems(); // Fetch sold items when modal opens
+            }}
+            style={{ background: "#9c27b0", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            disabled={loadingSold}
+            title="Import from Stock Sold (items will get dimensions, batch & brand codes from matching stock)"
+          >
+            Import from Stock Sold
+            {loadingSold && <span style={spinnerStyle} />}
           </button>
 
           <button
@@ -547,8 +1775,16 @@ export default function StockUploadPage() {
             style={{ background: "green", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
             disabled={saving}
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? "Processing..." : "Save All Items"}
             {saving && <span style={spinnerStyle} />}
+          </button>
+
+          <button
+            onClick={exportToExcel}
+            style={{ background: "#673ab7", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            disabled={rows.length === 0 || saving}
+          >
+            Export Excel
           </button>
         </div>
       </div>
@@ -612,12 +1848,6 @@ export default function StockUploadPage() {
         {loadingStock && (
           <div style={{ color: "#333", marginBottom: 6 }}>
             Loading stock...
-            <span style={spinnerStyle} />
-          </div>
-        )}
-        {loadingMRP && (
-          <div style={{ color: "#333", marginBottom: 6 }}>
-            Loading MRP data...
             <span style={spinnerStyle} />
           </div>
         )}
@@ -743,7 +1973,9 @@ export default function StockUploadPage() {
             <tr>
               <th style={{ minWidth: 36 }}>#</th>
               {fixedHeaders.map((h) => (
-                <th key={h} style={{ minWidth: 120 }}>{h}</th>
+                <th key={h} style={{ minWidth: 120 }}>
+                  {h === "AutoCalculate Count" ? "Count (Length×Width×Qty)" : h}
+                </th>
               ))}
               <th style={{ minWidth: 120 }}>Action</th>
             </tr>
@@ -757,18 +1989,48 @@ export default function StockUploadPage() {
 
                   {fixedHeaders.map((h) => (
                     <td key={h}>
-                      <input
-                        value={row[h] ?? ""}
-                        onChange={(e) => updateCell(row._id, h, e.target.value)}
-                        style={{ width: "100%", boxSizing: "border-box", padding: 6 }}
-                      />
+                      {h === "AutoCalculate Count" ? (
+                        <div style={{ 
+                          width: "100%", 
+                          boxSizing: "border-box", 
+                          padding: 6,
+                          backgroundColor: "#f5f5f5",
+                          border: "1px solid #ddd",
+                          borderRadius: "3px",
+                          textAlign: "center",
+                          fontWeight: "bold"
+                        }}>
+                          {row[h] || "0"}
+                        </div>
+                      ) : (
+                        <input
+                          value={row[h] ?? ""}
+                          onChange={(e) => updateCell(row._id, h, e.target.value)}
+                          style={{ 
+                            width: "100%", 
+                            boxSizing: "border-box", 
+                            padding: 6,
+                            border: "1px solid #ddd",
+                            borderRadius: "3px"
+                          }}
+                          placeholder={h === "ID" ? "Auto-generated" : ""}
+                          readOnly={h === "ID" && typeof row[h] === "string" && row[h].startsWith("ID")}
+                        />
+                      )}
                     </td>
                   ))}
 
                   <td>
                     <button
-                      onClick={() => deleteRow(row._id)}
-                      style={{ background: "#e74c3c", color: "#fff", border: "none", padding: "6px 10px", borderRadius: 6, cursor: "pointer" }}
+                      onClick={() => deleteRow(row._id, row)}
+                      style={{ 
+                        background: "#e74c3c", 
+                        color: "#fff", 
+                        border: "none", 
+                        padding: "6px 10px", 
+                        borderRadius: 6, 
+                        cursor: "pointer" 
+                      }}
                     >
                       Delete
                     </button>
@@ -782,7 +2044,7 @@ export default function StockUploadPage() {
                     ? "Loading stock..." 
                     : searchTerm 
                     ? `No results found for "${searchTerm}"` 
-                    : "No data uploaded. Click Bulk Upload."}
+                    : "No data uploaded. Click Bulk Upload or Import from GRN."}
                 </td>
               </tr>
             )}
@@ -868,6 +2130,12 @@ export default function StockUploadPage() {
           </button>
         </div>
       )}
+
+      {/* GRN Modal */}
+      {showGrnModal && <GrnModal />}
+      
+      {/* Stock Sold Modal */}
+      {showSoldModal && <SoldModal />}
     </div>
   );
 }

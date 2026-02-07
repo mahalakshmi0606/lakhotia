@@ -9,10 +9,12 @@ import {
   FaFileExcel, 
   FaSearch,
   FaChevronLeft,
-  FaChevronRight 
+  FaChevronRight,
+  FaKey,
+  FaLock
 } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
-import { Table, Button, Modal, Form, Row, Col, InputGroup, Pagination } from "react-bootstrap";
+import { Table, Button, Modal, Form, Row, Col, InputGroup, Pagination, Alert } from "react-bootstrap";
 import * as XLSX from "xlsx";
 
 // ✅ FIXED IMPORTS
@@ -46,6 +48,11 @@ const validatePinCode = (pincode) => {
   return pincodeRegex.test(pincode);
 };
 
+const validatePassword = (password) => {
+  if (!password) return false;
+  return password.length >= 6; // Minimum 6 characters
+};
+
 const CompanyPage = () => {
   const [companies, setCompanies] = useState([]);
   const [filteredCompanies, setFilteredCompanies] = useState([]);
@@ -61,8 +68,10 @@ const CompanyPage = () => {
   const [itemsPerPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Modal states
   const [formOpen, setFormOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
 
   const [step, setStep] = useState(1);
   
@@ -81,17 +90,33 @@ const CompanyPage = () => {
     personalMobile: "",
     personalEmail: "",
     gstNumber: "",
+    password: "", // ✅ Added password field
+    confirmPassword: "" // ✅ Added confirm password
+  });
+
+  // Login form state
+  const [loginData, setLoginData] = useState({
+    email: "",
+    password: ""
   });
 
   const [editId, setEditId] = useState(null);
   const [viewData, setViewData] = useState(null);
+  const [loggedInCompany, setLoggedInCompany] = useState(null);
 
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     fetchCompanies();
     fetchIndustrySegments();
     fetchDepartments();
+    // Check if company is already logged in from localStorage
+    const savedCompany = localStorage.getItem("loggedInCompany");
+    if (savedCompany) {
+      setLoggedInCompany(JSON.parse(savedCompany));
+    }
   }, []);
 
   useEffect(() => {
@@ -165,6 +190,27 @@ const CompanyPage = () => {
         setErrors((prev) => ({ ...prev, [name]: "Invalid PIN code (6 digits)" }));
       }
     }
+
+    // ✅ Validate password
+    if (name === "password") {
+      if (value && !validatePassword(value)) {
+        setErrors((prev) => ({ ...prev, [name]: "Password must be at least 6 characters" }));
+      }
+    }
+
+    // ✅ Validate confirm password
+    if (name === "confirmPassword") {
+      if (value !== formData.password) {
+        setErrors((prev) => ({ ...prev, [name]: "Passwords do not match" }));
+      } else if (errors.confirmPassword) {
+        setErrors((prev) => ({ ...prev, [name]: "" }));
+      }
+    }
+  };
+
+  const handleLoginChange = (e) => {
+    const { name, value } = e.target;
+    setLoginData((prev) => ({ ...prev, [name]: value }));
   };
 
   const nextStep = () => {
@@ -194,7 +240,7 @@ const CompanyPage = () => {
       }
     }
     
-    setStep((s) => Math.min(2, s + 1));
+    setStep((s) => Math.min(3, s + 1)); // Changed to 3 steps
   };
   
   const prevStep = () => setStep((s) => Math.max(1, s - 1));
@@ -252,11 +298,15 @@ const CompanyPage = () => {
       personalMobile: "",
       personalEmail: "",
       gstNumber: "",
+      password: "",
+      confirmPassword: ""
     });
     setEditId(null);
     setStep(1);
     setErrors({});
     setFormOpen(false);
+    setShowPassword(false);
+    setShowConfirmPassword(false);
   };
 
   const checkDuplicates = () => {
@@ -359,6 +409,20 @@ const CompanyPage = () => {
     if (formData.pinCode && !validatePinCode(formData.pinCode)) {
       newErrors.pinCode = "Invalid PIN code (6 digits)";
     }
+
+    // ✅ Password validation (only for new company, not for edit unless changing)
+    if (!editId) {
+      if (!validatePassword(formData.password)) {
+        newErrors.password = "Password must be at least 6 characters";
+      }
+      
+      if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match";
+      }
+    } else if (formData.password && !validatePassword(formData.password)) {
+      // If editing and password is provided, validate it
+      newErrors.password = "Password must be at least 6 characters";
+    }
     
     // Check for duplicates
     const duplicateErrors = checkDuplicates();
@@ -380,11 +444,21 @@ const CompanyPage = () => {
     }
 
     try {
+      const submitData = { ...formData };
+      
+      // Remove confirmPassword before sending to API
+      delete submitData.confirmPassword;
+      
+      // If editing and password is empty, remove it (keep existing)
+      if (editId && !submitData.password) {
+        delete submitData.password;
+      }
+
       if (editId) {
-        await axios.put(`${API_BASE}/company/${editId}`, formData);
+        await axios.put(`${API_BASE}/company/${editId}`, submitData);
         toast.success("Company updated successfully");
       } else {
-        await axios.post(`${API_BASE}/company`, formData);
+        await axios.post(`${API_BASE}/company`, submitData);
         toast.success("Company added successfully");
       }
       fetchCompanies();
@@ -398,8 +472,46 @@ const CompanyPage = () => {
     }
   };
 
+  // ✅ LOGIN FUNCTION
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    
+    if (!loginData.email || !loginData.password) {
+      toast.error("Please enter both email and password");
+      return;
+    }
+
+    try {
+      const res = await axios.post(`${API_BASE}/company/login`, loginData);
+      
+      if (res.data.success) {
+        const companyData = res.data.company;
+        setLoggedInCompany(companyData);
+        localStorage.setItem("loggedInCompany", JSON.stringify(companyData));
+        toast.success(res.data.message);
+        setLoginOpen(false);
+        setLoginData({ email: "", password: "" });
+      } else {
+        toast.error(res.data.message);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Login failed");
+    }
+  };
+
+  // ✅ LOGOUT FUNCTION
+  const handleLogout = () => {
+    setLoggedInCompany(null);
+    localStorage.removeItem("loggedInCompany");
+    toast.success("Logged out successfully");
+  };
+
   const handleEdit = (comp) => {
-    setFormData({ ...comp });
+    setFormData({ 
+      ...comp,
+      password: "", // Clear password for security
+      confirmPassword: "" 
+    });
     setEditId(comp.id);
     setStep(1);
     setErrors({});
@@ -586,12 +698,18 @@ const CompanyPage = () => {
 
   return (
     <div className="container mt-4">
-      <div className="d-flex justify-content-between align-items-center mb-3">
+      {/* Login/Logout Header */}
+      <div className="d-flex justify-content-between align-items-center mb-4">
         <h3 className="fw-bold">Company Management</h3>
+        
+        <div className="d-flex gap-2">
 
-        <Button variant="warning" onClick={() => setFormOpen(true)}>
-          <FaPlus className="me-2" /> Add Company
-        </Button>
+      
+          
+          <Button variant="warning" onClick={() => setFormOpen(true)}>
+            <FaPlus className="me-2" /> Add Company
+          </Button>
+        </div>
       </div>
 
       <Row className="mb-3">
@@ -744,10 +862,10 @@ const CompanyPage = () => {
         </div>
       )}
 
-      {/* FORM MODAL */}
+      {/* ADD/EDIT COMPANY MODAL */}
       <Modal show={formOpen} onHide={() => setFormOpen(false)} centered size="lg">
         <Modal.Header closeButton style={{ background: "#fff3cd" }}>
-          <Modal.Title>{editId ? "Edit Company" : "Add Company"} — Step {step}</Modal.Title>
+          <Modal.Title>{editId ? "Edit Company" : "Add Company"} — Step {step} of 3</Modal.Title>
         </Modal.Header>
 
         <Modal.Body>
@@ -945,6 +1063,80 @@ const CompanyPage = () => {
                   <FaChevronLeft className="me-1" /> Previous
                 </Button>
 
+                <Button className="px-4" variant="warning" onClick={nextStep}>
+                  Next <FaChevronRight className="ms-1" />
+                </Button>
+              </div>
+            </>
+          )}
+
+          {step === 3 && (
+            <>
+              <h6 className="mb-3 fw-semibold">Account Credentials</h6>
+              
+              {editId && (
+                <Alert variant="info" className="mb-3">
+                  <FaKey className="me-2" />
+                  Leave password fields empty to keep current password
+                </Alert>
+              )}
+
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-semibold">
+                  Password {!editId && <span className="text-danger">*</span>}
+                  <small className="text-muted ms-2">(Min. 6 characters)</small>
+                </Form.Label>
+                <InputGroup>
+                  <Form.Control
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder={editId ? "Enter new password (optional)" : "Enter password"}
+                    isInvalid={!!errors.password}
+                  />
+                  <Button
+                    variant="outline-secondary"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? "Hide" : "Show"}
+                  </Button>
+                  <Form.Control.Feedback type="invalid">
+                    {errors.password}
+                  </Form.Control.Feedback>
+                </InputGroup>
+              </Form.Group>
+
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-semibold">
+                  Confirm Password {!editId && <span className="text-danger">*</span>}
+                </Form.Label>
+                <InputGroup>
+                  <Form.Control
+                    type={showConfirmPassword ? "text" : "password"}
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="Confirm password"
+                    isInvalid={!!errors.confirmPassword}
+                  />
+                  <Button
+                    variant="outline-secondary"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  >
+                    {showConfirmPassword ? "Hide" : "Show"}
+                  </Button>
+                  <Form.Control.Feedback type="invalid">
+                    {errors.confirmPassword}
+                  </Form.Control.Feedback>
+                </InputGroup>
+              </Form.Group>
+
+              <div className="d-flex justify-content-between mt-4">
+                <Button variant="outline-secondary" onClick={prevStep}>
+                  <FaChevronLeft className="me-1" /> Previous
+                </Button>
+
                 <div>
                   <Button variant="outline-secondary" className="me-2" onClick={() => setFormOpen(false)}>
                     Cancel
@@ -957,6 +1149,56 @@ const CompanyPage = () => {
             </>
           )}
         </Modal.Body>
+      </Modal>
+
+      {/* LOGIN MODAL */}
+      <Modal show={loginOpen} onHide={() => setLoginOpen(false)} centered>
+        <Modal.Header closeButton style={{ background: "#d1ecf1" }}>
+          <Modal.Title><FaKey className="me-2" /> Company Login</Modal.Title>
+        </Modal.Header>
+        <Form onSubmit={handleLogin}>
+          <Modal.Body>
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold">Email Address <span className="text-danger">*</span></Form.Label>
+              <Form.Control
+                type="email"
+                name="email"
+                value={loginData.email}
+                onChange={handleLoginChange}
+                placeholder="Enter registered email"
+                required
+              />
+            </Form.Group>
+
+            <Form.Group className="mb-3">
+              <Form.Label className="fw-semibold">Password <span className="text-danger">*</span></Form.Label>
+              <InputGroup>
+                <Form.Control
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  value={loginData.password}
+                  onChange={handleLoginChange}
+                  placeholder="Enter password"
+                  required
+                />
+                <Button
+                  variant="outline-secondary"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </Button>
+              </InputGroup>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="outline-secondary" onClick={() => setLoginOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit">
+              <FaKey className="me-2" /> Login
+            </Button>
+          </Modal.Footer>
+        </Form>
       </Modal>
 
       {/* VIEW MODAL */}

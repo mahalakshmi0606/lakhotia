@@ -6,7 +6,8 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { 
   FaEye, FaSearch, FaFileInvoice, FaBuilding, FaUser, 
   FaBox, FaTag, FaBarcode, FaRulerCombined, FaRupeeSign,
-  FaHashtag, FaReceipt, FaCopy, FaCalendarAlt
+  FaHashtag, FaReceipt, FaCopy, FaCalendarAlt,
+  FaCheckCircle, FaFileAlt, FaClipboardCheck, FaExternalLinkAlt
 } from "react-icons/fa";
 
 const GRNPage = () => {
@@ -23,10 +24,31 @@ const GRNPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterInvoice, setFilterInvoice] = useState("");
   
-  // Fetch GRN list on component mount
+  // New state for completed POs
+  const [completedPOs, setCompletedPOs] = useState([]);
+  const [loadingPOs, setLoadingPOs] = useState(false);
+  
+  // Fetch completed POs and GRN list on component mount
   useEffect(() => {
+    fetchCompletedPOs();
     fetchGRN();
   }, []);
+  
+  // Fetch completed purchase orders
+  const fetchCompletedPOs = async () => {
+    setLoadingPOs(true);
+    try {
+      const res = await axios.get("http://localhost:5000/api/grn/completed-po");
+      if (res.data.success) {
+        setCompletedPOs(res.data.data);
+      }
+    } catch (err) {
+      console.log("Error loading completed POs", err);
+      toast.error("Error loading completed purchase orders");
+    } finally {
+      setLoadingPOs(false);
+    }
+  };
   
   // Fetch GRN records
   const fetchGRN = async () => {
@@ -35,19 +57,28 @@ const GRNPage = () => {
       if (res.data.success) setGrnList(res.data.data);
     } catch (err) {
       console.log("Error loading GRN", err);
+      toast.error("Error loading GRN records");
     }
   };
   
+  // Handle PO selection from buttons
+  const handlePOSelect = (poNumber) => {
+    setPoNumber(poNumber);
+    fetchPODetails(poNumber);
+  };
+  
   // Fetch PO details by PO number
-  const fetchPODetails = async () => {
-    if (!poNumber.trim()) {
-      toast.error("Please enter a PO Number");
+  const fetchPODetails = async (poNum = null) => {
+    const poToFetch = poNum || poNumber;
+    
+    if (!poToFetch.trim()) {
+      toast.error("Please enter or select a PO Number");
       return;
     }
     
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/grn/get-po/${poNumber}`);
+      const res = await axios.get(`http://localhost:5000/api/grn/get-po/${poToFetch}`);
       
       if (res.data.success) {
         const poData = res.data.data;
@@ -56,14 +87,16 @@ const GRNPage = () => {
         
         // Initialize selected items (all items selected by default) with batch codes
         if (poData.items && poData.items.length > 0) {
-          const itemsWithBatch = poData.items.map(item => ({
+          const itemsWithBatch = poData.items.map((item, index) => ({
             ...item,
             selected: true,
             batch_code: "",
             hsn_code: item.hsn_code || "",
             brand_description: item.brand_description || "",
             buy_price: item.buy_price || 0,
-            original_batch_code: "" // Store original for comparison
+            brand: item.brand || "",
+            brand_code: item.brand_code || "",
+            index: index
           }));
           setSelectedItems(itemsWithBatch);
         }
@@ -71,7 +104,7 @@ const GRNPage = () => {
         // Open the popup
         setOpenPopup(true);
       } else {
-        toast.error(res.data.message || "PO not found");
+        toast.error(res.data.message || "PO not found or not completed");
         setPoDetails(null);
       }
     } catch (err) {
@@ -195,13 +228,15 @@ const GRNPage = () => {
     const itemsToSubmit = selectedItems
       .filter(item => item.selected)
       .map(item => {
-        const { selected, original_batch_code, ...itemData } = item;
+        const { selected, index, ...itemData } = item;
         return {
           ...itemData,
           batch_code: item.batch_code || generateBatchCode(item.brand || "GEN", todayDate, 0),
           hsn_code: item.hsn_code || "",
           brand_description: item.brand_description || "",
-          buy_price: parseFloat(item.buy_price) || 0
+          buy_price: parseFloat(item.buy_price) || 0,
+          length: item.length || "",
+          width: item.width || ""
         };
       });
     
@@ -231,6 +266,9 @@ const GRNPage = () => {
         toast.success(res.data.message);
         setInvoiceNumber(res.data.invoice_number);
         
+        // Update completed POs list
+        await fetchCompletedPOs();
+        
         // Reset and close
         setTimeout(() => {
           setOpenPopup(false);
@@ -242,7 +280,7 @@ const GRNPage = () => {
         }, 2000);
       }
     } catch (err) {
-      toast.error(err.response?.data?.message || "Error creating GRN");
+      toast.error(err.response?.data?.error || err.response?.data?.message || "Error creating GRN");
       console.error("Error submitting GRN:", err);
     }
   };
@@ -333,12 +371,115 @@ const GRNPage = () => {
                 />
                 <button
                   className="btn btn-primary"
-                  onClick={fetchPODetails}
+                  onClick={() => fetchPODetails()}
                   disabled={loading || !poNumber.trim()}
                 >
                   {loading ? "Loading..." : "Fetch PO Details"}
                 </button>
               </div>
+            </div>
+          </div>
+          
+          {/* Completed Purchase Orders Section */}
+          <div className="card mb-4 border-primary">
+            <div className="card-header bg-light d-flex justify-content-between align-items-center">
+              <h5 className="mb-0 fw-bold text-primary">
+                <FaCheckCircle className="me-2" />
+                Completed Purchase Orders Ready for GRN
+              </h5>
+              <span className="badge bg-primary">
+                {completedPOs.length} POs
+              </span>
+            </div>
+            <div className="card-body">
+              {loadingPOs ? (
+                <div className="text-center py-3">
+                  <div className="spinner-border text-primary" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                  <p className="mt-2">Loading completed purchase orders...</p>
+                </div>
+              ) : completedPOs.length === 0 ? (
+                <div className="text-center py-4">
+                  <FaFileAlt className="text-muted mb-3" size={48} />
+                  <h6 className="text-muted">No completed purchase orders found</h6>
+                  <p className="text-muted small">Purchase orders with "completed" status will appear here</p>
+                </div>
+              ) : (
+                <div className="row">
+                  {completedPOs.map((po) => (
+                    <div key={po.id} className="col-md-4 mb-3">
+                      <div className={`card h-100 ${po.has_grn ? 'border-success' : 'border-warning'}`}>
+                        <div className="card-body">
+                          <div className="d-flex justify-content-between align-items-start mb-2">
+                            <h6 className="card-title fw-bold text-truncate">
+                              <FaReceipt className="me-2" />
+                              {po.po_number}
+                            </h6>
+                            <span className={`badge ${po.has_grn ? 'bg-success' : 'bg-warning'}`}>
+                              {po.has_grn ? 'Converted' : 'Ready for GRN'}
+                            </span>
+                          </div>
+                          
+                          <div className="mb-2">
+                            <p className="mb-1">
+                              <small className="text-muted">
+                                <FaBuilding className="me-1" />
+                                {po.company_name}
+                              </small>
+                            </p>
+                            <p className="mb-1">
+                              <small className="text-muted">
+                                <FaUser className="me-1" />
+                                {po.customer_name}
+                              </small>
+                            </p>
+                            <p className="mb-1">
+                              <small className="text-muted">
+                                <FaCalendarAlt className="me-1" />
+                                {new Date(po.po_date).toLocaleDateString()}
+                              </small>
+                            </p>
+                            <p className="mb-2">
+                              <small className="text-muted">
+                                <FaBox className="me-1" />
+                                {po.items?.length || 0} items
+                              </small>
+                            </p>
+                          </div>
+                          
+                          {po.has_grn ? (
+                            <div className="d-grid">
+                              <button
+                                className="btn btn-outline-success btn-sm"
+                                onClick={() => viewGRNByInvoice(po.grn_invoice)}
+                              >
+                                <FaExternalLinkAlt className="me-1" />
+                                View GRN: {po.grn_invoice}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="d-grid">
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => handlePOSelect(po.po_number)}
+                              >
+                                <FaClipboardCheck className="me-1" />
+                                Convert to GRN
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="card-footer bg-transparent border-0 pt-0">
+                          <small className="text-muted">
+                            Total: ₹{parseFloat(po.total_amount || 0).toLocaleString('en-IN')}
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           
@@ -350,147 +491,158 @@ const GRNPage = () => {
             </div>
           )}
           
-          {/* GRN Search and Filters */}
-          <div className="row mb-3 g-2">
-            <div className="col-md-4">
-              <div className="input-group">
-                <span className="input-group-text bg-white">
-                  <FaSearch />
-                </span>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Search Invoice, PO, Customer, Batch..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+          {/* GRN List Section */}
+          <div className="card border-0 shadow-sm">
+            <div className="card-header bg-light">
+              <h5 className="mb-0 fw-bold">
+                <FaFileInvoice className="me-2" />
+                GRN Records
+              </h5>
+            </div>
+            <div className="card-body">
+              {/* GRN Search and Filters */}
+              <div className="row mb-3 g-2">
+                <div className="col-md-4">
+                  <div className="input-group">
+                    <span className="input-group-text bg-white">
+                      <FaSearch />
+                    </span>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Search Invoice, PO, Customer, Batch..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="col-md-3">
+                  <select 
+                    className="form-select" 
+                    value={filterInvoice}
+                    onChange={(e) => setFilterInvoice(e.target.value)}
+                  >
+                    <option value="">All Invoices</option>
+                    {uniqueInvoices.map(invoice => (
+                      <option key={invoice} value={invoice}>{invoice}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-5 text-end">
+                  <div className="text-muted">
+                    <FaFileInvoice className="me-1" />
+                    Total GRN Records: <strong>{grnList.length}</strong> | 
+                    Showing: <strong>{Object.keys(groupedGRN).length}</strong> invoices
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="col-md-3">
-              <select 
-                className="form-select" 
-                value={filterInvoice}
-                onChange={(e) => setFilterInvoice(e.target.value)}
-              >
-                <option value="">All Invoices</option>
-                {uniqueInvoices.map(invoice => (
-                  <option key={invoice} value={invoice}>{invoice}</option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-5 text-end">
-              <div className="text-muted">
-                <FaFileInvoice className="me-1" />
-                Total GRN Records: <strong>{grnList.length}</strong> | 
-                Showing: <strong>{Object.keys(groupedGRN).length}</strong> invoices
-              </div>
-            </div>
-          </div>
-          
-          {/* GRN List Table */}
-          <div className="table-responsive">
-            <table className="table table-hover table-bordered">
-              <thead className="table-dark">
-                <tr>
-                  <th>Invoice No</th>
-                  <th>Date</th>
-                  <th>PO Number</th>
-                  <th>Company</th>
-                  <th>Customer</th>
-                  <th>Items</th>
-                  <th>Batch Codes</th>
-                  <th>Total Amount</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.keys(groupedGRN).length === 0 ? (
-                  <tr>
-                    <td colSpan="9" className="text-center py-4">
-                      <div className="text-muted">
-                        <i className="fas fa-inbox fa-2x mb-2"></i>
-                        <p>No GRN records found</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  Object.values(groupedGRN).map((invoice) => (
-                    <tr key={invoice.invoice_number}>
-                      <td className="fw-bold text-primary">
-                        <FaFileInvoice className="me-1" />
-                        {invoice.invoice_number}
-                      </td>
-                      <td>
-                        <FaCalendarAlt className="me-1 text-secondary" />
-                        {invoice.invoice_date}
-                      </td>
-                      <td>
-                        <FaReceipt className="me-1 text-secondary" />
-                        {invoice.po_number}
-                      </td>
-                      <td>
-                        <FaBuilding className="me-1" />
-                        {invoice.company_name}
-                      </td>
-                      <td>
-                        <FaUser className="me-1" />
-                        {invoice.customer_name}
-                      </td>
-                      <td>
-                        <span className="badge bg-secondary">
-                          <FaBox className="me-1" />
-                          {invoice.item_count} items
-                        </span>
-                        <div className="mt-1">
-                          <small className="text-muted">
-                            {invoice.items.slice(0, 2).map((item, idx) => (
-                              <div key={idx} className="text-truncate" style={{ maxWidth: '150px' }}>
-                                • {item.item_name}
-                              </div>
-                            ))}
-                            {invoice.item_count > 2 && (
-                              <div className="text-muted">+ {invoice.item_count - 2} more</div>
-                            )}
-                          </small>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="batch-codes">
-                          {invoice.items.slice(0, 2).map((item, idx) => (
-                            <div key={idx} className="text-truncate" style={{ maxWidth: '120px' }}>
-                              <small className="badge bg-info text-dark">
-                                {item.batch_code}
+              
+              {/* GRN List Table */}
+              <div className="table-responsive">
+                <table className="table table-hover table-bordered">
+                  <thead className="table-dark">
+                    <tr>
+                      <th>Invoice No</th>
+                      <th>Date</th>
+                      <th>PO Number</th>
+                      <th>Company</th>
+                      <th>Customer</th>
+                      <th>Items</th>
+                      <th>Batch Codes</th>
+                      <th>Total Amount</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(groupedGRN).length === 0 ? (
+                      <tr>
+                        <td colSpan="9" className="text-center py-4">
+                          <div className="text-muted">
+                            <FaFileInvoice className="fa-2x mb-2" />
+                            <p>No GRN records found</p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      Object.values(groupedGRN).map((invoice) => (
+                        <tr key={invoice.invoice_number}>
+                          <td className="fw-bold text-primary">
+                            <FaFileInvoice className="me-1" />
+                            {invoice.invoice_number}
+                          </td>
+                          <td>
+                            <FaCalendarAlt className="me-1 text-secondary" />
+                            {invoice.invoice_date}
+                          </td>
+                          <td>
+                            <FaReceipt className="me-1 text-secondary" />
+                            {invoice.po_number}
+                          </td>
+                          <td>
+                            <FaBuilding className="me-1" />
+                            {invoice.company_name}
+                          </td>
+                          <td>
+                            <FaUser className="me-1" />
+                            {invoice.customer_name}
+                          </td>
+                          <td>
+                            <span className="badge bg-secondary">
+                              <FaBox className="me-1" />
+                              {invoice.item_count} items
+                            </span>
+                            <div className="mt-1">
+                              <small className="text-muted">
+                                {invoice.items.slice(0, 2).map((item, idx) => (
+                                  <div key={idx} className="text-truncate" style={{ maxWidth: '150px' }}>
+                                    • {item.item_name}
+                                  </div>
+                                ))}
+                                {invoice.item_count > 2 && (
+                                  <div className="text-muted">+ {invoice.item_count - 2} more</div>
+                                )}
                               </small>
                             </div>
-                          ))}
-                          {invoice.item_count > 2 && (
-                            <div className="text-muted">
-                              <small>+ {invoice.item_count - 2} more</small>
+                          </td>
+                          <td>
+                            <div className="batch-codes">
+                              {invoice.items.slice(0, 2).map((item, idx) => (
+                                <div key={idx} className="text-truncate" style={{ maxWidth: '120px' }}>
+                                  <small className="badge bg-info text-dark">
+                                    {item.batch_code}
+                                  </small>
+                                </div>
+                              ))}
+                              {invoice.item_count > 2 && (
+                                <div className="text-muted">
+                                  <small>+ {invoice.item_count - 2} more</small>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="fw-bold">
-                        <FaRupeeSign className="me-1 text-success" />
-                        {parseFloat(invoice.total_amount).toLocaleString('en-IN', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        })}
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-outline-primary btn-sm"
-                          onClick={() => viewGRNByInvoice(invoice.invoice_number)}
-                          title="View Details"
-                        >
-                          <FaEye />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                          </td>
+                          <td className="fw-bold">
+                            <FaRupeeSign className="me-1 text-success" />
+                            {parseFloat(invoice.total_amount).toLocaleString('en-IN', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-outline-primary btn-sm"
+                              onClick={() => viewGRNByInvoice(invoice.invoice_number)}
+                              title="View Details"
+                            >
+                              <FaEye />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -522,7 +674,7 @@ const GRNPage = () => {
                     <div className="row">
                       <div className="col-md-4">
                         <p><strong><FaFileInvoice className="me-1" /> PO Number:</strong> {poDetails.po_number}</p>
-                        <p><strong>Status:</strong> <span className={`badge ${poDetails.status === 'approved' ? 'bg-success' : 'bg-warning'}`}>
+                        <p><strong>Status:</strong> <span className={`badge ${poDetails.status === 'completed' ? 'bg-success' : 'bg-warning'}`}>
                           {poDetails.status?.toUpperCase()}
                         </span></p>
                       </div>

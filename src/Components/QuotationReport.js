@@ -28,11 +28,9 @@ export default function QuotationModal() {
       buy_price: 0,
       quantity: 1,
       unit: "pcs",
-      discount: 0,
-      discount_type: "amount",
-      tax_rate: 18.0,
+      profit_percentage: 20, // Changed from discount to profit percentage
       packing_charges: 0,
-      other_charges: 0,
+      freight_charges: 0,
       customer_description: "",
       brand_code: ""
     };
@@ -56,10 +54,16 @@ export default function QuotationModal() {
     gstin: "33AABFL9981E1Z7",
     stateCode: "33-Tamil Nadu",
     placeOfSupply: "33-Tamil Nadu",
+    bankDetails: {
+      accountNo: "12378630000183",
+      accountTitle: "LAKHOTIA ENTERPRISE",
+      ifscCode: "HDFC0001237"
+    }
   };
 
-  // Logo path - UPDATE THIS TO MATCH YOUR PUBLIC FOLDER STRUCTURE
-  const companyLogo = "/Asset/Name1.jpg"; // Assuming the image is in public/Asset folder
+  // Logo and QR code paths
+  const companyLogo = "/Asset/Name1.jpg";
+  const qrCodeImage = "/Asset/lakhotia qr code.jpeg";
 
   // State variables
   const [companies, setCompanies] = useState([]);
@@ -102,10 +106,9 @@ export default function QuotationModal() {
   const [newItemQuantity, setNewItemQuantity] = useState("1");
   const [newItemBatchCode, setNewItemBatchCode] = useState("");
   const [availableBatchCodes, setAvailableBatchCodes] = useState([]);
-  const [newItemDiscount, setNewItemDiscount] = useState("0");
-  const [newItemDiscountType, setNewItemDiscountType] = useState("amount");
+  const [newItemProfitPercentage, setNewItemProfitPercentage] = useState("20");
   const [newItemPackingCharges, setNewItemPackingCharges] = useState("0");
-  const [newItemOtherCharges, setNewItemOtherCharges] = useState("0");
+  const [newItemFreightCharges, setNewItemFreightCharges] = useState("0");
   const [newItemCustomerDescription, setNewItemCustomerDescription] = useState("");
   const [newItemSupplierPartNo, setNewItemSupplierPartNo] = useState("");
   const [newItemBrandCode, setNewItemBrandCode] = useState("");
@@ -280,7 +283,8 @@ export default function QuotationModal() {
               buy_price: buyPrice,
               count: item.count || 1,
               packing_charges: item.packing_charges || 0,
-              other_charges: item.other_charges || 0
+              freight_charges: item.freight_charges || 0,
+              profit_percentage: item.profit_percentage || 20
             };
           });
           
@@ -702,7 +706,8 @@ export default function QuotationModal() {
         buy_price: buyPrice,
         count: item.count || 1,
         packing_charges: item.packing_charges || 0,
-        other_charges: item.other_charges || 0
+        freight_charges: item.freight_charges || 0,
+        profit_percentage: item.profit_percentage || 20
       };
     });
     setItems(loadedItems);
@@ -806,10 +811,9 @@ export default function QuotationModal() {
     setNewItemQuantity("1");
     setNewItemBatchCode("");
     setAvailableBatchCodes([]);
-    setNewItemDiscount("0");
-    setNewItemDiscountType("amount");
+    setNewItemProfitPercentage("20");
     setNewItemPackingCharges("0");
-    setNewItemOtherCharges("0");
+    setNewItemFreightCharges("0");
     setNewItemCustomerDescription("");
     setNewItemSupplierPartNo("");
     setNewItemBrandCode("");
@@ -828,7 +832,7 @@ export default function QuotationModal() {
       let newValue = value;
       
       // Handle number fields
-      if (["cut_width", "length", "count", "mrp", "buy_price", "quantity", "discount", "tax_rate", "packing_charges", "other_charges"].includes(field)) {
+      if (["cut_width", "length", "count", "mrp", "buy_price", "quantity", "profit_percentage", "tax_rate", "packing_charges", "freight_charges"].includes(field)) {
         newValue = parseFloat(value) || 0;
       }
       
@@ -842,6 +846,7 @@ export default function QuotationModal() {
         const width = updatedItems[index].cut_width || 1;
         const length = updatedItems[index].length || 1;
         const count = updatedItems[index].count || 1;
+        // Count = Length × Width × Quantity
         updatedItems[index].quantity = width * length * count;
       }
       
@@ -859,115 +864,88 @@ export default function QuotationModal() {
     setItems(prevItems => prevItems.filter((_, i) => i !== index));
   }
 
-  // Calculate price per unit (MRP × Cut Width)
+  // NEW FORMULAS AS PER REQUIREMENTS:
+  
+  // 1. Price/Unit = MRP × Length × Width
   const pricePerUnit = (item) => {
     const mrp = parseFloat(item.mrp) || 0;
-    const cut_width = parseFloat(item.cut_width) || 0;
-    const price = mrp * cut_width;
+    const length = parseFloat(item.length) || 1;
+    const width = parseFloat(item.cut_width) || 1;
+    const price = mrp * length * width;
     return parseFloat(price.toFixed(2)) || 0;
   };
 
-  // Calculate amount before discount
-  const amountBeforeDiscount = (item) => {
-    const price = pricePerUnit(item);
-    const quantity = parseFloat(item.quantity) || 0;
-    const amount = price * quantity;
-    return parseFloat(amount.toFixed(2)) || 0;
+  // 2. Total = Price/Unit + (Price/Unit × Profit%)
+  const calculateTotal = (item) => {
+    const pricePerUnitValue = pricePerUnit(item);
+    const profitPercentage = parseFloat(item.profit_percentage) || 20;
+    const profitAmount = pricePerUnitValue * (profitPercentage / 100);
+    const total = pricePerUnitValue + profitAmount;
+    return parseFloat(total.toFixed(2));
   };
 
-  // Calculate discount amount
-  const discountAmount = (item) => {
-    const amount = amountBeforeDiscount(item);
-    const discount = parseFloat(item.discount) || 0;
-    
-    if (item.discount_type === "percentage") {
-      return parseFloat((amount * discount / 100).toFixed(2));
-    } else {
-      return parseFloat(discount.toFixed(2));
-    }
-  };
-
-  // Calculate amount after discount
-  const amountAfterDiscount = (item) => {
-    const amount = amountBeforeDiscount(item);
-    const discount = discountAmount(item);
-    const finalAmount = amount - discount;
-    return parseFloat(finalAmount.toFixed(2)) || 0;
-  };
-
-  // Calculate GST amount (18% of amount after discount + packing + other charges)
-  const gstAmount = (item) => {
-    const amount = amountAfterDiscount(item);
+  // 3. Grand Total = Total + Packing + Freight
+  const calculateGrandTotal = (item) => {
+    const total = calculateTotal(item);
     const packing = parseFloat(item.packing_charges) || 0;
-    const other = parseFloat(item.other_charges) || 0;
-    const taxableAmount = amount + packing + other;
+    const freight = parseFloat(item.freight_charges) || 0;
+    return parseFloat((total + packing + freight).toFixed(2));
+  };
+
+  // 4. Count = Length × Width × Quantity (already calculated in handleItemChange)
+  
+  // Calculate GST amount (18% of Grand Total)
+  const gstAmount = (item) => {
+    const grandTotal = calculateGrandTotal(item);
     const tax_rate = parseFloat(item.tax_rate) || 18.0;
-    const gst = taxableAmount * (tax_rate / 100);
+    const gst = grandTotal * (tax_rate / 100);
     return parseFloat(gst.toFixed(2));
   };
 
-  // Calculate item total
+  // Calculate item total including GST
   const itemTotal = (item) => {
-    const amount = amountAfterDiscount(item);
-    const packing = parseFloat(item.packing_charges) || 0;
-    const other = parseFloat(item.other_charges) || 0;
+    const grandTotal = calculateGrandTotal(item);
     const gst = gstAmount(item);
-    return parseFloat((amount + packing + other + gst).toFixed(2));
+    return parseFloat((grandTotal + gst).toFixed(2));
   };
 
-  // NEW: Calculate profit per item
-  const calculateProfitPerItem = (item) => {
-    const sellingPrice = amountAfterDiscount(item);
-    const buyPrice = parseFloat(item.buy_price) || 0;
+  // Calculate profit amount per item
+  const calculateProfitAmount = (item) => {
+    const pricePerUnitValue = pricePerUnit(item);
+    const profitPercentage = parseFloat(item.profit_percentage) || 20;
     const quantity = parseFloat(item.quantity) || 1;
-    const profitPerUnit = sellingPrice - (buyPrice * quantity);
-    return parseFloat(profitPerUnit.toFixed(2));
+    const profitPerUnit = pricePerUnitValue * (profitPercentage / 100);
+    return parseFloat((profitPerUnit * quantity).toFixed(2));
   };
 
-  // NEW: Calculate profit margin percentage
-  const calculateProfitMargin = (item) => {
-    const sellingPrice = amountAfterDiscount(item);
-    const buyPrice = parseFloat(item.buy_price) || 0;
-    const quantity = parseFloat(item.quantity) || 1;
-    const totalBuyCost = buyPrice * quantity;
-    
-    if (totalBuyCost === 0) return 0;
-    
-    const profit = sellingPrice - totalBuyCost;
-    const margin = (profit / totalBuyCost) * 100;
-    return parseFloat(margin.toFixed(2));
-  };
-
-  // NEW: Calculate total profit for all items
+  // Calculate total profit for all items
   const calculateTotalProfit = () => {
     return items.reduce((total, item) => {
-      return total + calculateProfitPerItem(item);
+      return total + calculateProfitAmount(item);
     }, 0);
   };
 
   // Calculate all totals
   const calculateTotals = () => {
-    const subtotal = items.reduce((sum, item) => sum + amountBeforeDiscount(item), 0);
-    const totalDiscount = items.reduce((sum, item) => sum + discountAmount(item), 0);
+    const totalPricePerUnit = items.reduce((sum, item) => sum + pricePerUnit(item) * (parseFloat(item.quantity) || 1), 0);
+    const totalProfit = calculateTotalProfit();
     const totalPacking = items.reduce((sum, item) => sum + (parseFloat(item.packing_charges) || 0), 0);
-    const totalOther = items.reduce((sum, item) => sum + (parseFloat(item.other_charges) || 0), 0);
+    const totalFreight = items.reduce((sum, item) => sum + (parseFloat(item.freight_charges) || 0), 0);
     const totalGST = items.reduce((sum, item) => sum + gstAmount(item), 0);
     const grandTotal = items.reduce((sum, item) => sum + itemTotal(item), 0);
-    const totalProfit = calculateTotalProfit();
     const totalBuyCost = items.reduce((sum, item) => {
-      const buyPrice = parseFloat(item.buy_price) || 0;
+      const pricePerUnitValue = pricePerUnit(item);
       const quantity = parseFloat(item.quantity) || 0;
-      return sum + (buyPrice * quantity);
+      return sum + (pricePerUnitValue * quantity);
     }, 0);
     
     return {
-      subtotal: parseFloat(subtotal.toFixed(2)),
-      totalDiscount: parseFloat(totalDiscount.toFixed(2)),
+      totalPricePerUnit: parseFloat(totalPricePerUnit.toFixed(2)),
+      totalProfit: parseFloat(totalProfit.toFixed(2)),
       totalPacking: parseFloat(totalPacking.toFixed(2)),
-      totalOther: parseFloat(totalOther.toFixed(2)),
+      totalFreight: parseFloat(totalFreight.toFixed(2)),
       totalGST: parseFloat(totalGST.toFixed(2)),
       grandTotal: parseFloat(grandTotal.toFixed(2)),
-      totalProfit: parseFloat(totalProfit.toFixed(2)),
       totalBuyCost: parseFloat(totalBuyCost.toFixed(2)),
       profitMargin: totalBuyCost > 0 ? parseFloat(((totalProfit / totalBuyCost) * 100).toFixed(2)) : 0
     };
@@ -1051,13 +1029,11 @@ export default function QuotationModal() {
         buy_price: item.buy_price || 0,
         quantity: item.quantity,
         unit: item.unit,
-        discount: item.discount,
-        discount_type: item.discount_type,
+        profit_percentage: item.profit_percentage || 20,
         tax_rate: item.tax_rate,
         price_per_unit: pricePerUnit(item),
-        amount_before_discount: amountBeforeDiscount(item),
-        discount_amount: discountAmount(item),
-        amount_after_discount: amountAfterDiscount(item),
+        total: calculateTotal(item),
+        grand_total: calculateGrandTotal(item),
         tax_amount: gstAmount(item),
         item_total: itemTotal(item)
       };
@@ -1075,8 +1051,10 @@ export default function QuotationModal() {
       contact_person: contactPerson,
       contact_mobile: contactMob,
       contact_email: contactEmail,
-      subtotal: totals.subtotal,
-      total_discount: totals.totalDiscount,
+      total_price_per_unit: totals.totalPricePerUnit,
+      total_profit: totals.totalProfit,
+      total_packing: totals.totalPacking,
+      total_freight: totals.totalFreight,
       total_tax: totals.totalGST,
       grand_total: totals.grandTotal,
       notes: notes || `Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`,
@@ -1153,9 +1131,8 @@ export default function QuotationModal() {
         items: items.map(item => ({
           ...item,
           price_per_unit: pricePerUnit(item),
-          amount_before_discount: amountBeforeDiscount(item),
-          discount_amount: discountAmount(item),
-          amount_after_discount: amountAfterDiscount(item),
+          total: calculateTotal(item),
+          grand_total: calculateGrandTotal(item),
           tax_amount: gstAmount(item),
           item_total: itemTotal(item)
         }))
@@ -1244,23 +1221,25 @@ export default function QuotationModal() {
     setShowViewModal(true);
   }
 
-  // Print quotation - UPDATED WITH LOGO
+  // Print quotation - UPDATED WITH LOGO AND BANK DETAILS
   function printQuotation(quotation) {
     const printWindow = window.open('', '_blank');
     
     const items = quotation.items || [];
     const totals = {
-      subtotal: quotation.subtotal || quotation.totals?.subtotal || 0,
-      totalDiscount: quotation.total_discount || quotation.totals?.totalDiscount || 0,
+      totalPricePerUnit: quotation.total_price_per_unit || quotation.totals?.totalPricePerUnit || 0,
+      totalProfit: quotation.total_profit || quotation.totals?.totalProfit || 0,
       totalPacking: quotation.total_packing || quotation.totals?.totalPacking || 0,
-      totalOther: quotation.total_other || quotation.totals?.totalOther || 0,
+      totalFreight: quotation.total_freight || quotation.totals?.totalFreight || 0,
       totalGST: quotation.total_tax || quotation.totals?.totalGST || 0,
       grandTotal: quotation.grand_total || quotation.totals?.grandTotal || 0,
-      totalProfit: calculateTotalProfit(),
       totalBuyCost: items.reduce((sum, item) => {
-        const buyPrice = parseFloat(item.buy_price) || 0;
+        const mrp = parseFloat(item.mrp) || 0;
+        const width = parseFloat(item.cut_width) || 0;
+        const length = parseFloat(item.length) || 0;
         const quantity = parseFloat(item.quantity) || 0;
-        return sum + (buyPrice * quantity);
+        const pricePerUnitValue = mrp * width * length;
+        return sum + (pricePerUnitValue * quantity);
       }, 0)
     };
     
@@ -1304,6 +1283,8 @@ export default function QuotationModal() {
           p { font-size: 12px; margin-bottom: 3px; }
           .container { max-width: 100%; }
           .company-logo { max-width: 120px; max-height: 120px; object-fit: contain; }
+          .qr-code { max-width: 100px; max-height: 100px; object-fit: contain; }
+          .bank-details { background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-top: 10px; }
         </style>
       </head>
       <body>
@@ -1360,8 +1341,12 @@ export default function QuotationModal() {
                   <th>Qty</th>
                   <th>UoM</th>
                   <th>MRP</th>
-                  <th>Buy Price</th>
-                  <th>Profit</th>
+                  <th>Price/Unit</th>
+                  <th>Profit %</th>
+                  <th>Total</th>
+                  <th>Packing</th>
+                  <th>Freight</th>
+                  <th>Grand Total</th>
                   <th>GST %</th>
                   <th>Amount</th>
                 </tr>
@@ -1392,21 +1377,26 @@ export default function QuotationModal() {
                   }
                   
                   const mrp = parseFloat(item.mrp) || 0;
-                  const buyPrice = parseFloat(item.buy_price) || 0;
+                  const width = parseFloat(item.cut_width) || 0;
+                  const length = parseFloat(item.length) || 0;
+                  const count = parseFloat(item.count) || 1;
+                  const pricePerUnitValue = mrp * width * length;
+                  const profitPercentage = parseFloat(item.profit_percentage) || 20;
+                  const totalValue = pricePerUnitValue + (pricePerUnitValue * (profitPercentage / 100));
+                  const packing = parseFloat(item.packing_charges) || 0;
+                  const freight = parseFloat(item.freight_charges) || 0;
+                  const grandTotalValue = totalValue + packing + freight;
                   const quantity = parseFloat(item.quantity) || 0;
-                  const sellingPrice = parseFloat(item.amount_after_discount) || amountAfterDiscount(item) || 0;
-                  const totalBuyCost = buyPrice * quantity;
-                  const totalProfit = sellingPrice - totalBuyCost;
-                  const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
+                  const sellingPrice = parseFloat(item.item_total) || itemTotal(item) || 0;
                   
                   return `
                     <tr>
                       <td>${index + 1}</td>
                       <td><strong>${item.item_name}</strong></td>
                       <td>${brand_code || item.brand_code || ''}</td>
-                      <td>${item.cut_width || ''}</td>
-                      <td>${item.length || ''}</td>
-                      <td>${item.count || ''}</td>
+                      <td>${width}</td>
+                      <td>${length}</td>
+                      <td>${count}</td>
                       <td>${item.supplier_part_no || ''}</td>
                       <td>${customer_description || item.customer_description || ''}</td>
                       <td>${item.batch_no || ''}</td>
@@ -1414,10 +1404,12 @@ export default function QuotationModal() {
                       <td>${item.quantity || ''}</td>
                       <td>${item.unit || ''}</td>
                       <td>₹${mrp.toFixed(2)}</td>
-                      <td>₹${buyPrice.toFixed(2)}</td>
-                      <td class="${totalProfit >= 0 ? 'text-success' : 'text-danger'}">
-                        ₹${totalProfit.toFixed(2)} (${profitMargin}%)
-                      </td>
+                      <td>₹${pricePerUnitValue.toFixed(2)}</td>
+                      <td>${profitPercentage}%</td>
+                      <td>₹${totalValue.toFixed(2)}</td>
+                      <td>₹${packing.toFixed(2)}</td>
+                      <td>₹${freight.toFixed(2)}</td>
+                      <td>₹${grandTotalValue.toFixed(2)}</td>
                       <td>${item.tax_rate || 18}%</td>
                       <td><strong>₹${sellingPrice.toFixed(2)}</strong></td>
                     </tr>
@@ -1454,23 +1446,23 @@ export default function QuotationModal() {
                 <div class="card-body p-2">
                   <h5 class="card-title mb-2">Total Summary</h5>
                   <div class="d-flex justify-content-between mb-1">
-                    <span>Subtotal:</span>
-                    <strong>₹${totals.subtotal.toFixed(2)}</strong>
+                    <span>Total Price/Unit:</span>
+                    <strong>₹${totals.totalPricePerUnit.toFixed(2)}</strong>
                   </div>
                   <div class="d-flex justify-content-between mb-1">
-                    <span>Discount:</span>
-                    <strong class="text-danger">- ₹${totals.totalDiscount.toFixed(2)}</strong>
+                    <span>Total Profit:</span>
+                    <strong class="text-success">₹${totals.totalProfit.toFixed(2)}</strong>
                   </div>
                   ${totals.totalPacking > 0 ? `
                     <div class="d-flex justify-content-between mb-1">
-                      <span>Packing:</span>
+                      <span>Total Packing:</span>
                       <strong>₹${totals.totalPacking.toFixed(2)}</strong>
                     </div>
                   ` : ''}
-                  ${totals.totalOther > 0 ? `
+                  ${totals.totalFreight > 0 ? `
                     <div class="d-flex justify-content-between mb-1">
-                      <span>Other Charges:</span>
-                      <strong>₹${totals.totalOther.toFixed(2)}</strong>
+                      <span>Total Freight:</span>
+                      <strong>₹${totals.totalFreight.toFixed(2)}</strong>
                     </div>
                   ` : ''}
                   <div class="d-flex justify-content-between mb-1">
@@ -1481,10 +1473,6 @@ export default function QuotationModal() {
                     <span>Total Buy Cost:</span>
                     <strong>₹${totals.totalBuyCost.toFixed(2)}</strong>
                   </div>
-                  <div class="d-flex justify-content-between mb-1">
-                    <span>Total Profit:</span>
-                    <strong class="${totals.totalProfit >= 0 ? 'text-success' : 'text-danger'}">₹${totals.totalProfit.toFixed(2)}</strong>
-                  </div>
                   <hr class="my-1"/>
                   <div class="d-flex justify-content-between total-row">
                     <span>Grand Total:</span>
@@ -1492,6 +1480,22 @@ export default function QuotationModal() {
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          <div class="row mt-3">
+            <div class="col-8">
+              <div class="bank-details">
+                <h5>Bank Details:</h5>
+                <p class="mb-1"><strong>Account No:</strong> ${issuer.bankDetails.accountNo}</p>
+                <p class="mb-1"><strong>Account Title:</strong> ${issuer.bankDetails.accountTitle}</p>
+                <p class="mb-1"><strong>IFSC Code:</strong> ${issuer.bankDetails.ifscCode}</p>
+                <p class="mb-0"><strong>Bank:</strong> HDFC Bank</p>
+              </div>
+            </div>
+            <div class="col-4 text-end">
+              <img src="${qrCodeImage}" alt="QR Code" class="qr-code">
+              <p class="mt-1 small">Scan for payment</p>
             </div>
           </div>
           
@@ -1573,7 +1577,7 @@ export default function QuotationModal() {
 
   const totals = calculateTotals();
 
-  // Item Selection Popup Modal - SIMPLIFIED VERSION
+  // Item Selection Popup Modal - UPDATED WITH PROFIT PERCENTAGE
   const renderItemPopup = () => {
     if (!showItemPopup) return null;
     
@@ -1713,7 +1717,7 @@ export default function QuotationModal() {
                     </div>
 
                     <div className="row">
-                      <div className="col-md-12">
+                      <div className="col-md-6">
                         <div className="mb-3">
                           <label className="form-label">Supplier Part No</label>
                           <input
@@ -1722,6 +1726,20 @@ export default function QuotationModal() {
                             value={newItemSupplierPartNo}
                             onChange={(e) => setNewItemSupplierPartNo(e.target.value)}
                             placeholder="Enter supplier part number..."
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="mb-3">
+                          <label className="form-label">Profit Percentage</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            step="0.01"
+                            value={newItemProfitPercentage}
+                            onChange={(e) => setNewItemProfitPercentage(e.target.value)}
+                            placeholder="Profit %"
                           />
                         </div>
                       </div>
@@ -1741,6 +1759,7 @@ export default function QuotationModal() {
                               const width = parseFloat(e.target.value) || 0;
                               const length = parseFloat(newItemLength) || 0;
                               const count = parseFloat(newItemCount) || 0;
+                              // Count = Length × Width × Quantity
                               setNewItemQuantity((width * length * count || 1).toString());
                             }}
                             placeholder="Width"
@@ -1760,6 +1779,7 @@ export default function QuotationModal() {
                               const width = parseFloat(newItemCutWidth) || 0;
                               const length = parseFloat(e.target.value) || 0;
                               const count = parseFloat(newItemCount) || 0;
+                              // Count = Length × Width × Quantity
                               setNewItemQuantity((width * length * count || 1).toString());
                             }}
                             placeholder="Length"
@@ -1779,6 +1799,7 @@ export default function QuotationModal() {
                               const width = parseFloat(newItemCutWidth) || 0;
                               const length = parseFloat(newItemLength) || 0;
                               const count = parseFloat(e.target.value) || 0;
+                              // Count = Length × Width × Quantity
                               setNewItemQuantity((width * length * count || 1).toString());
                             }}
                             placeholder="Count"
@@ -1787,48 +1808,12 @@ export default function QuotationModal() {
                       </div>
                       <div className="col-md-3">
                         <div className="mb-3">
-                          <label className="form-label">MRP</label>
-                          <input type="text" className="form-control" value={`₹${parseFloat(selectedStockItem["MRP"] || 0).toFixed(2)}`} readOnly />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="row">
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Discount</label>
-                          <div className="input-group">
-                            <input
-                              type="number"
-                              className="form-control"
-                              min="0"
-                              step="0.01"
-                              value={newItemDiscount}
-                              onChange={(e) => setNewItemDiscount(e.target.value)}
-                              placeholder="Discount"
-                            />
-                            <select
-                              className="form-select"
-                              style={{ width: '100px' }}
-                              value={newItemDiscountType}
-                              onChange={(e) => setNewItemDiscountType(e.target.value)}
-                            >
-                              <option value="amount">₹ Amount</option>
-                              <option value="percentage">% Percentage</option>
-                            </select>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Customer Description</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={newItemCustomerDescription}
-                            onChange={(e) => setNewItemCustomerDescription(e.target.value)}
-                            placeholder="Enter customer description here..."
-                          />
+                          <label className="form-label">Calculated Price/Unit</label>
+                          <input type="text" className="form-control" value={
+                            `₹${(parseFloat(selectedStockItem["MRP"] || 0) * 
+                            (parseFloat(newItemLength) || 1) * 
+                            (parseFloat(newItemCutWidth) || 1)).toFixed(2)}`
+                          } readOnly />
                         </div>
                       </div>
                     </div>
@@ -1850,15 +1835,15 @@ export default function QuotationModal() {
                       </div>
                       <div className="col-md-4">
                         <div className="mb-3">
-                          <label className="form-label">Other Charges</label>
+                          <label className="form-label">Freight Charges</label>
                           <input
                             type="number"
                             className="form-control"
                             min="0"
                             step="0.01"
-                            value={newItemOtherCharges}
-                            onChange={(e) => setNewItemOtherCharges(e.target.value)}
-                            placeholder="Other charges"
+                            value={newItemFreightCharges}
+                            onChange={(e) => setNewItemFreightCharges(e.target.value)}
+                            placeholder="Freight charges"
                           />
                         </div>
                       </div>
@@ -1876,6 +1861,21 @@ export default function QuotationModal() {
                         </div>
                       </div>
                     </div>
+
+                    <div className="row">
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Customer Description</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={newItemCustomerDescription}
+                            onChange={(e) => setNewItemCustomerDescription(e.target.value)}
+                            placeholder="Enter customer description here..."
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   <div className="card-footer">
                     <div className="d-flex justify-content-end gap-2">
@@ -1888,6 +1888,13 @@ export default function QuotationModal() {
                           return;
                         }
                         
+                        const mrp = parseFloat(selectedStockItem["MRP"]) || 0;
+                        const width = parseFloat(newItemCutWidth) || parseFloat(selectedStockItem["Width"]) || 1;
+                        const length = parseFloat(newItemLength) || parseFloat(selectedStockItem["Length"]) || 1;
+                        const pricePerUnitValue = mrp * width * length;
+                        const profitPercentage = parseFloat(newItemProfitPercentage) || 20;
+                        const totalValue = pricePerUnitValue + (pricePerUnitValue * (profitPercentage / 100));
+                        
                         const newItem = {
                           id: idRef.current + 1,
                           item_name: selectedStockItem["Item Name"] || "",
@@ -1895,20 +1902,22 @@ export default function QuotationModal() {
                           hsn_sac: selectedStockItem["HSN"] || "",
                           supplier_part_no: newItemSupplierPartNo || "",
                           description: selectedStockItem["Brand Description"] || "",
-                          cut_width: parseFloat(newItemCutWidth) || parseFloat(selectedStockItem["Width"]) || 1,
-                          length: parseFloat(newItemLength) || parseFloat(selectedStockItem["Length"]) || 1,
+                          cut_width: width,
+                          length: length,
                           count: parseFloat(newItemCount) || 1,
                           batch_no: newItemBatchCode || `B-${Date.now().toString().slice(-6)}-${items.length + 1}`,
-                          mrp: parseFloat(selectedStockItem["MRP"]) || 0,
+                          mrp: mrp,
                           buy_price: parseFloat(selectedStockItem["Buy Price"]) || 0,
                           quantity: parseFloat(newItemQuantity) || 1,
                           unit: selectedStockItem["Unit"] || "pcs",
-                          discount: parseFloat(newItemDiscount) || 0,
-                          discount_type: newItemDiscountType,
+                          profit_percentage: profitPercentage,
                           tax_rate: selectedStockItem["GST"] || 18.0,
                           packing_charges: parseFloat(newItemPackingCharges) || 0,
-                          other_charges: parseFloat(newItemOtherCharges) || 0,
-                          customer_description: newItemCustomerDescription
+                          freight_charges: parseFloat(newItemFreightCharges) || 0,
+                          customer_description: newItemCustomerDescription,
+                          price_per_unit: pricePerUnitValue,
+                          total: totalValue,
+                          grand_total: totalValue + (parseFloat(newItemPackingCharges) || 0) + (parseFloat(newItemFreightCharges) || 0)
                         };
                         
                         setItems(prev => [...prev, newItem]);
@@ -1919,9 +1928,9 @@ export default function QuotationModal() {
                         setNewItemLength("");
                         setNewItemCount("1");
                         setNewItemBatchCode("");
-                        setNewItemDiscount("0");
+                        setNewItemProfitPercentage("20");
                         setNewItemPackingCharges("0");
-                        setNewItemOtherCharges("0");
+                        setNewItemFreightCharges("0");
                         setNewItemCustomerDescription("");
                         setNewItemSupplierPartNo("");
                         setNewItemBrandCode("");
@@ -1941,7 +1950,7 @@ export default function QuotationModal() {
     );
   };
 
-  // Preview Modal - UPDATED WITH PROFIT CALCULATION AND LOGO
+  // Preview Modal - UPDATED WITH NEW FORMULAS AND BANK DETAILS
   const renderPreviewModal = () => {
     if (!showPreviewModal) return null;
     
@@ -2018,16 +2027,22 @@ export default function QuotationModal() {
                           <th>Qty</th>
                           <th>UoM</th>
                           <th>MRP</th>
-                          <th>Buy Price</th>
-                          <th>Profit</th>
+                          <th>Price/Unit</th>
+                          <th>Profit %</th>
+                          <th>Total</th>
+                          <th>Packing</th>
+                          <th>Freight</th>
+                          <th>Grand Total</th>
                           <th>GST %</th>
                           <th>Amount</th>
                         </tr>
                       </thead>
                       <tbody>
                         {items.map((item, index) => {
-                          const profitPerItem = calculateProfitPerItem(item);
-                          const profitMargin = calculateProfitMargin(item);
+                          const pricePerUnitValue = pricePerUnit(item);
+                          const totalValue = calculateTotal(item);
+                          const grandTotalValue = calculateGrandTotal(item);
+                          const profitPercentage = parseFloat(item.profit_percentage) || 20;
                           
                           return (
                             <tr key={item.id}>
@@ -2044,12 +2059,14 @@ export default function QuotationModal() {
                               <td>{item.quantity}</td>
                               <td>{item.unit}</td>
                               <td>₹{parseFloat(item.mrp || 0).toFixed(2)}</td>
-                              <td>₹{parseFloat(item.buy_price || 0).toFixed(2)}</td>
-                              <td className={profitPerItem >= 0 ? 'text-success' : 'text-danger'}>
-                                ₹{profitPerItem.toFixed(2)} ({profitMargin}%)
-                              </td>
+                              <td>₹{pricePerUnitValue.toFixed(2)}</td>
+                              <td>{profitPercentage}%</td>
+                              <td>₹{totalValue.toFixed(2)}</td>
+                              <td>₹{parseFloat(item.packing_charges || 0).toFixed(2)}</td>
+                              <td>₹{parseFloat(item.freight_charges || 0).toFixed(2)}</td>
+                              <td>₹{grandTotalValue.toFixed(2)}</td>
                               <td>{item.tax_rate}%</td>
-                              <td><strong>₹{amountAfterDiscount(item).toFixed(2)}</strong></td>
+                              <td><strong>₹{itemTotal(item).toFixed(2)}</strong></td>
                             </tr>
                           );
                         })}
@@ -2096,23 +2113,23 @@ export default function QuotationModal() {
                         <div className="card-body">
                           <h5 className="card-title">Total Summary</h5>
                           <div className="d-flex justify-content-between mb-2">
-                            <span>Subtotal:</span>
-                            <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                            <span>Total Price/Unit:</span>
+                            <strong>₹{totals.totalPricePerUnit.toFixed(2)}</strong>
                           </div>
                           <div className="d-flex justify-content-between mb-2">
-                            <span>Discount:</span>
-                            <strong className="text-danger">- ₹{totals.totalDiscount.toFixed(2)}</strong>
+                            <span>Total Profit:</span>
+                            <strong className="text-success">₹{totals.totalProfit.toFixed(2)}</strong>
                           </div>
                           {totals.totalPacking > 0 && (
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Packing:</span>
+                              <span>Total Packing:</span>
                               <strong>₹{totals.totalPacking.toFixed(2)}</strong>
                             </div>
                           )}
-                          {totals.totalOther > 0 && (
+                          {totals.totalFreight > 0 && (
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Other Charges:</span>
-                              <strong>₹{totals.totalOther.toFixed(2)}</strong>
+                              <span>Total Freight:</span>
+                              <strong>₹{totals.totalFreight.toFixed(2)}</strong>
                             </div>
                           )}
                           <div className="d-flex justify-content-between mb-2">
@@ -2123,12 +2140,6 @@ export default function QuotationModal() {
                             <span>Total Buy Cost:</span>
                             <strong>₹{totals.totalBuyCost.toFixed(2)}</strong>
                           </div>
-                          <div className="d-flex justify-content-between mb-2">
-                            <span>Total Profit:</span>
-                            <strong className={totals.totalProfit >= 0 ? 'text-success' : 'text-danger'}>
-                              ₹{totals.totalProfit.toFixed(2)} ({totals.profitMargin}%)
-                            </strong>
-                          </div>
                           <hr/>
                           <div className="d-flex justify-content-between total-row">
                             <span>Grand Total:</span>
@@ -2136,6 +2147,30 @@ export default function QuotationModal() {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                  
+                  <div className="row mt-4">
+                    <div className="col-8">
+                      <div className="p-3 bg-light rounded">
+                        <h5>Bank Details:</h5>
+                        <p className="mb-1"><strong>Account No:</strong> {issuer.bankDetails.accountNo}</p>
+                        <p className="mb-1"><strong>Account Title:</strong> {issuer.bankDetails.accountTitle}</p>
+                        <p className="mb-1"><strong>IFSC Code:</strong> {issuer.bankDetails.ifscCode}</p>
+                        <p className="mb-0"><strong>Bank:</strong> HDFC Bank</p>
+                      </div>
+                    </div>
+                    <div className="col-4 text-end">
+                      <img 
+                        src={qrCodeImage} 
+                        alt="QR Code" 
+                        className="img-fluid"
+                        style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                        }}
+                      />
+                      <p className="mt-2 small">Scan for payment</p>
                     </div>
                   </div>
                   
@@ -2183,7 +2218,7 @@ export default function QuotationModal() {
     );
   };
 
-  // View Quotation Modal - UPDATED WITH PROFIT CALCULATION AND LOGO
+  // View Quotation Modal - UPDATED WITH NEW FORMULAS AND BANK DETAILS
   const renderViewModal = () => {
     if (!showViewModal || !selectedQuotation) return null;
     
@@ -2257,8 +2292,12 @@ export default function QuotationModal() {
                         <th>Qty</th>
                         <th>UoM</th>
                         <th>MRP</th>
-                        <th>Buy Price</th>
-                        <th>Profit</th>
+                        <th>Price/Unit</th>
+                        <th>Profit %</th>
+                        <th>Total</th>
+                        <th>Packing</th>
+                        <th>Freight</th>
+                        <th>Grand Total</th>
                         <th>GST %</th>
                         <th>Amount</th>
                       </tr>
@@ -2289,12 +2328,16 @@ export default function QuotationModal() {
                         }
                         
                         const mrp = parseFloat(item.mrp) || 0;
-                        const buyPrice = parseFloat(item.buy_price) || 0;
-                        const quantity = parseFloat(item.quantity) || 0;
-                        const sellingPrice = parseFloat(item.amount_after_discount) || 0;
-                        const totalBuyCost = buyPrice * quantity;
-                        const totalProfit = sellingPrice - totalBuyCost;
-                        const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
+                        const width = parseFloat(item.cut_width) || 0;
+                        const length = parseFloat(item.length) || 0;
+                        const count = parseFloat(item.count) || 1;
+                        const pricePerUnitValue = mrp * width * length;
+                        const profitPercentage = parseFloat(item.profit_percentage) || 20;
+                        const totalValue = pricePerUnitValue + (pricePerUnitValue * (profitPercentage / 100));
+                        const packing = parseFloat(item.packing_charges) || 0;
+                        const freight = parseFloat(item.freight_charges) || 0;
+                        const grandTotalValue = totalValue + packing + freight;
+                        const sellingPrice = parseFloat(item.item_total) || 0;
                         
                         return (
                           <tr key={index}>
@@ -2311,10 +2354,12 @@ export default function QuotationModal() {
                             <td>{item.quantity || ''}</td>
                             <td>{item.unit || ''}</td>
                             <td>₹{mrp.toFixed(2)}</td>
-                            <td>₹{buyPrice.toFixed(2)}</td>
-                            <td className={totalProfit >= 0 ? 'text-success' : 'text-danger'}>
-                              ₹{totalProfit.toFixed(2)} ({profitMargin}%)
-                            </td>
+                            <td>₹{pricePerUnitValue.toFixed(2)}</td>
+                            <td>{profitPercentage}%</td>
+                            <td>₹{totalValue.toFixed(2)}</td>
+                            <td>₹{packing.toFixed(2)}</td>
+                            <td>₹{freight.toFixed(2)}</td>
+                            <td>₹{grandTotalValue.toFixed(2)}</td>
                             <td>{item.tax_rate || 18}%</td>
                             <td><strong>₹{sellingPrice.toFixed(2)}</strong></td>
                           </tr>
@@ -2363,12 +2408,12 @@ export default function QuotationModal() {
                       <div className="card-body">
                         <h5 className="card-title">Total Summary</h5>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Subtotal:</span>
-                          <strong>₹{(selectedQuotation.subtotal || 0).toFixed(2)}</strong>
+                          <span>Total Price/Unit:</span>
+                          <strong>₹{(selectedQuotation.total_price_per_unit || 0).toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Discount:</span>
-                          <strong className="text-danger">- ₹{(selectedQuotation.total_discount || 0).toFixed(2)}</strong>
+                          <span>Total Profit:</span>
+                          <strong className="text-success">₹{(selectedQuotation.total_profit || 0).toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
                           <span>Total Tax:</span>
@@ -2376,34 +2421,19 @@ export default function QuotationModal() {
                         </div>
                         {(() => {
                           const totalBuyCost = (selectedQuotation.items || []).reduce((sum, item) => {
-                            const buyPrice = parseFloat(item.buy_price) || 0;
+                            const mrp = parseFloat(item.mrp) || 0;
+                            const width = parseFloat(item.cut_width) || 0;
+                            const length = parseFloat(item.length) || 0;
                             const quantity = parseFloat(item.quantity) || 0;
-                            return sum + (buyPrice * quantity);
+                            const pricePerUnitValue = mrp * width * length;
+                            return sum + (pricePerUnitValue * quantity);
                           }, 0);
-                          
-                          const totalProfit = (selectedQuotation.items || []).reduce((sum, item) => {
-                            const sellingPrice = parseFloat(item.amount_after_discount) || 0;
-                            const buyPrice = parseFloat(item.buy_price) || 0;
-                            const quantity = parseFloat(item.quantity) || 0;
-                            const totalBuyCost = buyPrice * quantity;
-                            return sum + (sellingPrice - totalBuyCost);
-                          }, 0);
-                          
-                          const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
                           
                           return (
-                            <>
-                              <div className="d-flex justify-content-between mb-2">
-                                <span>Total Buy Cost:</span>
-                                <strong>₹{totalBuyCost.toFixed(2)}</strong>
-                              </div>
-                              <div className="d-flex justify-content-between mb-2">
-                                <span>Total Profit:</span>
-                                <strong className={totalProfit >= 0 ? 'text-success' : 'text-danger'}>
-                                  ₹{totalProfit.toFixed(2)} ({profitMargin}%)
-                                </strong>
-                              </div>
-                            </>
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Total Buy Cost:</span>
+                              <strong>₹{totalBuyCost.toFixed(2)}</strong>
+                            </div>
                           );
                         })()}
                         <hr/>
@@ -2413,6 +2443,30 @@ export default function QuotationModal() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+                
+                <div className="row mt-4">
+                  <div className="col-8">
+                    <div className="p-3 bg-light rounded">
+                      <h5>Bank Details:</h5>
+                      <p className="mb-1"><strong>Account No:</strong> {issuer.bankDetails.accountNo}</p>
+                      <p className="mb-1"><strong>Account Title:</strong> {issuer.bankDetails.accountTitle}</p>
+                      <p className="mb-1"><strong>IFSC Code:</strong> {issuer.bankDetails.ifscCode}</p>
+                      <p className="mb-0"><strong>Bank:</strong> HDFC Bank</p>
+                    </div>
+                  </div>
+                  <div className="col-4 text-end">
+                    <img 
+                      src={qrCodeImage} 
+                      alt="QR Code" 
+                      className="img-fluid"
+                      style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                    <p className="mt-2 small">Scan for payment</p>
                   </div>
                 </div>
                 
@@ -2440,7 +2494,7 @@ export default function QuotationModal() {
     );
   };
 
-  // Items Modal - UPDATED WITH BUY PRICE AND PROFIT
+  // Items Modal - UPDATED WITH NEW FORMULAS
   const renderItemsModal = () => {
     if (!showItemsModal) return null;
     
@@ -2504,17 +2558,21 @@ export default function QuotationModal() {
                             <th width="80">Qty</th>
                             <th width="80">Unit</th>
                             <th width="100">MRP</th>
-                            <th width="100">Buy Price</th>
-                            <th width="120">Profit</th>
-                            <th width="120">Discount</th>
-                            <th width="100">Total</th>
+                            <th width="100">Price/Unit</th>
+                            <th width="80">Profit %</th>
+                            <th width="120">Total</th>
+                            <th width="100">Packing</th>
+                            <th width="100">Freight</th>
+                            <th width="120">Grand Total</th>
                             <th width="80">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {items.map((item, index) => {
-                            const profitPerItem = calculateProfitPerItem(item);
-                            const profitMargin = calculateProfitMargin(item);
+                            const pricePerUnitValue = pricePerUnit(item);
+                            const totalValue = calculateTotal(item);
+                            const grandTotalValue = calculateGrandTotal(item);
+                            const profitPercentage = parseFloat(item.profit_percentage) || 20;
                             
                             return (
                               <tr key={item.id}>
@@ -2583,42 +2641,45 @@ export default function QuotationModal() {
                                     onChange={(e) => handleItemChange(index, "mrp", e.target.value)}
                                   />
                                 </td>
+                                <td className="text-end fw-bold">
+                                  ₹{pricePerUnitValue.toFixed(2)}
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm text-end"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.profit_percentage || 20}
+                                    onChange={(e) => handleItemChange(index, "profit_percentage", e.target.value)}
+                                  />
+                                </td>
+                                <td className="text-end fw-bold text-success">
+                                  ₹{totalValue.toFixed(2)}
+                                </td>
                                 <td className="text-end">
                                   <input
                                     type="number"
                                     className="form-control form-control-sm text-end"
                                     min="0"
                                     step="0.01"
-                                    value={item.buy_price}
-                                    onChange={(e) => handleItemChange(index, "buy_price", e.target.value)}
+                                    value={item.packing_charges || 0}
+                                    onChange={(e) => handleItemChange(index, "packing_charges", e.target.value)}
                                   />
                                 </td>
-                                <td className={`text-end fw-bold ${profitPerItem >= 0 ? 'text-success' : 'text-danger'}`}>
-                                  ₹{profitPerItem.toFixed(2)}<br/>
-                                  <small className="text-muted">({profitMargin}%)</small>
+                                <td className="text-end">
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm text-end"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.freight_charges || 0}
+                                    onChange={(e) => handleItemChange(index, "freight_charges", e.target.value)}
+                                  />
                                 </td>
-                                <td>
-                                  <div className="input-group input-group-sm">
-                                    <input
-                                      type="number"
-                                      className="form-control"
-                                      min="0"
-                                      step="0.01"
-                                      value={item.discount}
-                                      onChange={(e) => handleItemChange(index, "discount", e.target.value)}
-                                    />
-                                    <select
-                                      className="form-select"
-                                      style={{ width: '80px' }}
-                                      value={item.discount_type}
-                                      onChange={(e) => handleItemChange(index, "discount_type", e.target.value)}
-                                    >
-                                      <option value="amount">₹</option>
-                                      <option value="percentage">%</option>
-                                    </select>
-                                  </div>
+                                <td className="text-end fw-bold text-primary">
+                                  ₹{grandTotalValue.toFixed(2)}
                                 </td>
-                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
                                 <td>
                                   <button
                                     className="btn btn-sm btn-danger"
@@ -2648,12 +2709,20 @@ export default function QuotationModal() {
                         <strong>{items.length}</strong>
                       </div>
                       <div className="d-flex justify-content-between mb-2">
-                        <span>Subtotal:</span>
-                        <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                        <span>Total Price/Unit:</span>
+                        <strong>₹{totals.totalPricePerUnit.toFixed(2)}</strong>
                       </div>
                       <div className="d-flex justify-content-between mb-2">
-                        <span>Discount:</span>
-                        <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
+                        <span>Total Profit:</span>
+                        <strong className="text-success">₹{totals.totalProfit.toFixed(2)}</strong>
+                      </div>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Total Packing:</span>
+                        <strong>₹{totals.totalPacking.toFixed(2)}</strong>
+                      </div>
+                      <div className="d-flex justify-content-between mb-2">
+                        <span>Total Freight:</span>
+                        <strong>₹{totals.totalFreight.toFixed(2)}</strong>
                       </div>
                       <div className="d-flex justify-content-between mb-2">
                         <span>Tax (18%):</span>
@@ -2662,12 +2731,6 @@ export default function QuotationModal() {
                       <div className="d-flex justify-content-between mb-2">
                         <span>Total Buy Cost:</span>
                         <strong>₹{totals.totalBuyCost.toFixed(2)}</strong>
-                      </div>
-                      <div className="d-flex justify-content-between mb-2">
-                        <span>Total Profit:</span>
-                        <strong className={totals.totalProfit >= 0 ? 'text-success' : 'text-danger'}>
-                          ₹{totals.totalProfit.toFixed(2)}
-                        </strong>
                       </div>
                       <hr />
                       <div className="d-flex justify-content-between fw-bold">
@@ -2895,6 +2958,9 @@ export default function QuotationModal() {
           <p className="text-muted mb-0">Manage and track your quotations</p>
         </div>
         <div className="d-flex gap-2">
+          <button className="btn btn-primary" onClick={startNewQuotation}>
+            <i className="bi bi-plus-circle me-1"></i>Create New Quotation
+          </button>
         </div>
       </div>
 
@@ -3017,18 +3083,24 @@ export default function QuotationModal() {
                       
                       // Calculate total profit for this quotation
                       const totalProfit = (quote.items || []).reduce((sum, item) => {
-                        const sellingPrice = parseFloat(item.amount_after_discount) || 0;
-                        const buyPrice = parseFloat(item.buy_price) || 0;
+                        const mrp = parseFloat(item.mrp) || 0;
+                        const width = parseFloat(item.cut_width) || 0;
+                        const length = parseFloat(item.length) || 0;
+                        const profitPercentage = parseFloat(item.profit_percentage) || 20;
                         const quantity = parseFloat(item.quantity) || 0;
-                        const totalBuyCost = buyPrice * quantity;
-                        return sum + (sellingPrice - totalBuyCost);
+                        const pricePerUnitValue = mrp * width * length;
+                        const profitPerUnit = pricePerUnitValue * (profitPercentage / 100);
+                        return sum + (profitPerUnit * quantity);
                       }, 0);
                       
                       // Calculate total buy cost
                       const totalBuyCost = (quote.items || []).reduce((sum, item) => {
-                        const buyPrice = parseFloat(item.buy_price) || 0;
+                        const mrp = parseFloat(item.mrp) || 0;
+                        const width = parseFloat(item.cut_width) || 0;
+                        const length = parseFloat(item.length) || 0;
                         const quantity = parseFloat(item.quantity) || 0;
-                        return sum + (buyPrice * quantity);
+                        const pricePerUnitValue = mrp * width * length;
+                        return sum + (pricePerUnitValue * quantity);
                       }, 0);
                       
                       const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";

@@ -1,15 +1,18 @@
 // Login.js
 import React, { useState } from "react";
 import { FaUserCircle, FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
-import Logo from "./Name1.jpg"; // 🖼️ Logo Image
+import { useNavigate } from "react-router-dom";
+import Logo from "./Name1.jpg";
 
 const Login = ({ onLogin }) => {
+  const navigate = useNavigate();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // 🔐 Main Login Function
+  // 🔐 MAIN LOGIN FUNCTION
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -21,85 +24,142 @@ const Login = ({ onLogin }) => {
     setLoading(true);
 
     try {
-      const empResponse = await fetch("http://localhost:5000/api/employee/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
+      // 1️⃣ EMPLOYEE LOGIN
+      const empResponse = await fetch(
+        "http://localhost:5000/api/employee/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
       const empData = await empResponse.json();
 
       if (empResponse.ok && empData.success) {
-        handleSuccessfulLogin(empData.user, "employee");
+        handleSuccessfulLogin(empData.user, "common");
         return;
       }
 
-      const authResponse = await fetch("http://localhost:5000/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
+      // 2️⃣ AUTH LOGIN
+      const authResponse = await fetch(
+        "http://localhost:5000/api/auth/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
       const authData = await authResponse.json();
 
       if (authResponse.ok && authData.success) {
-        handleSuccessfulLogin(authData.user, "auth");
+        handleSuccessfulLogin(authData.user, "common");
         return;
       }
 
-      alert(`❌ ${empData.message || authData.message || "Login failed. Try again."}`);
+      // 3️⃣ COMPANY LOGIN
+      const companyResponse = await fetch(
+        "http://localhost:5000/api/company/login",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        }
+      );
+      const companyData = await companyResponse.json();
+
+      if (companyResponse.ok && companyData.success) {
+        handleSuccessfulLogin(companyData.company, "company", "Customer");
+        return;
+      }
+
+      // ❌ ALL FAILED
+      alert(
+        empData.message ||
+          authData.message ||
+          companyData.message ||
+          "Login failed. Try again."
+      );
     } catch (error) {
       console.error("Login Error:", error);
-      alert("⚠️ Something went wrong. Please try again later.");
+      alert("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // 🎯 SAVE LOGIN DETAILS
-  const handleSuccessfulLogin = (user, loginType) => {
-    alert("✅ Login successful!");
+  // 🎯 SAVE LOGIN DETAILS + REDIRECT
+  const handleSuccessfulLogin = (
+    user,
+    loginType,
+    forcedUserType = null
+  ) => {
+    alert("Login successful!");
 
+    // ✅ FIXED: camelCase keys
     const displayName =
       user.username ||
       user.name ||
       user.fullname ||
+      user.customerName ||
       "Unknown User";
 
     const userType =
+      forcedUserType ||
       user.userType ||
       user.user_type ||
       user.usertype ||
       user.role ||
-      "undefined";
+      "Common";
 
     const userTypeId =
       user.user_type_id ||
       user.userTypeId ||
       user.usertype_id ||
-      user.user_type ||
       0;
 
-    localStorage.setItem("user_id", user.id);
+    const userId = user.id || user.company_id || 0;
+    const userEmail = user.email || user.customerEmail || "";
+
+    // 💾 COMMON STORAGE
+    localStorage.setItem("user_id", userId);
     localStorage.setItem("username", displayName);
-    localStorage.setItem("email", user.email);
+    localStorage.setItem("email", userEmail);
     localStorage.setItem("login_type", loginType);
     localStorage.setItem("usertype", userType);
     localStorage.setItem("user_type_id", userTypeId);
 
-    if (onLogin) onLogin(user);
+    // ✅ COMPANY-SPECIFIC STORAGE (FIXED)
+    if (loginType === "company") {
+      localStorage.setItem(
+        "company_customer_name",
+        user.customerName || ""
+      );
+      localStorage.setItem(
+        "company_login_email",
+        user.customerEmail || ""
+      );
+    }
+
+    // 🚀 FINAL REDIRECT
+    if (loginType === "company") {
+      navigate("/company-dashboard", { replace: true });
+    } else {
+      navigate("/dashboard", { replace: true });
+    }
+
+    if (onLogin) onLogin(userEmail);
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.header}>
-          <img src={Logo} alt="Lakotia Logo" style={styles.logo} />
+          <img src={Logo} alt="Logo" style={styles.logo} />
           <p style={styles.subtitle}>Please sign in to continue</p>
         </div>
 
         <form onSubmit={handleSubmit} style={styles.form}>
-          {/* Email */}
+          {/* EMAIL */}
           <div style={styles.inputGroup}>
             <FaUserCircle style={styles.icon} />
             <input
@@ -112,7 +172,7 @@ const Login = ({ onLogin }) => {
             />
           </div>
 
-          {/* Password with Eye Icon */}
+          {/* PASSWORD */}
           <div style={styles.inputGroup}>
             <FaLock style={styles.icon} />
             <input
@@ -140,7 +200,7 @@ const Login = ({ onLogin }) => {
   );
 };
 
-// 🎨 Styling
+// 🎨 STYLES
 const styles = {
   container: {
     height: "100vh",
@@ -159,10 +219,7 @@ const styles = {
     textAlign: "center",
   },
   header: { marginBottom: "25px" },
-  logo: {
-    width: "200px",
-    marginBottom: "15px",
-  },
+  logo: { width: "200px", marginBottom: "15px" },
   subtitle: { color: "#666", fontSize: "14px" },
   form: { display: "flex", flexDirection: "column", gap: "20px" },
   inputGroup: {
@@ -174,10 +231,7 @@ const styles = {
     padding: "10px",
   },
   icon: { marginRight: "10px", color: "#f5c518" },
-  eyeIcon: {
-    cursor: "pointer",
-    color: "#999",
-  },
+  eyeIcon: { cursor: "pointer", color: "#999" },
   input: {
     border: "none",
     outline: "none",

@@ -33,10 +33,9 @@ const EmployeePage = () => {
 
   // ESI/PF Status Options (Matches Backend)
   const esiPfOptions = [
-    { value: "ESI", label: "ESI" },
-    { value: "PF", label: "PF" },
-    { value: "Both", label: "Both" },
-    { value: "None", label: "None" }
+    { value: "ESI/PF", label: "ESI/PF" },
+    { value: "No ESI/PF", label: "No ESI/PF" },
+    { value: "Casual Labour", label: "Casual Labour" }
   ];
 
   // Validation functions

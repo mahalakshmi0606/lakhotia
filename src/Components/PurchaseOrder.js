@@ -7,7 +7,7 @@ import {
   FaEye, FaCheck, FaTimes, FaEdit, FaTrash, FaPlus, 
   FaSearch, FaFilter, FaBuilding, FaUser, FaCalendarAlt,
   FaBox, FaRupeeSign, FaTag, FaBarcode, FaRulerCombined,
-  FaHashtag, FaReceipt
+  FaHashtag, FaReceipt, FaCalculator, FaTimesCircle
 } from "react-icons/fa";
 
 const API_BASE_URL = "http://localhost:5000/api/purchase-orders";
@@ -42,6 +42,7 @@ const PurchaseOrderPage = () => {
     unit: "PCS",
     buy_price: "",
     quantity: "",
+    mrp: "",
   });
 
   const [stockData, setStockData] = useState([]);
@@ -244,6 +245,22 @@ const PurchaseOrderPage = () => {
 
   // Handle item suggestion selection
   const handleSuggestionSelect = (item) => {
+    // Calculate count if dimensions exist
+    const length = parseFloat(item.Length || item.length || 0);
+    const width = parseFloat(item.Width || item.width || 0);
+    const quantity = parseFloat(formData.quantity || 1);
+    const mrp = parseFloat(item["MRP"] || item.mrp || item["Buy Price"] || item.buy_price || 0);
+    
+    let count = 0;
+    let buyPrice = mrp;
+    
+    if (length > 0 && width > 0) {
+      // Count = Length × Width × Quantity
+      count = length * width * quantity;
+      // Price/Unit = MRP × Length × Width
+      buyPrice = mrp * length * width;
+    }
+    
     setFormData({
       ...formData,
       item_name: item["Item Name"] || item.item_name || "",
@@ -254,7 +271,8 @@ const PurchaseOrderPage = () => {
       length: item.Length || item.length || "",
       width: item.Width || item.width || "",
       unit: item.Unit || item.unit || "PCS",
-      buy_price: item["Buy Price"] || item.buy_price || item.price || "",
+      buy_price: buyPrice.toFixed(2),
+      mrp: mrp.toFixed(2),
     });
     setFilteredItems([]);
   };
@@ -262,7 +280,45 @@ const PurchaseOrderPage = () => {
   // Handle form field changes
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const newFormData = { ...formData, [name]: value };
+    
+    // Recalculate buy_price when length, width, or mrp changes
+    if (name === 'length' || name === 'width' || name === 'mrp') {
+      const length = parseFloat(name === 'length' ? value : formData.length) || 0;
+      const width = parseFloat(name === 'width' ? value : formData.width) || 0;
+      const mrp = parseFloat(name === 'mrp' ? value : formData.mrp) || 0;
+      
+      if (length > 0 && width > 0 && mrp > 0) {
+        // Price/Unit = MRP × Length × Width
+        newFormData.buy_price = (mrp * length * width).toFixed(2);
+      }
+    }
+    
+    setFormData(newFormData);
+  };
+
+  // Calculate count for an item
+  const calculateCount = (length, width, quantity) => {
+    const l = parseFloat(length) || 0;
+    const w = parseFloat(width) || 0;
+    const qty = parseFloat(quantity) || 0;
+    
+    if (l > 0 && w > 0 && qty > 0) {
+      return (l * w * qty).toFixed(2);
+    }
+    return 0;
+  };
+
+  // Calculate price per unit
+  const calculatePricePerUnit = (mrp, length, width) => {
+    const m = parseFloat(mrp) || 0;
+    const l = parseFloat(length) || 0;
+    const w = parseFloat(width) || 0;
+    
+    if (m > 0 && l > 0 && w > 0) {
+      return (m * l * w).toFixed(2);
+    }
+    return m > 0 ? m.toFixed(2) : "0.00";
   };
 
   // Add item to temporary list
@@ -277,6 +333,22 @@ const PurchaseOrderPage = () => {
       return;
     }
 
+    // Calculate count and total price
+    const length = parseFloat(formData.length) || 0;
+    const width = parseFloat(formData.width) || 0;
+    const quantity = parseFloat(formData.quantity);
+    const buyPrice = parseFloat(formData.buy_price);
+    const mrp = parseFloat(formData.mrp) || buyPrice;
+    
+    let count = 0;
+    let totalPrice = buyPrice * quantity;
+    
+    if (length > 0 && width > 0) {
+      // Count = Length × Width × Quantity
+      count = length * width * quantity;
+      // Total price already calculated as buy_price * quantity
+    }
+
     const itemWithId = {
       item_name: formData.item_name,
       brand: formData.brand,
@@ -286,8 +358,11 @@ const PurchaseOrderPage = () => {
       length: formData.length,
       width: formData.width,
       unit: formData.unit,
-      quantity: parseFloat(formData.quantity),
-      buy_price: parseFloat(formData.buy_price),
+      quantity: quantity,
+      buy_price: buyPrice,
+      mrp: mrp,
+      count: count,
+      total_price: totalPrice,
       id: Date.now() + Math.random(),
     };
 
@@ -306,6 +381,7 @@ const PurchaseOrderPage = () => {
       unit: "PCS",
       buy_price: "",
       quantity: "",
+      mrp: "",
     });
   };
 
@@ -317,9 +393,7 @@ const PurchaseOrderPage = () => {
   // Calculate total amount
   const calculateTotal = useCallback(() => {
     return tempItems.reduce((total, item) => {
-      const price = parseFloat(item.buy_price) || 0;
-      const quantity = parseFloat(item.quantity) || 0;
-      return total + (price * quantity);
+      return total + (parseFloat(item.total_price) || 0);
     }, 0);
   }, [tempItems]);
 
@@ -402,6 +476,7 @@ const PurchaseOrderPage = () => {
       unit: "PCS",
       buy_price: "",
       quantity: "",
+      mrp: "",
     });
     setTempItems([]);
     setFilteredCompanies([]);
@@ -480,6 +555,7 @@ const PurchaseOrderPage = () => {
       unit: "PCS",
       buy_price: "",
       quantity: "",
+      mrp: "",
     });
 
     // Populate items with temporary IDs
@@ -710,6 +786,11 @@ const PurchaseOrderPage = () => {
                               {po.items?.slice(0, 2).map((item, idx) => (
                                 <div key={idx} className="text-truncate" style={{ maxWidth: '150px' }}>
                                   • {item.item_name}
+                                  {item.count > 0 && (
+                                    <span className="ms-2 badge bg-info">
+                                      Count: {item.count}
+                                    </span>
+                                  )}
                                 </div>
                               ))}
                               {po.items?.length > 2 && (
@@ -941,7 +1022,7 @@ const PurchaseOrderPage = () => {
                               >
                                 <strong>{item["Item Name"] || item.item_name}</strong>
                                 <small className="text-muted d-block">
-                                  {item.Brand || item.brand} | ₹{item["Buy Price"] || item.buy_price}
+                                  {item.Brand || item.brand} | ₹{item["MRP"] || item.mrp || item["Buy Price"] || item.buy_price}
                                 </small>
                                 {(item.HSN || item.hsn_code) && (
                                   <small className="text-muted d-block">
@@ -1005,26 +1086,28 @@ const PurchaseOrderPage = () => {
                       </div>
                       <div className="col-md-1">
                         <label className="form-label fw-bold">
-                          <FaRulerCombined className="me-1" /> L
+                          <FaRulerCombined className="me-1" /> Length
                         </label>
                         <input
-                          type="text"
+                          type="number"
+                          step="0.01"
                           className="form-control"
                           name="length"
                           value={formData.length}
                           onChange={handleChange}
-                          placeholder="Length"
+                          placeholder="L"
                         />
                       </div>
                       <div className="col-md-1">
-                        <label className="form-label fw-bold">W</label>
+                        <label className="form-label fw-bold">Width</label>
                         <input
-                          type="text"
+                          type="number"
+                          step="0.01"
                           className="form-control"
                           name="width"
                           value={formData.width}
                           onChange={handleChange}
-                          placeholder="Width"
+                          placeholder="W"
                         />
                       </div>
                       <div className="col-md-1">
@@ -1041,7 +1124,26 @@ const PurchaseOrderPage = () => {
                           <option value="SET">SET</option>
                           <option value="BOX">BOX</option>
                           <option value="LTR">LTR</option>
+                          <option value="SQFT">SQFT</option>
+                          <option value="SQM">SQM</option>
                         </select>
+                      </div>
+                      <div className="col-md-2">
+                        <label className="form-label fw-bold">MRP (Per Unit)</label>
+                        <div className="input-group">
+                          <span className="input-group-text">
+                            <FaRupeeSign />
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="form-control"
+                            name="mrp"
+                            value={formData.mrp}
+                            onChange={handleChange}
+                            placeholder="MRP"
+                          />
+                        </div>
                       </div>
                       <div className="col-md-2">
                         <label className="form-label fw-bold">Quantity *</label>
@@ -1057,17 +1159,30 @@ const PurchaseOrderPage = () => {
                         />
                       </div>
                       <div className="col-md-2">
-                        <label className="form-label fw-bold">Buy Price *</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          name="buy_price"
-                          value={formData.buy_price}
-                          onChange={handleChange}
-                          min="0.01"
-                          step="0.01"
-                          required
-                        />
+                        <label className="form-label fw-bold">
+                          <FaCalculator className="me-1" /> Buy Price *
+                        </label>
+                        <div className="input-group">
+                          <span className="input-group-text">
+                            <FaRupeeSign />
+                          </span>
+                          <input
+                            type="number"
+                            className="form-control"
+                            name="buy_price"
+                            value={formData.buy_price}
+                            onChange={handleChange}
+                            min="0.01"
+                            step="0.01"
+                            required
+                            readOnly={formData.length && formData.width && formData.mrp}
+                          />
+                        </div>
+                        <small className="text-muted">
+                          {formData.length && formData.width && formData.mrp ? 
+                            `Calculated: MRP (${formData.mrp}) × L (${formData.length}) × W (${formData.width})` : 
+                            "Enter MRP, Length & Width to auto-calculate"}
+                        </small>
                       </div>
                       <div className="col-md-1 d-flex align-items-end">
                         <button 
@@ -1079,6 +1194,46 @@ const PurchaseOrderPage = () => {
                         </button>
                       </div>
                     </div>
+
+                    {/* Calculation Preview */}
+                    {formData.length && formData.width && formData.quantity && (
+                      <div className="alert alert-info mb-3">
+                        <div className="row">
+                          <div className="col-md-4">
+                            <strong>Count Calculation:</strong>
+                            <div>Length × Width × Quantity</div>
+                            <div>= {formData.length} × {formData.width} × {formData.quantity}</div>
+                            <div className="fw-bold">
+                              = {calculateCount(formData.length, formData.width, formData.quantity)}
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <strong>Price/Unit Calculation:</strong>
+                            <div>MRP × Length × Width</div>
+                            {formData.mrp && (
+                              <>
+                                <div>= {formData.mrp} × {formData.length} × {formData.width}</div>
+                                <div className="fw-bold">
+                                  = ₹{calculatePricePerUnit(formData.mrp, formData.length, formData.width)}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          <div className="col-md-4">
+                            <strong>Total Price:</strong>
+                            <div>Buy Price × Quantity</div>
+                            {formData.buy_price && formData.quantity && (
+                              <>
+                                <div>= {formData.buy_price} × {formData.quantity}</div>
+                                <div className="fw-bold">
+                                  = ₹{(parseFloat(formData.buy_price) * parseFloat(formData.quantity)).toFixed(2)}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Preview Items */}
                     <div className="mt-4">
@@ -1097,9 +1252,11 @@ const PurchaseOrderPage = () => {
                                 <th>Code</th>
                                 <th>Description</th>
                                 <th>HSN</th>
-                                <th>Size</th>
+                                <th>Size (L×W)</th>
                                 <th>Unit</th>
                                 <th>Qty</th>
+                                <th>MRP</th>
+                                <th>Count</th>
                                 <th>Buy Price</th>
                                 <th>Total</th>
                                 <th>Action</th>
@@ -1130,18 +1287,30 @@ const PurchaseOrderPage = () => {
                                   <td>{item.quantity}</td>
                                   <td>
                                     <FaRupeeSign className="me-1" />
+                                    {parseFloat(item.mrp || item.buy_price).toFixed(2)}
+                                  </td>
+                                  <td className="fw-bold text-primary">
+                                    {item.count > 0 ? (
+                                      <>
+                                        <FaCalculator className="me-1" />
+                                        {item.count}
+                                      </>
+                                    ) : '-'}
+                                  </td>
+                                  <td>
+                                    <FaRupeeSign className="me-1" />
                                     {parseFloat(item.buy_price).toFixed(2)}
                                   </td>
                                   <td className="fw-bold text-success">
                                     <FaRupeeSign className="me-1" />
-                                    {(item.quantity * item.buy_price).toFixed(2)}
+                                    {parseFloat(item.total_price || (item.quantity * item.buy_price)).toFixed(2)}
                                   </td>
                                   <td>
                                     <button
                                       className="btn btn-sm btn-outline-danger"
                                       onClick={() => removeItem(item.id)}
                                     >
-                                      Remove
+                                      <FaTimesCircle />
                                     </button>
                                   </td>
                                 </tr>
@@ -1149,7 +1318,7 @@ const PurchaseOrderPage = () => {
                             </tbody>
                             <tfoot className="table-secondary">
                               <tr>
-                                <td colSpan="10" className="text-end fw-bold">Grand Total:</td>
+                                <td colSpan="12" className="text-end fw-bold">Grand Total:</td>
                                 <td colSpan="2" className="fw-bold text-success">
                                   <FaRupeeSign className="me-1" />
                                   {calculateTotal().toLocaleString('en-IN', {
@@ -1272,7 +1441,7 @@ const PurchaseOrderPage = () => {
                         {viewData.updated_on && (
                           <p className="mb-1">
                             <strong>Updated:</strong> {viewData.updated_on?.slice(0, 16)}
-                          </p>
+                        </p>
                         )}
                       </div>
                     </div>
@@ -1292,51 +1461,68 @@ const PurchaseOrderPage = () => {
                               <th>Code</th>
                               <th>Description</th>
                               <th>HSN</th>
-                              <th>Size</th>
+                              <th>Size (L×W)</th>
                               <th>Unit</th>
                               <th>Qty</th>
+                              <th>MRP</th>
+                              <th>Count</th>
                               <th>Buy Price</th>
                               <th>Total</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {viewData.items?.map((item, index) => (
-                              <tr key={index} className={getItemRowClass(index)}>
-                                <td>{index + 1}</td>
-                                <td className="fw-bold">{item.item_name}</td>
-                                <td>{item.brand}</td>
-                                <td>{item.brand_code || '-'}</td>
-                                <td>{item.brand_description || '-'}</td>
-                                <td>
-                                  {item.hsn_code ? (
-                                    <span className="badge bg-info text-dark">
-                                      {item.hsn_code}
-                                    </span>
-                                  ) : '-'}
-                                </td>
-                                <td>
-                                  {item.length || item.width
-                                    ? `${item.length || ''}${item.width ? '×' + item.width : ''}`
-                                    : '-'
-                                  }
-                                </td>
-                                <td>{item.unit}</td>
-                                <td>{item.quantity}</td>
-                                <td>
-                                  <FaRupeeSign className="me-1" />
-                                  {parseFloat(item.buy_price).toFixed(2)}
-                                </td>
-                                <td className="fw-bold text-success">
-                                  <FaRupeeSign className="me-1" />
-                                  {(item.quantity * item.buy_price).toFixed(2)}
-                                </td>
-                              </tr>
-                            ))}
+                            {viewData.items?.map((item, index) => {
+                              const count = calculateCount(item.length, item.width, item.quantity);
+                              return (
+                                <tr key={index} className={getItemRowClass(index)}>
+                                  <td>{index + 1}</td>
+                                  <td className="fw-bold">{item.item_name}</td>
+                                  <td>{item.brand}</td>
+                                  <td>{item.brand_code || '-'}</td>
+                                  <td>{item.brand_description || '-'}</td>
+                                  <td>
+                                    {item.hsn_code ? (
+                                      <span className="badge bg-info text-dark">
+                                        {item.hsn_code}
+                                      </span>
+                                    ) : '-'}
+                                  </td>
+                                  <td>
+                                    {item.length || item.width
+                                      ? `${item.length || ''}${item.width ? '×' + item.width : ''}`
+                                      : '-'
+                                    }
+                                  </td>
+                                  <td>{item.unit}</td>
+                                  <td>{item.quantity}</td>
+                                  <td>
+                                    <FaRupeeSign className="me-1" />
+                                    {parseFloat(item.mrp || item.buy_price).toFixed(2)}
+                                  </td>
+                                  <td className="fw-bold text-primary">
+                                    {count > 0 ? (
+                                      <>
+                                        <FaCalculator className="me-1" />
+                                        {count}
+                                      </>
+                                    ) : '-'}
+                                  </td>
+                                  <td>
+                                    <FaRupeeSign className="me-1" />
+                                    {parseFloat(item.buy_price).toFixed(2)}
+                                  </td>
+                                  <td className="fw-bold text-success">
+                                    <FaRupeeSign className="me-1" />
+                                    {(item.quantity * item.buy_price).toFixed(2)}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                           <tfoot className="table-secondary">
                             <tr>
-                              <td colSpan="10" className="text-end fw-bold">Total Amount:</td>
-                              <td className="fw-bold text-success">
+                              <td colSpan="11" className="text-end fw-bold">Total Amount:</td>
+                              <td colSpan="2" className="fw-bold text-success">
                                 <FaRupeeSign className="me-1" />
                                 {parseFloat(viewData.total_amount || 0).toLocaleString('en-IN', {
                                   minimumFractionDigits: 2,

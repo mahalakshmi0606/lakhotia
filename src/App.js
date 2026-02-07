@@ -11,6 +11,8 @@ import Login from "./Components/LoginPage";
 import Header from "./Components/Header";
 import Sidebar from "./Components/Sidebar";
 import Dashboard from "./Components/Dashboard";
+import CompanyDashboard from "./Components/CompanyDashboard";
+
 import UserTypePage from "./Components/UserType";
 import EmployeePage from "./Components/Employee";
 import CompanyPage from "./Components/Company";
@@ -42,6 +44,10 @@ import SalesOrder from "./Components/SalesOrder";
 import RejectedItemsPage from "./Components/RejectedReport";
 import Purchaseorder from "./Components/PurchaseOrder";
 import PurchaseOrderPage from "./Components/PurchaseOreder_Approval";
+import EnquiryModal from "./Components/enquiry";
+import QuotationWholeReport from "./Components/QuotationWholeReport";
+import Enquiryreport from "./Components/EnquiryReport";
+import Dashboardsetter from "./Components/Dashboardsetter";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -72,20 +78,35 @@ function AppContent({
 }) {
   const navigate = useNavigate();
 
+  // ✅ LOGIN HANDLER (ROLE AWARE)
   const handleLogin = (enteredEmail) => {
     setEmail(enteredEmail);
     setIsAuthenticated(true);
-    navigate("/dashboard");
+
+    const loginType = localStorage.getItem("login_type");
+
+    if (loginType === "company") {
+      navigate("/company-dashboard", { replace: true });
+    } else {
+      navigate("/dashboard", { replace: true });
+    }
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setEmail("");
+    localStorage.clear();
     navigate("/");
   };
 
   const handleToggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  const getHomeRoute = () => {
+    return localStorage.getItem("login_type") === "company"
+      ? "/company-dashboard"
+      : "/dashboard";
   };
 
   return (
@@ -107,28 +128,52 @@ function AppContent({
             }}
           >
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" />} />
+              {/* 🔥 DEFAULT ROUTE */}
+              <Route path="/" element={<Navigate to={getHomeRoute()} replace />} />
+
+              {/* DASHBOARDS */}
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route
+                path="/company-dashboard"
+                element={<CompanyDashboard />}
+              />
+
+              {/* OTHER ROUTES */}
               <Route path="/user-types" element={<UserTypePage />} />
               <Route path="/employees" element={<EmployeePage />} />
               <Route path="/companies" element={<CompanyPage />} />
               <Route path="/departments" element={<DepartmentPage />} />
               <Route path="/designations" element={<DesignationPage />} />
               <Route path="/attendance" element={<AttendancePage />} />
-              <Route path="/AdminAttendance" element={<AdminAttendancePage />} />
+              <Route
+                path="/AdminAttendance"
+                element={<AdminAttendancePage />}
+              />
               <Route path="/visitreport" element={<VisitReport />} />
-              <Route path="/AdminVisitReport" element={<AdminVisitReport />} />
+              <Route
+                path="/AdminVisitReport"
+                element={<AdminVisitReport />}
+              />
               <Route path="/Task" element={<TaskPage />} />
               <Route path="/Taskstatus" element={<Taskstatus />} />
               <Route path="/AdminTask" element={<AdminTask />} />
-              <Route path="/AttendanceReport" element={<AttendanceReport />} />
+              <Route
+                path="/AttendanceReport"
+                element={<AttendanceReport />}
+              />
               <Route path="/EsiReport" element={<SalaryReport />} />
               <Route path="/Settings" element={<Settings />} />
               <Route path="/Loan" element={<AdvancePage />} />
               <Route path="/CasualLeave" element={<CasualLeave />} />
-              <Route path="/noesipf" element={<CasualLabourSalaryReport />} />
+              <Route
+                path="/noesipf"
+                element={<CasualLabourSalaryReport />}
+              />
               <Route path="/accesscontrol" element={<AccessControlPage />} />
-              <Route path="/quotationreport" element={<QuotationReportPage />} />
+              <Route
+                path="/quotationreport"
+                element={<QuotationReportPage />}
+              />
               <Route path="/salesorder" element={<SalesOrder />} />
               <Route path="/stockupload" element={<StockUploadPage />} />
               <Route path="/stocksold" element={<StockSoldPage />} />
@@ -136,18 +181,19 @@ function AppContent({
               <Route path="/quotation" element={<Quotation />} />
               <Route path="/rejected" element={<RejectedItemsPage />} />
               <Route path="/PurchaseOrder" element={<Purchaseorder />} />
+              <Route path="/enquiry" element={<EnquiryModal />} />
+              <Route path="/QuotationWholeReport" element={<QuotationWholeReport />} />
               <Route path="/PurchaseOrderapproval" element={<PurchaseOrderPage />} />
-
-              {/* FIXED MRP ROUTE */}
               <Route path="/mrpchange" element={<MRPChangePage />} />
+              <Route path="/enquiryreport" element={<Enquiryreport />}/>
+              <Route path="/dashboardsetter" element={<Dashboardsetter />} />
+              <Route path="/IndustrialSegmentation" element={<IndustrySegmentationPage />} />
 
-              {/* FIXED OTHER ROUTE */}
+              {/* 🔁 FALLBACK */}
               <Route
-                path="/IndustrialSegmentation"
-                element={<IndustrySegmentationPage />}
+                path="*"
+                element={<Navigate to={getHomeRoute()} replace />}
               />
-
-              <Route path="*" element={<Navigate to="/dashboard" />} />
             </Routes>
           </div>
 
@@ -156,7 +202,7 @@ function AppContent({
       ) : (
         <Routes>
           <Route path="/" element={<Login onLogin={handleLogin} />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       )}
     </div>

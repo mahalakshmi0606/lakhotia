@@ -2,9 +2,8 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { FaEdit, FaTrash, FaPlus, FaFilePdf, FaFileExcel } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
-import { Table, Button, Modal, Form, Row, Col, InputGroup, Pagination } from "react-bootstrap";
+import { Table, Button, Modal, Form, Row, Col, InputGroup, Pagination, Badge } from "react-bootstrap";
 import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 
 // ✅ FIXED IMPORTS
 import jsPDF from "jspdf";
@@ -13,6 +12,7 @@ import autoTable from "jspdf-autotable";
 import "react-toastify/dist/ReactToastify.css";
 
 const API_BASE = "http://localhost:5000/api";
+const DEFAULT_USER_TYPE = "Customer";
 
 const UserTypePage = () => {
   const [userTypes, setUserTypes] = useState([]);
@@ -20,7 +20,7 @@ const UserTypePage = () => {
   const [paginatedUserTypes, setPaginatedUserTypes] = useState([]);
 
   const [search, setSearch] = useState("");
-  
+
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -70,18 +70,17 @@ const UserTypePage = () => {
         ut.id?.toString().includes(value)
     );
     setFilteredUserTypes(filtered);
-    setCurrentPage(1); // Reset to first page on search
+    setCurrentPage(1);
   };
 
   const updatePagination = () => {
     const total = filteredUserTypes.length;
     const pages = Math.ceil(total / itemsPerPage);
     setTotalPages(pages || 1);
-    
+
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    const paginatedData = filteredUserTypes.slice(startIndex, endIndex);
-    setPaginatedUserTypes(paginatedData);
+    setPaginatedUserTypes(filteredUserTypes.slice(startIndex, endIndex));
   };
 
   const resetForm = () => {
@@ -98,131 +97,54 @@ const UserTypePage = () => {
     }
 
     try {
+      let res;
       if (editId !== null) {
-        // ✅ Update user type
-        const res = await axios.put(`${API_BASE}/usertype/${editId}`, formData);
-        if (res.data.success) {
-          toast.success(res.data.message || "User type updated successfully!");
-        } else {
-          toast.error(res.data.message || "Failed to update user type!");
-        }
+        res = await axios.put(`${API_BASE}/usertype/${editId}`, formData);
       } else {
-        // ✅ Add user type
-        const res = await axios.post(`${API_BASE}/usertype`, formData);
-        if (res.data.success) {
-          toast.success(res.data.message || "User type added successfully!");
-        } else {
-          toast.error(res.data.message || "Failed to add user type!");
-        }
+        res = await axios.post(`${API_BASE}/usertype`, formData);
       }
-      
-      fetchUserTypes();
-      resetForm();
+
+      if (res.data.success) {
+        toast.success(res.data.message);
+        fetchUserTypes();
+        resetForm();
+      } else {
+        toast.error(res.data.message);
+      }
     } catch (error) {
-      console.error(error);
-      toast.error("Error submitting data!");
+      toast.error(error.response?.data?.message || "Error submitting data!");
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (ut) => {
+    if (ut.name === DEFAULT_USER_TYPE) {
+      toast.warning("Default user type cannot be deleted");
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this user type?")) return;
-    
+
     try {
-      const res = await axios.delete(`${API_BASE}/usertype/${id}`);
+      const res = await axios.delete(`${API_BASE}/usertype/${ut.id}`);
       if (res.data.success) {
         toast.success("User type deleted!");
         fetchUserTypes();
       } else {
-        toast.error(res.data.message || "Failed to delete user type!");
+        toast.error(res.data.message);
       }
     } catch (error) {
-      console.error(error);
-      toast.error("Error deleting user type!");
+      toast.error(error.response?.data?.message || "Error deleting user type!");
     }
   };
 
   const handleEdit = (ut) => {
+    if (ut.name === DEFAULT_USER_TYPE) {
+      toast.info("Default user type cannot be edited");
+      return;
+    }
     setFormData({ name: ut.name });
     setEditId(ut.id);
     setFormOpen(true);
-  };
-
-  // Pagination handlers
-  const goToPage = (page) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
-  };
-
-  const renderPaginationItems = () => {
-    const items = [];
-    const maxVisiblePages = 5;
-    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-    if (endPage - startPage + 1 < maxVisiblePages) {
-      startPage = Math.max(1, endPage - maxVisiblePages + 1);
-    }
-
-    // Previous button
-    items.push(
-      <Pagination.Prev 
-        key="prev" 
-        onClick={() => goToPage(currentPage - 1)}
-        disabled={currentPage === 1}
-      />
-    );
-
-    // First page
-    if (startPage > 1) {
-      items.push(
-        <Pagination.Item key={1} onClick={() => goToPage(1)}>
-          1
-        </Pagination.Item>
-      );
-      if (startPage > 2) {
-        items.push(<Pagination.Ellipsis key="ellipsis1" />);
-      }
-    }
-
-    // Page numbers
-    for (let i = startPage; i <= endPage; i++) {
-      items.push(
-        <Pagination.Item 
-          key={i} 
-          active={i === currentPage}
-          onClick={() => goToPage(i)}
-        >
-          {i}
-        </Pagination.Item>
-      );
-    }
-
-    // Last page
-    if (endPage < totalPages) {
-      if (endPage < totalPages - 1) {
-        items.push(<Pagination.Ellipsis key="ellipsis2" />);
-      }
-      items.push(
-        <Pagination.Item 
-          key={totalPages} 
-          onClick={() => goToPage(totalPages)}
-        >
-          {totalPages}
-        </Pagination.Item>
-      );
-    }
-
-    // Next button
-    items.push(
-      <Pagination.Next 
-        key="next" 
-        onClick={() => goToPage(currentPage + 1)}
-        disabled={currentPage === totalPages}
-      />
-    );
-
-    return items;
   };
 
   // ---------------------- EXPORTS --------------------------
@@ -236,20 +158,11 @@ const UserTypePage = () => {
 
   const exportPDF = () => {
     const doc = new jsPDF();
-
     doc.text("User Types List", 14, 15);
 
-    const tableColumn = ["ID", "User Type Name"];
-
-    const tableRows = filteredUserTypes.map((ut) => [
-      ut.id,
-      ut.name,
-    ]);
-
-    // ✅ FIXED PDF TABLE
     autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
+      head: [["ID", "User Type Name"]],
+      body: filteredUserTypes.map((ut) => [ut.id, ut.name]),
       startY: 25,
     });
 
@@ -310,13 +223,29 @@ const UserTypePage = () => {
             {paginatedUserTypes.map((ut) => (
               <tr key={ut.id} className="text-center">
                 <td>{ut.id}</td>
-                <td>{ut.name}</td>
                 <td>
-                  <Button size="sm" variant="warning" className="me-2" onClick={() => handleEdit(ut)}>
+                  {ut.name}
+                  {ut.name === DEFAULT_USER_TYPE && (
+                    <Badge bg="secondary" className="ms-2">Default</Badge>
+                  )}
+                </td>
+                <td>
+                  <Button
+                    size="sm"
+                    variant="warning"
+                    className="me-2"
+                    disabled={ut.name === DEFAULT_USER_TYPE}
+                    onClick={() => handleEdit(ut)}
+                  >
                     <FaEdit />
                   </Button>
 
-                  <Button size="sm" variant="danger" onClick={() => handleDelete(ut.id)}>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    disabled={ut.name === DEFAULT_USER_TYPE}
+                    onClick={() => handleDelete(ut)}
+                  >
                     <FaTrash />
                   </Button>
                 </td>
@@ -330,16 +259,26 @@ const UserTypePage = () => {
       {filteredUserTypes.length > 0 && (
         <div className="d-flex justify-content-between align-items-center mt-3">
           <div className="text-muted">
-            Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredUserTypes.length)} of {filteredUserTypes.length} entries
+            Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+            {Math.min(currentPage * itemsPerPage, filteredUserTypes.length)} of{" "}
+            {filteredUserTypes.length} entries
           </div>
           <Pagination className="mb-0">
-            {renderPaginationItems()}
+            {[...Array(totalPages)].map((_, i) => (
+              <Pagination.Item
+                key={i}
+                active={i + 1 === currentPage}
+                onClick={() => setCurrentPage(i + 1)}
+              >
+                {i + 1}
+              </Pagination.Item>
+            ))}
           </Pagination>
         </div>
       )}
 
       {/* FORM MODAL */}
-      <Modal show={formOpen} onHide={() => setFormOpen(false)} centered>
+      <Modal show={formOpen} onHide={resetForm} centered>
         <Modal.Header closeButton>
           <Modal.Title>{editId ? "Edit User Type" : "Add User Type"}</Modal.Title>
         </Modal.Header>
@@ -347,12 +286,12 @@ const UserTypePage = () => {
         <Modal.Body>
           <Form.Group className="mb-2">
             <Form.Label>User Type Name</Form.Label>
-            <Form.Control 
-              name="name" 
-              value={formData.name} 
-              onChange={handleChange} 
+            <Form.Control
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
               placeholder="Enter user type name"
-              required 
+              required
             />
           </Form.Group>
 
