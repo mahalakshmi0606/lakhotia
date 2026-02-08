@@ -39,6 +39,7 @@ export default function StockUploadPage() {
   const [showGrnModal, setShowGrnModal] = useState(false);
   const [showSoldModal, setShowSoldModal] = useState(false); // New modal state
   const [existingStockMap, setExistingStockMap] = useState({});
+  const [deductionStatus, setDeductionStatus] = useState({}); // Track deduction status for sold items
 
   // Loading states
   const [loadingStock, setLoadingStock] = useState(false);
@@ -80,6 +81,121 @@ export default function StockUploadPage() {
         return r;
       });
     });
+  };
+
+  // -------------------------
+  // NEW: Deduct sold quantity from matching stock
+  // -------------------------
+  const deductFromStock = (soldItem) => {
+    if (!soldItem._hasMatch) {
+      alert("No matching stock found for this item. Cannot deduct.");
+      return;
+    }
+
+    // Find the matching stock item in current rows
+    const matchingStockItem = findMatchingStockItemInRows(soldItem);
+    
+    if (!matchingStockItem) {
+      alert("Matching stock item not found in current table.");
+      return;
+    }
+
+    const soldQty = parseFloat(soldItem["Qty"]) || 0;
+    const stockQty = parseFloat(matchingStockItem["Qty"]) || 0;
+    
+    if (stockQty < soldQty) {
+      const confirmProceed = window.confirm(
+        `Warning: Sold quantity (${soldQty}) is greater than available stock (${stockQty}).\n` +
+        `Do you want to proceed with deduction?`
+      );
+      
+      if (!confirmProceed) {
+        return;
+      }
+    }
+
+    // Calculate new quantity
+    const newQty = Math.max(0, stockQty - soldQty);
+    
+    // Update the stock row
+    setRows(prev => 
+      prev.map(row => {
+        if (row._id === matchingStockItem._id) {
+          const updatedRow = { 
+            ...row, 
+            "Qty": newQty.toString(),
+            "AutoCalculate Count": calculateCount(
+              row["Length"],
+              row["Width"],
+              newQty
+            )
+          };
+          return updatedRow;
+        }
+        return row;
+      })
+    );
+
+    // Mark this sold item as deducted
+    setDeductionStatus(prev => ({
+      ...prev,
+      [soldItem._id]: {
+        deducted: true,
+        stockItemId: matchingStockItem._id,
+        originalQty: stockQty,
+        soldQty: soldQty,
+        newQty: newQty
+      }
+    }));
+
+    // Update sold item status
+    setSoldItems(prev =>
+      prev.map(item =>
+        item._id === soldItem._id
+          ? { ...item, _deducted: true, _deductionInfo: `Deducted ${soldQty} from stock` }
+          : item
+      )
+    );
+
+    setSuccess(`Deducted ${soldQty} from "${soldItem["Item Name"]}". New quantity: ${newQty}`);
+  };
+
+  // -------------------------
+  // Helper: Find matching stock item in current rows
+  // -------------------------
+  const findMatchingStockItemInRows = (soldItem) => {
+    const itemName = (soldItem["Item Name"] || "").toLowerCase().trim();
+    const brandCode = (soldItem["Brand Code"] || "").toLowerCase().trim();
+    const brand = (soldItem["Brand"] || "").toLowerCase().trim();
+    const batchCode = (soldItem["Batch Code"] || "").toLowerCase().trim();
+    
+    // Try to find in current rows
+    for (const row of rows) {
+      let match = false;
+      
+      // Match by Item Name
+      if (itemName && (row["Item Name"] || "").toLowerCase().trim() === itemName) {
+        match = true;
+      }
+      // Match by Brand Code
+      else if (brandCode && (row["Brand Code"] || "").toLowerCase().trim() === brandCode) {
+        match = true;
+      }
+      // Match by Brand
+      else if (brand && (row["Brand"] || "").toLowerCase().trim() === brand) {
+        match = true;
+      }
+      // Match by Batch Code
+      else if (batchCode && (row["Batch Code"] || "").toLowerCase().trim() === batchCode) {
+        match = true;
+      }
+      
+      if (match) {
+        return row;
+      }
+    }
+    
+    return null;
   };
 
   // -------------------------
@@ -286,7 +402,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // NEW: Fetch Stock Sold items with intelligent matching
+  // Fetch Stock Sold items with intelligent matching
   // ----------------------------------------------------
   const fetchSoldItems = async () => {
     try {
@@ -321,7 +437,9 @@ export default function StockUploadPage() {
             _taskId: sold.task_id,
             _remarks: sold.sold_remarks,
             _hasMatch: false,
-            _matchReason: ""
+            _matchReason: "",
+            _deducted: false,
+            _deductionInfo: ""
           };
           
           // Try to find matching stock item
@@ -390,7 +508,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // NEW: Load Stock Sold items into stock table
+  // Load Stock Sold items into stock table
   // ----------------------------------------------------
   const loadSoldItemsToStock = (selectedItems = []) => {
     let itemsToAdd;
@@ -741,6 +859,8 @@ export default function StockUploadPage() {
         delete copy._remarks;
         delete copy._hasMatch;
         delete copy._matchReason;
+        delete copy._deducted;
+        delete copy._deductionInfo;
         
         const numericFields = ["Length", "Width", "Qty", "Buy Price", "MRP", "GST"];
         numericFields.forEach(field => {
@@ -907,7 +1027,17 @@ export default function StockUploadPage() {
         let message = "Stock data processed successfully!";
         if (savedNewCount > 0) message += ` Added ${savedNewCount} new items.`;
         if (updatedCount > 0) message += ` Updated ${updatedCount} existing items.`;
+        
+        // Check if any deductions were made
+        const deductedItems = Object.keys(deductionStatus).length;
+        if (deductedItems > 0) {
+          message += ` ${deductedItems} sold items deducted from stock.`;
+        }
+        
         setSuccess(message);
+        
+        // Clear deduction status after successful save
+        setDeductionStatus({});
         
         // Refresh data
         const refreshRes = await fetch("http://localhost:5000/api/stock/all");
@@ -1043,7 +1173,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // NEW: Refresh Sold items
+  // Refresh Sold items
   // ----------------------------------------------------
   const refreshSoldItems = () => {
     fetchSoldItems();
@@ -1367,7 +1497,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // NEW: Stock Sold Modal Component
+  // Stock Sold Modal Component
   // ----------------------------------------------------
   const SoldModal = () => {
     const [selectedItems, setSelectedItems] = useState([]);
@@ -1437,7 +1567,8 @@ export default function StockUploadPage() {
             <div>
               <h3 style={{ margin: 0 }}>Import Items from Stock Sold</h3>
               <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>
-                Items with matching stock entries will automatically get Length, Width, Batch Code & Brand Code values
+                Items with matching stock entries will automatically get Length, Width, Batch Code & Brand Code values.
+                Click "Deduct" button to subtract sold quantity from current stock.
               </p>
             </div>
             <button 
@@ -1473,8 +1604,13 @@ export default function StockUploadPage() {
               <div style={{ color: "#666" }}>
                 Found {filteredSoldItems.length} items • Selected {selectedItems.length} items • 
                 <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
-                  {filteredSoldItems.filter(item => item._hasMatch).length} items have matched dimensions
+                  {filteredSoldItems.filter(item => item._hasMatch).length} items can be deducted from stock
                 </span>
+                {Object.keys(deductionStatus).length > 0 && (
+                  <span style={{ color: "#007bff", fontWeight: "bold", marginLeft: "10px" }}>
+                    {Object.keys(deductionStatus).length} deductions pending
+                  </span>
+                )}
               </div>
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
@@ -1554,82 +1690,197 @@ export default function StockUploadPage() {
                     <th>Width</th>
                     <th>Auto Calc</th>
                     <th>Status</th>
+                    <th style={{ width: "120px" }}>Action</th>
                     <th>Customer</th>
                     <th>Sold Date</th>
                     <th>Task ID</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSoldItems.map((item) => (
-                    <tr key={item._id} style={{ 
-                      background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
-                      borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd"
-                    }}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.includes(item._id)}
-                          onChange={() => toggleSelectItem(item._id)}
-                        />
-                      </td>
-                      <td>{item["Item Name"]}</td>
-                      <td>{item["Brand"]}</td>
-                      <td>{item["HSN"] || "-"}</td>
-                      <td>{item["Qty"]}</td>
-                      <td>{item["MRP"] || "-"}</td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
+                  {filteredSoldItems.map((item) => {
+                    const isDeducted = item._deducted || deductionStatus[item._id]?.deducted;
+                    
+                    return (
+                      <tr key={item._id} style={{ 
+                        background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
+                        borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd",
+                        opacity: isDeducted ? 0.7 : 1
                       }}>
-                        {item["Length"] || "-"}
-                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                      </td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["Width"] || "-"}
-                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                      </td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["AutoCalculate Count"] || "-"}
-                      </td>
-                      <td>
-                        {item._hasMatch ? (
-                          <span style={{
-                            background: "#28a745",
-                            color: "white",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            fontWeight: "bold"
-                          }}
-                          title={item._matchReason}
-                          >
-                            Matched
-                          </span>
-                        ) : (
-                          <span style={{
-                            background: "#6c757d",
-                            color: "white",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "12px"
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.includes(item._id)}
+                            onChange={() => toggleSelectItem(item._id)}
+                            disabled={isDeducted}
+                          />
+                        </td>
+                        <td>{item["Item Name"]}</td>
+                        <td>{item["Brand"]}</td>
+                        <td>{item["HSN"] || "-"}</td>
+                        <td>
+                          <span style={{ 
+                            fontWeight: "bold",
+                            color: isDeducted ? "#28a745" : "inherit"
                           }}>
-                            No Match
+                            {item["Qty"]}
+                            {isDeducted && (
+                              <span style={{ 
+                                fontSize: "10px", 
+                                color: "#28a745", 
+                                marginLeft: "5px",
+                                fontWeight: "normal"
+                              }}>
+                                ✓ Deducted
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </td>
-                      <td>{item._customer || "-"}</td>
-                      <td>{item._soldDate || "-"}</td>
-                      <td>{item._taskId || "-"}</td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>{item["MRP"] || "-"}</td>
+                        <td style={{ 
+                          background: item._hasMatch ? "#d4edda" : "transparent",
+                          fontWeight: item._hasMatch ? "bold" : "normal"
+                        }}>
+                          {item["Length"] || "-"}
+                          {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                        </td>
+                        <td style={{ 
+                          background: item._hasMatch ? "#d4edda" : "transparent",
+                          fontWeight: item._hasMatch ? "bold" : "normal"
+                        }}>
+                          {item["Width"] || "-"}
+                          {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                        </td>
+                        <td style={{ 
+                          background: item._hasMatch ? "#d4edda" : "transparent",
+                          fontWeight: item._hasMatch ? "bold" : "normal"
+                        }}>
+                          {item["AutoCalculate Count"] || "-"}
+                        </td>
+                        <td>
+                          {isDeducted ? (
+                            <span style={{
+                              background: "#28a745",
+                              color: "white",
+                              padding: "2px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              fontWeight: "bold"
+                            }}
+                            title={item._deductionInfo || "Quantity deducted from stock"}
+                            >
+                              Deducted
+                            </span>
+                          ) : item._hasMatch ? (
+                            <span style={{
+                              background: "#28a745",
+                              color: "white",
+                              padding: "2px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px",
+                              fontWeight: "bold"
+                            }}
+                            title={item._matchReason}
+                            >
+                              Can Deduct
+                            </span>
+                          ) : (
+                            <span style={{
+                              background: "#6c757d",
+                              color: "white",
+                              padding: "2px 8px",
+                              borderRadius: "12px",
+                              fontSize: "12px"
+                            }}>
+                              No Match
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {item._hasMatch && !isDeducted ? (
+                            <button
+                              onClick={() => deductFromStock(item)}
+                              style={{
+                                background: "#ff9800",
+                                color: "white",
+                                border: "none",
+                                padding: "6px 12px",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                fontWeight: "bold",
+                                width: "100%"
+                              }}
+                              title={`Deduct ${item["Qty"]} from current stock`}
+                            >
+                              Deduct from Stock
+                            </button>
+                          ) : isDeducted ? (
+                            <span style={{
+                              color: "#28a745",
+                              fontSize: "12px",
+                              fontWeight: "bold"
+                            }}>
+                              ✓ Done
+                            </span>
+                          ) : (
+                            <span style={{
+                              color: "#999",
+                              fontSize: "12px"
+                            }}>
+                              -
+                            </span>
+                          )}
+                        </td>
+                        <td>{item._customer || "-"}</td>
+                        <td>{item._soldDate || "-"}</td>
+                        <td>{item._taskId || "-"}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {Object.keys(deductionStatus).length > 0 && (
+            <div style={{
+              marginTop: "20px",
+              padding: "15px",
+              backgroundColor: "#e8f4fd",
+              border: "1px solid #b6d4fe",
+              borderRadius: "6px"
+            }}>
+              <div style={{ fontWeight: "bold", marginBottom: "10px", color: "#0c63e4" }}>
+                ⚠️ Pending Deductions ({Object.keys(deductionStatus).length})
+              </div>
+              <div style={{ fontSize: "14px", marginBottom: "10px" }}>
+                The following sold quantities have been deducted from stock in this table. 
+                Click "Save All Items" to permanently update the database with the new quantities.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                {Object.entries(deductionStatus).map(([itemId, status]) => {
+                  const item = filteredSoldItems.find(i => i._id === itemId);
+                  if (!item) return null;
+                  
+                  return (
+                    <div key={itemId} style={{
+                      background: "white",
+                      padding: "8px 12px",
+                      borderRadius: "4px",
+                      border: "1px solid #86b7fe",
+                      fontSize: "13px"
+                    }}>
+                      <strong>{item["Item Name"]}</strong>: 
+                      <span style={{ color: "#dc3545", marginLeft: "5px" }}>
+                        {status.originalQty} → {status.newQty}
+                      </span>
+                      <span style={{ color: "#28a745", marginLeft: "5px" }}>
+                        (-{status.soldQty})
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
@@ -1722,6 +1973,56 @@ export default function StockUploadPage() {
           </div>
         </div>
       )}
+      
+      {/* Deduction status box */}
+      {Object.keys(deductionStatus).length > 0 && (
+        <div
+          style={{
+            background: "#d1ecf1",
+            padding: 12,
+            marginBottom: 18,
+            borderRadius: 6,
+            border: "1px solid #bee5eb",
+          }}
+        >
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: "#0c5460" }}>
+            📊 Stock Deductions Pending ({Object.keys(deductionStatus).length})
+          </div>
+          <div style={{ marginBottom: 10, color: "#0c5460" }}>
+            You have deducted quantities from {Object.keys(deductionStatus).length} sold items.
+            Click "Save All Items" to permanently update stock quantities in the database.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={saveToBackend}
+              style={{
+                background: "green",
+                color: "#fff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: 5,
+                cursor: "pointer",
+                fontWeight: "bold"
+              }}
+            >
+              💾 Save All Items (Including Deductions)
+            </button>
+            <button
+              onClick={() => setDeductionStatus({})}
+              style={{
+                background: "#6c757d",
+                color: "#fff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: 5,
+                cursor: "pointer",
+              }}
+            >
+              Clear Deductions
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header + actions */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16 }}>
@@ -1756,7 +2057,7 @@ export default function StockUploadPage() {
             {loadingGrn && <span style={spinnerStyle} />}
           </button>
 
-          {/* NEW: Import from Stock Sold button */}
+          {/* Import from Stock Sold button */}
           <button
             onClick={() => {
               setShowSoldModal(true);
@@ -1764,18 +2065,44 @@ export default function StockUploadPage() {
             }}
             style={{ background: "#9c27b0", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
             disabled={loadingSold}
-            title="Import from Stock Sold (items will get dimensions, batch & brand codes from matching stock)"
+            title="Import from Stock Sold (deduct sold quantities from current stock)"
           >
             Import from Stock Sold
             {loadingSold && <span style={spinnerStyle} />}
+            {Object.keys(deductionStatus).length > 0 && (
+              <span style={{
+                background: "#dc3545",
+                color: "white",
+                borderRadius: "50%",
+                width: "20px",
+                height: "20px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "12px",
+                fontWeight: "bold",
+                marginLeft: "5px"
+              }}>
+                {Object.keys(deductionStatus).length}
+              </span>
+            )}
           </button>
 
           <button
             onClick={saveToBackend}
-            style={{ background: "green", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            style={{ 
+              background: Object.keys(deductionStatus).length > 0 ? "#28a745" : "green", 
+              color: "#fff", 
+              padding: "8px 16px", 
+              borderRadius: 6, 
+              border: "none", 
+              cursor: "pointer",
+              fontWeight: Object.keys(deductionStatus).length > 0 ? "bold" : "normal"
+            }}
             disabled={saving}
+            title={Object.keys(deductionStatus).length > 0 ? "Save all items including stock deductions" : "Save all items"}
           >
-            {saving ? "Processing..." : "Save All Items"}
+            {saving ? "Processing..." : Object.keys(deductionStatus).length > 0 ? `💾 Save (${Object.keys(deductionStatus).length} deductions)` : "Save All Items"}
             {saving && <span style={spinnerStyle} />}
           </button>
 
@@ -1874,6 +2201,11 @@ export default function StockUploadPage() {
           <div style={{ fontWeight: 600 }}>
             Showing {indexOfFirstRow + 1} to {Math.min(indexOfLastRow, displayRows.length)} of {displayRows.length} entries
             {searchTerm && <span style={{ color: "#007bff", marginLeft: 8 }}>(Filtered)</span>}
+            {Object.keys(deductionStatus).length > 0 && (
+              <span style={{ color: "#28a745", marginLeft: 8 }}>
+                • {Object.keys(deductionStatus).length} deductions pending
+              </span>
+            )}
           </div>
           
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -1983,60 +2315,80 @@ export default function StockUploadPage() {
 
           <tbody>
             {currentRows.length > 0 ? (
-              currentRows.map((row, idx) => (
-                <tr key={row._id || idx}>
-                  <td style={{ width: 36 }}>{indexOfFirstRow + idx + 1}</td>
+              currentRows.map((row, idx) => {
+                // Check if this row has pending deductions
+                const hasDeduction = Object.values(deductionStatus).some(
+                  status => status.stockItemId === row._id
+                );
+                
+                return (
+                  <tr key={row._id || idx} style={{
+                    background: hasDeduction ? "#f8f9e6" : "transparent",
+                    borderLeft: hasDeduction ? "4px solid #ff9800" : "1px solid #ddd"
+                  }}>
+                    <td style={{ width: 36 }}>{indexOfFirstRow + idx + 1}</td>
 
-                  {fixedHeaders.map((h) => (
-                    <td key={h}>
-                      {h === "AutoCalculate Count" ? (
-                        <div style={{ 
-                          width: "100%", 
-                          boxSizing: "border-box", 
-                          padding: 6,
-                          backgroundColor: "#f5f5f5",
-                          border: "1px solid #ddd",
-                          borderRadius: "3px",
-                          textAlign: "center",
-                          fontWeight: "bold"
-                        }}>
-                          {row[h] || "0"}
-                        </div>
-                      ) : (
-                        <input
-                          value={row[h] ?? ""}
-                          onChange={(e) => updateCell(row._id, h, e.target.value)}
-                          style={{ 
+                    {fixedHeaders.map((h) => (
+                      <td key={h}>
+                        {h === "AutoCalculate Count" ? (
+                          <div style={{ 
                             width: "100%", 
                             boxSizing: "border-box", 
                             padding: 6,
+                            backgroundColor: "#f5f5f5",
                             border: "1px solid #ddd",
-                            borderRadius: "3px"
-                          }}
-                          placeholder={h === "ID" ? "Auto-generated" : ""}
-                          readOnly={h === "ID" && typeof row[h] === "string" && row[h].startsWith("ID")}
-                        />
+                            borderRadius: "3px",
+                            textAlign: "center",
+                            fontWeight: "bold"
+                          }}>
+                            {row[h] || "0"}
+                          </div>
+                        ) : (
+                          <input
+                            value={row[h] ?? ""}
+                            onChange={(e) => updateCell(row._id, h, e.target.value)}
+                            style={{ 
+                              width: "100%", 
+                              boxSizing: "border-box", 
+                              padding: 6,
+                              border: "1px solid #ddd",
+                              borderRadius: "3px"
+                            }}
+                            placeholder={h === "ID" ? "Auto-generated" : ""}
+                            readOnly={h === "ID" && typeof row[h] === "string" && row[h].startsWith("ID")}
+                          />
+                        )}
+                      </td>
+                    ))}
+
+                    <td>
+                      <button
+                        onClick={() => deleteRow(row._id, row)}
+                        style={{ 
+                          background: "#e74c3c", 
+                          color: "#fff", 
+                          border: "none", 
+                          padding: "6px 10px", 
+                          borderRadius: 6, 
+                          cursor: "pointer" 
+                        }}
+                      >
+                        Delete
+                      </button>
+                      {hasDeduction && (
+                        <div style={{
+                          fontSize: "11px",
+                          color: "#ff9800",
+                          marginTop: "4px",
+                          fontWeight: "bold"
+                        }}>
+                          ⚠️ Pending deduction
+                        </div>
                       )}
                     </td>
-                  ))}
-
-                  <td>
-                    <button
-                      onClick={() => deleteRow(row._id, row)}
-                      style={{ 
-                        background: "#e74c3c", 
-                        color: "#fff", 
-                        border: "none", 
-                        padding: "6px 10px", 
-                        borderRadius: 6, 
-                        cursor: "pointer" 
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))
+                  </tr>
+                );
+              })
             ) : (
               <tr>
                 <td colSpan={fixedHeaders.length + 2} style={{ textAlign: "center", padding: 12 }}>

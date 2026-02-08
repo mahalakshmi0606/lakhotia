@@ -157,7 +157,7 @@ const Sidebar = ({ isOpen }) => {
 
   useEffect(() => {
     // Only fetch permissions if userTypeName exists and is not "undefined"
-    if (userTypeName && userTypeName !== "undefined" && userTypeName !== "unknown") {
+    if (userTypeName && userTypeName !== "common" && userTypeName !== "unknown") {
       fetchPermissions(userTypeName);
     }
     // Expand all categories by default
