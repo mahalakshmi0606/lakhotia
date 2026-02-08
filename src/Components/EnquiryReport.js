@@ -138,6 +138,14 @@ export default function EnquiryModal() {
   // DOM ref for enquiry content
   const enquiryRef = useRef(null);
 
+  // NEW: Export states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState(dayjs().subtract(30, 'day').format('YYYY-MM-DD'));
+  const [exportEndDate, setExportEndDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [exportStatus, setExportStatus] = useState('all'); // all, draft, converted, lost
+  const [exporting, setExporting] = useState(false);
+  const [exportData, setExportData] = useState([]);
+
   // =============== UPDATED: API Configuration ===============
   const API_BASE_URL = "http://localhost:5000";
   
@@ -1252,6 +1260,252 @@ export default function EnquiryModal() {
     setCurrentPage(1);
   };
 
+  // =============== NEW: Export Functions ===============
+  const fetchExportData = async () => {
+    setExporting(true);
+    try {
+      const params = {
+        start_date: exportStartDate,
+        end_date: exportEndDate,
+        status: exportStatus === 'all' ? '' : exportStatus
+      };
+      
+      const response = await api.get('/api/enquiries/export', { params });
+      
+      if (response.data.success) {
+        setExportData(response.data.data || []);
+        
+        if (response.data.data.length === 0) {
+          alert("No data found for the selected date range and status.");
+          return [];
+        }
+        
+        return response.data.data;
+      } else {
+        throw new Error(response.data.message || "Failed to fetch export data");
+      }
+    } catch (err) {
+      console.error("Export fetch error:", err);
+      alert("Failed to fetch data for export. Using local data as fallback.");
+      
+      // Fallback to localStorage
+      const saved = localStorage.getItem("savedEnquiries");
+      if (saved) {
+        try {
+          const allEnquiries = JSON.parse(saved);
+          const filtered = allEnquiries.filter(enquiry => {
+            const enquiryDate = dayjs(enquiry.date || enquiry.createdAt);
+            const isDateInRange = enquiryDate.isAfter(dayjs(exportStartDate).subtract(1, 'day')) &&
+                                  enquiryDate.isBefore(dayjs(exportEndDate).add(1, 'day'));
+            const isStatusMatch = exportStatus === 'all' || enquiry.status === exportStatus;
+            return isDateInRange && isStatusMatch;
+          });
+          
+          setExportData(filtered);
+          return filtered;
+        } catch (e) {
+          console.error("Error parsing localStorage:", e);
+          return [];
+        }
+      }
+      return [];
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportToExcel = async () => {
+    const data = await fetchExportData();
+    
+    if (data.length === 0) {
+      return;
+    }
+    
+    // Prepare Excel data
+    const excelData = data.map((enquiry, index) => {
+      const items = enquiry.items || [];
+      const totalItems = items.length;
+      const totalQuantity = items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
+      const totalCount = items.reduce((sum, item) => {
+        const width = parseFloat(item.cut_width) || 0;
+        const length = parseFloat(item.length) || 0;
+        const quantity = parseFloat(item.quantity) || 0;
+        return sum + Math.round(width * length * quantity);
+      }, 0);
+      
+      return {
+        'S.No': index + 1,
+        'Enquiry No': enquiry.enquiry_number || enquiry.enquiryNo || 'N/A',
+        'Date': enquiry.date || enquiry.createdAt?.split('T')[0] || 'N/A',
+        'Time': enquiry.time || enquiry.createdAt?.split('T')[1]?.split('.')[0] || 'N/A',
+        'Company Name': enquiry.company_name || enquiry.billTo || 'N/A',
+        'Contact Person': enquiry.contact_person || enquiry.contactPerson || 'N/A',
+        'Contact Mobile': enquiry.contact_mobile || enquiry.contactMob || 'N/A',
+        'Contact Email': enquiry.contact_email || enquiry.contactEmail || 'N/A',
+        'Status': enquiry.status || 'draft',
+        'Total Items': totalItems,
+        'Total Quantity': totalQuantity,
+        'Total Count': totalCount,
+        'Created By': enquiry.created_by || 'User',
+        'Created At': enquiry.createdAt || 'N/A'
+      };
+    });
+    
+    // Create CSV content
+    const headers = Object.keys(excelData[0]);
+    const csvContent = [
+      headers.join(','),
+      ...excelData.map(row => headers.map(header => `"${row[header]}"`).join(','))
+    ].join('\n');
+    
+    // Create and download CSV file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `enquiries_${exportStartDate}_to_${exportEndDate}_${exportStatus}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert(`Exported ${data.length} enquiries to CSV successfully!`);
+    setShowExportModal(false);
+  };
+
+  const exportToPDF = async () => {
+    const data = await fetchExportData();
+    
+    if (data.length === 0) {
+      return;
+    }
+    
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let yPos = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      
+      // Add header
+      pdf.setFontSize(20);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Enquiries Report', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+      
+      pdf.setFontSize(12);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Date Range: ${exportStartDate} to ${exportEndDate}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 5;
+      pdf.text(`Status: ${exportStatus === 'all' ? 'All Statuses' : exportStatus}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 0, 0);
+      
+      // Add summary
+      pdf.setFontSize(11);
+      pdf.text(`Total Enquiries: ${data.length}`, margin, yPos);
+      yPos += 10;
+      
+      // Create table headers
+      const headers = [
+        { header: 'S.No', width: 10 },
+        { header: 'Enquiry No', width: 30 },
+        { header: 'Date', width: 25 },
+        { header: 'Company', width: 40 },
+        { header: 'Contact', width: 30 },
+        { header: 'Items', width: 15 },
+        { header: 'Status', width: 20 }
+      ];
+      
+      const colWidths = headers.map(h => h.width);
+      const colPositions = [margin];
+      for (let i = 0; i < colWidths.length - 1; i++) {
+        colPositions.push(colPositions[i] + colWidths[i]);
+      }
+      
+      // Draw table headers
+      pdf.setFillColor(240, 240, 240);
+      pdf.rect(margin, yPos, pageWidth - 2 * margin, 10, 'F');
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFont(undefined, 'bold');
+      
+      headers.forEach((header, index) => {
+        pdf.text(header.header, colPositions[index], yPos + 7);
+      });
+      
+      yPos += 12;
+      pdf.setFont(undefined, 'normal');
+      
+      // Add table rows
+      data.forEach((enquiry, index) => {
+        // Check if we need a new page
+        if (yPos > pageHeight - 20) {
+          pdf.addPage();
+          yPos = 20;
+          
+          // Redraw headers on new page
+          pdf.setFillColor(240, 240, 240);
+          pdf.rect(margin, yPos, pageWidth - 2 * margin, 10, 'F');
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFont(undefined, 'bold');
+          
+          headers.forEach((header, i) => {
+            pdf.text(header.header, colPositions[i], yPos + 7);
+          });
+          
+          yPos += 12;
+          pdf.setFont(undefined, 'normal');
+        }
+        
+        const items = enquiry.items || [];
+        const totalItems = items.length;
+        
+        const rowData = [
+          (index + 1).toString(),
+          enquiry.enquiry_number || enquiry.enquiryNo || 'N/A',
+          enquiry.date || enquiry.createdAt?.split('T')[0] || 'N/A',
+          (enquiry.company_name || enquiry.billTo || 'N/A').substring(0, 20),
+          (enquiry.contact_person || enquiry.contactPerson || 'N/A').substring(0, 15),
+          totalItems.toString(),
+          enquiry.status || 'draft'
+        ];
+        
+        // Set status color
+        if (enquiry.status === 'converted') {
+          pdf.setTextColor(0, 128, 0);
+        } else if (enquiry.status === 'lost') {
+          pdf.setTextColor(255, 0, 0);
+        } else {
+          pdf.setTextColor(0, 0, 0);
+        }
+        
+        rowData.forEach((cell, cellIndex) => {
+          pdf.text(cell, colPositions[cellIndex], yPos + 7);
+        });
+        
+        pdf.setTextColor(0, 0, 0);
+        yPos += 10;
+      });
+      
+      // Add footer
+      yPos += 10;
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Report generated on: ${dayjs().format('YYYY-MM-DD HH:mm:ss')}`, pageWidth / 2, yPos, { align: 'center' });
+      
+      // Save PDF
+      pdf.save(`enquiries_report_${exportStartDate}_to_${exportEndDate}.pdf`);
+      
+      alert(`Exported ${data.length} enquiries to PDF successfully!`);
+      setShowExportModal(false);
+    } catch (error) {
+      console.error("PDF export error:", error);
+      alert("Failed to export PDF. Please try again.");
+    }
+  };
+
   const totals = calculateTotals();
 
   return (
@@ -1264,12 +1518,21 @@ export default function EnquiryModal() {
             {isCompanyUser ? "Create enquiries for your company" : "Create, manage, and track your customer enquiries"}
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={startNewEnquiry}
-        >
-          <i className="bi bi-question-circle me-2"></i>New Enquiry
-        </button>
+        <div className="d-flex gap-2">
+          {/* NEW: Export Button */}
+          <button
+            className="btn btn-warning"
+            onClick={() => setShowExportModal(true)}
+          >
+            <i className="bi bi-download me-2"></i>Export
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={startNewEnquiry}
+          >
+            <i className="bi bi-question-circle me-2"></i>New Enquiry
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -1310,6 +1573,153 @@ export default function EnquiryModal() {
           </div>
         </div>
       </div>
+
+      {/* NEW: Export Modal */}
+      {showExportModal && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header bg-warning text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-download me-2"></i>Export Enquiries
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={() => setShowExportModal(false)}></button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="alert alert-info mb-3">
+                  <i className="bi bi-info-circle me-2"></i>
+                  Select date range and status to export enquiries. Data will be exported in CSV or PDF format.
+                </div>
+                
+                <div className="row mb-3">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Start Date</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={exportStartDate}
+                        onChange={(e) => setExportStartDate(e.target.value)}
+                        max={exportEndDate}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">End Date</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={exportEndDate}
+                        onChange={(e) => setExportEndDate(e.target.value)}
+                        min={exportStartDate}
+                        max={dayjs().format('YYYY-MM-DD')}
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="row mb-4">
+                  <div className="col-md-12">
+                    <label className="form-label">Status Filter</label>
+                    <div className="d-flex flex-wrap gap-2">
+                      {['all', 'draft', 'converted', 'lost'].map((status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          className={`btn ${exportStatus === status ? 'btn-primary' : 'btn-outline-primary'}`}
+                          onClick={() => setExportStatus(status)}
+                        >
+                          {status === 'all' ? 'All Statuses' : 
+                           status === 'draft' ? 'Draft' :
+                           status === 'converted' ? 'Converted' : 'Lost'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="row mb-3">
+                  <div className="col-md-12">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">Export Summary</h6>
+                        <div className="row">
+                          <div className="col-md-4">
+                            <div className="mb-2">
+                              <strong>Date Range:</strong>
+                              <div className="text-muted">{exportStartDate} to {exportEndDate}</div>
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <div className="mb-2">
+                              <strong>Status:</strong>
+                              <div className="text-muted">
+                                {exportStatus === 'all' ? 'All Statuses' : 
+                                 exportStatus === 'draft' ? 'Draft' :
+                                 exportStatus === 'converted' ? 'Converted' : 'Lost'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <div className="mb-2">
+                              <strong>Days:</strong>
+                              <div className="text-muted">
+                                {dayjs(exportEndDate).diff(dayjs(exportStartDate), 'day') + 1} days
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowExportModal(false)}>
+                  <i className="bi bi-x-circle me-1"></i>Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-success" 
+                  onClick={exportToExcel}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-file-earmark-excel me-1"></i>Export to Excel
+                    </>
+                  )}
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-danger" 
+                  onClick={exportToPDF}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2"></span>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-file-pdf me-1"></i>Export to PDF
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Company Details Modal */}
       {showCompanyModal && (

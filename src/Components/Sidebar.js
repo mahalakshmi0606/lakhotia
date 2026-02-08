@@ -201,7 +201,7 @@ const Sidebar = ({ isOpen }) => {
     const showAllModules = 
       userTypeId === 1 || 
       !userTypeName || 
-      userTypeName === "undefined" || 
+      userTypeName === "common" || 
       userTypeName === "unknown";
 
     if (showAllModules) {

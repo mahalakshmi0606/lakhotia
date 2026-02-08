@@ -62,6 +62,14 @@ export default function QuotationModal() {
   // Expanded rows for showing items
   const [expandedRows, setExpandedRows] = useState({});
 
+  // NEW: Export states
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState(dayjs().subtract(30, 'day').format('YYYY-MM-DD'));
+  const [exportEndDate, setExportEndDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [exportStatus, setExportStatus] = useState('completed'); // Only completed for quotations
+  const [exporting, setExporting] = useState(false);
+  const [exportData, setExportData] = useState([]);
+
   // API base URL
   const API_BASE_URL = "http://127.0.0.1:5000";
 
@@ -615,6 +623,299 @@ export default function QuotationModal() {
     }
   };
 
+  // =============== NEW: Export Functions ===============
+  const fetchExportData = async () => {
+    setExporting(true);
+    try {
+      const params = {
+        start_date: exportStartDate,
+        end_date: exportEndDate,
+        status: exportStatus
+      };
+      
+      const response = await axios.get(`${API_BASE_URL}/api/quotations/export`, { params });
+      
+      if (response.data.success) {
+        const fetchedQuotations = response.data.data || [];
+        
+        // Extract all unique brand codes from all quotations
+        const allBrandCodes = [];
+        fetchedQuotations.forEach(quotation => {
+          (quotation.items || []).forEach(item => {
+            const brandCode = extractBrandCode(item.description || "");
+            if (brandCode) {
+              allBrandCodes.push(brandCode);
+            }
+          });
+        });
+        
+        // Fetch buy prices in bulk for all brand codes
+        const buyPriceMap = await fetchBulkBuyPrices([...new Set(allBrandCodes)]);
+        
+        // Transform quotations with buy prices
+        const quotationsWithBuyPrices = fetchedQuotations.map(quotation => {
+          const transformedItems = (quotation.items || []).map(item => {
+            const brandCode = extractBrandCode(item.description || "");
+            const customerDescription = extractCustomerDescription(item.description || "");
+            const cleanDesc = cleanDescription(item.description || "");
+            const batchNo = extractBatchNo(item);
+            const mrp = extractMRP(item);
+            const hsnSac = extractHsnSac(item);
+            
+            const buyPrice = brandCode ? (buyPriceMap[brandCode] || 0) : 0;
+            
+            return {
+              ...item,
+              sales_order_item_status: item.sales_order_item_status || "not_created",
+              brand_code: brandCode || "",
+              customer_description: customerDescription || "",
+              description: cleanDesc,
+              buy_price: buyPrice,
+              count: item.count || 1,
+              packing_charges: item.packing_charges || 0,
+              other_charges: item.other_charges || 0,
+              batch_no: batchNo,
+              mrp: mrp,
+              hsn_sac: hsnSac,
+              unit: item.unit || "",
+              cut_width: item.cut_width || "",
+              length: item.length || ""
+            };
+          });
+          
+          return {
+            ...quotation,
+            items: transformedItems
+          };
+        });
+        
+        setExportData(quotationsWithBuyPrices);
+        
+        if (quotationsWithBuyPrices.length === 0) {
+          alert("No data found for the selected date range.");
+          return [];
+        }
+        
+        return quotationsWithBuyPrices;
+      } else {
+        throw new Error(response.data.message || "Failed to fetch export data");
+      }
+    } catch (err) {
+      console.error("Export fetch error:", err);
+      alert("Failed to fetch data for export.");
+      return [];
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportToExcel = async () => {
+    const data = await fetchExportData();
+    
+    if (data.length === 0) {
+      return;
+    }
+    
+    // Prepare Excel data - summary level
+    const excelData = data.map((quotation, index) => {
+      const items = quotation.items || [];
+      const totalItems = items.length;
+      const orderedItems = items.filter(item => item.sales_order_item_status === "ordered").length;
+      const notCreatedItems = items.filter(item => item.sales_order_item_status === "not_created").length;
+      const rejectedItems = items.filter(item => item.sales_order_item_status === "rejected").length;
+      
+      // Calculate profit
+      const totalBuyPrice = items.reduce((sum, item) => sum + (parseFloat(item.buy_price) || 0) * (parseFloat(item.quantity) || 1), 0);
+      const totalSellPrice = parseFloat(quotation.subtotal || quotation.totals?.subtotal || 0);
+      const profit = totalSellPrice - totalBuyPrice;
+      const profitMargin = totalBuyPrice > 0 ? ((profit / totalBuyPrice) * 100).toFixed(2) : 0;
+      
+      return {
+        'S.No': index + 1,
+        'Quote No': quotation.quote_number || quotation.quoteNo || 'N/A',
+        'Date': quotation.date || quotation.createdAt?.split('T')[0] || 'N/A',
+        'Time': quotation.time || quotation.createdAt?.split('T')[1]?.split('.')[0] || 'N/A',
+        'Company Name': quotation.company_name || quotation.billTo || 'N/A',
+        'Contact Person': quotation.contact_person || quotation.contactPerson || 'N/A',
+        'Contact Mobile': quotation.contact_mobile || quotation.contactMob || 'N/A',
+        'Contact Email': quotation.contact_email || quotation.contactEmail || 'N/A',
+        'Total Items': totalItems,
+        'Ordered Items': orderedItems,
+        'Not Created Items': notCreatedItems,
+        'Rejected Items': rejectedItems,
+        'Subtotal': parseFloat(quotation.subtotal || quotation.totals?.subtotal || 0).toFixed(2),
+        'Total Discount': parseFloat(quotation.total_discount || quotation.totals?.totalDiscount || 0).toFixed(2),
+        'Total Tax': parseFloat(quotation.total_tax || quotation.totals?.totalGST || 0).toFixed(2),
+        'Grand Total': parseFloat(quotation.grand_total || quotation.totals?.grandTotal || 0).toFixed(2),
+        'Total Buy Price': totalBuyPrice.toFixed(2),
+        'Profit': profit.toFixed(2),
+        'Profit Margin %': profitMargin,
+        'Status': quotation.status || 'completed',
+        'Created By': quotation.created_by || 'User',
+        'Created At': quotation.createdAt || 'N/A'
+      };
+    });
+    
+    // Create CSV content
+    const headers = Object.keys(excelData[0]);
+    const csvContent = [
+      headers.join(','),
+      ...excelData.map(row => headers.map(header => `"${row[header]}"`).join(','))
+    ].join('\n');
+    
+    // Create and download CSV file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `completed_quotations_${exportStartDate}_to_${exportEndDate}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    alert(`Exported ${data.length} completed quotations to CSV successfully!`);
+    setShowExportModal(false);
+  };
+
+  const exportToPDF = async () => {
+    const data = await fetchExportData();
+    
+    if (data.length === 0) {
+      return;
+    }
+    
+    // Dynamically load jsPDF and autoTable
+    const { jsPDF } = await import('jspdf');
+    await import('jspdf-autotable');
+    
+    try {
+      const pdf = new jsPDF('l', 'mm', 'a4'); // Landscape mode for better table view
+      let yPos = 20;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      
+      // Add header
+      pdf.setFontSize(20);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text('Completed Quotations Report', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 10;
+      
+      pdf.setFontSize(12);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Date Range: ${exportStartDate} to ${exportEndDate}`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 5;
+      pdf.text(`Status: Completed`, pageWidth / 2, yPos, { align: 'center' });
+      yPos += 15;
+      
+      // Add summary
+      pdf.setFontSize(11);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(`Total Quotations: ${data.length}`, margin, yPos);
+      yPos += 10;
+      
+      // Calculate totals
+      const totals = {
+        grandTotal: data.reduce((sum, q) => sum + parseFloat(q.grand_total || q.totals?.grandTotal || 0), 0),
+        profit: data.reduce((sum, quotation) => {
+          const totalBuyPrice = (quotation.items || []).reduce((s, item) => 
+            s + (parseFloat(item.buy_price) || 0) * (parseFloat(item.quantity) || 1), 0);
+          const totalSellPrice = parseFloat(quotation.subtotal || quotation.totals?.subtotal || 0);
+          return sum + (totalSellPrice - totalBuyPrice);
+        }, 0)
+      };
+      
+      // Summary table
+      const summaryData = [
+        ['Total Quotations', data.length],
+        ['Total Grand Total', `₹${totals.grandTotal.toFixed(2)}`],
+        ['Total Estimated Profit', `₹${totals.profit.toFixed(2)}`]
+      ];
+      
+      pdf.autoTable({
+        startY: yPos,
+        head: [['Metric', 'Value']],
+        body: summaryData,
+        theme: 'grid',
+        headStyles: { fillColor: [70, 130, 180] }, // Steel blue
+        margin: { left: margin, right: margin }
+      });
+      
+      yPos = pdf.lastAutoTable.finalY + 15;
+      
+      // Check if we need a new page
+      if (yPos > pageHeight - 50) {
+        pdf.addPage();
+        yPos = 20;
+      }
+      
+      // Main quotations table
+      const tableData = data.map((quotation, index) => {
+        const items = quotation.items || [];
+        const orderedItems = items.filter(item => item.sales_order_item_status === "ordered").length;
+        const rejectedItems = items.filter(item => item.sales_order_item_status === "rejected").length;
+        
+        // Calculate profit for this quotation
+        const totalBuyPrice = items.reduce((sum, item) => sum + (parseFloat(item.buy_price) || 0) * (parseFloat(item.quantity) || 1), 0);
+        const totalSellPrice = parseFloat(quotation.subtotal || quotation.totals?.subtotal || 0);
+        const profit = totalSellPrice - totalBuyPrice;
+        const profitMargin = totalBuyPrice > 0 ? ((profit / totalBuyPrice) * 100).toFixed(2) : 0;
+        
+        return [
+          index + 1,
+          quotation.quote_number || quotation.quoteNo || 'N/A',
+          quotation.date || 'N/A',
+          (quotation.company_name || quotation.billTo || 'N/A').substring(0, 20),
+          items.length,
+          orderedItems,
+          rejectedItems,
+          `₹${parseFloat(quotation.grand_total || quotation.totals?.grandTotal || 0).toFixed(2)}`,
+          `₹${profit.toFixed(2)}`,
+          `${profitMargin}%`
+        ];
+      });
+      
+      pdf.autoTable({
+        startY: yPos,
+        head: [
+          ['S.No', 'Quote No', 'Date', 'Company', 'Items', 'Ordered', 'Rejected', 'Grand Total', 'Profit', 'Margin %']
+        ],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [34, 139, 34] }, // Forest green
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 25 },
+          2: { cellWidth: 20 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 15 },
+          5: { cellWidth: 15 },
+          6: { cellWidth: 15 },
+          7: { cellWidth: 25 },
+          8: { cellWidth: 25 },
+          9: { cellWidth: 20 }
+        },
+        margin: { left: margin, right: margin }
+      });
+      
+      // Add footer
+      const finalY = pdf.lastAutoTable.finalY + 10;
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Report generated on: ${dayjs().format('YYYY-MM-DD HH:mm:ss')}`, pageWidth / 2, finalY, { align: 'center' });
+      
+      // Save PDF
+      pdf.save(`completed_quotations_report_${exportStartDate}_to_${exportEndDate}.pdf`);
+      
+      alert(`Exported ${data.length} completed quotations to PDF successfully!`);
+      setShowExportModal(false);
+    } catch (error) {
+      console.error("PDF export error:", error);
+      alert("Failed to export PDF. Please try again.");
+    }
+  };
+
   return (
     <Container fluid className="py-4">
       {/* Header */}
@@ -623,7 +924,142 @@ export default function QuotationModal() {
           <h1 className="h2 mb-1">Completed Quotations</h1>
           <p className="text-muted mb-0">View completed quotations</p>
         </div>
+        {/* NEW: Export Button */}
+        <div>
+          <Button
+            variant="warning"
+            onClick={() => setShowExportModal(true)}
+            className="me-2"
+          >
+            <i className="bi bi-download me-2"></i>Export
+          </Button>
+        </div>
       </div>
+
+      {/* NEW: Export Modal */}
+      <Modal show={showExportModal} onHide={() => setShowExportModal(false)} size="lg">
+        <Modal.Header closeButton className="bg-warning text-white">
+          <Modal.Title>
+            <i className="bi bi-download me-2"></i>Export Completed Quotations
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Alert variant="info" className="mb-3">
+            <i className="bi bi-info-circle me-2"></i>
+            Select date range to export completed quotations. Data will be exported in CSV or PDF format.
+            <br />
+            <small className="text-muted">Note: Only completed quotations are available for export.</small>
+          </Alert>
+          
+          <Row className="mb-3">
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>Start Date</Form.Label>
+                <Form.Control
+                  type="date"
+                  value={exportStartDate}
+                  onChange={(e) => setExportStartDate(e.target.value)}
+                  max={exportEndDate}
+                />
+              </Form.Group>
+            </Col>
+            <Col md={6}>
+              <Form.Group>
+                <Form.Label>End Date</Form.Label>
+                <Form.Control
+                  type="date"
+                  value={exportEndDate}
+                  onChange={(e) => setExportEndDate(e.target.value)}
+                  min={exportStartDate}
+                  max={dayjs().format('YYYY-MM-DD')}
+                />
+              </Form.Group>
+            </Col>
+          </Row>
+          
+          <Row className="mb-3">
+            <Col md={12}>
+              <Form.Group>
+                <Form.Label>Status</Form.Label>
+                <div>
+                  <Badge bg="success" className="p-2 me-2">Completed Only</Badge>
+                  <small className="text-muted">(Only completed quotations are shown in this module)</small>
+                </div>
+              </Form.Group>
+            </Col>
+          </Row>
+          
+          <Card className="mb-3">
+            <Card.Body>
+              <Card.Title>Export Summary</Card.Title>
+              <Row>
+                <Col md={4}>
+                  <div className="mb-2">
+                    <strong>Date Range:</strong>
+                    <div className="text-muted">{exportStartDate} to {exportEndDate}</div>
+                  </div>
+                </Col>
+                <Col md={4}>
+                  <div className="mb-2">
+                    <strong>Status:</strong>
+                    <div className="text-muted">Completed</div>
+                  </div>
+                </Col>
+                <Col md={4}>
+                  <div className="mb-2">
+                    <strong>Days:</strong>
+                    <div className="text-muted">
+                      {dayjs(exportEndDate).diff(dayjs(exportStartDate), 'day') + 1} days
+                    </div>
+                  </div>
+                </Col>
+              </Row>
+            </Card.Body>
+          </Card>
+          
+          <Alert variant="primary">
+            <i className="bi bi-lightbulb me-2"></i>
+            <strong>Export includes:</strong> Quote numbers, dates, company details, item counts, sales order statuses, financial totals, and profit calculations.
+          </Alert>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowExportModal(false)}>
+            <i className="bi bi-x-circle me-1"></i>Cancel
+          </Button>
+          <Button 
+            variant="success" 
+            onClick={exportToExcel}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <i className="bi bi-file-earmark-excel me-1"></i>Export to Excel (CSV)
+              </>
+            )}
+          </Button>
+          <Button 
+            variant="danger" 
+            onClick={exportToPDF}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <>
+                <Spinner animation="border" size="sm" className="me-2" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <i className="bi bi-file-pdf me-1"></i>Export to PDF
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Statistics Cards */}
       <Row className="mb-4">
