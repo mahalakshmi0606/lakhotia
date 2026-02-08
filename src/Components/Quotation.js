@@ -84,8 +84,9 @@ export default function QuotationModal() {
     ifscCode: "HDFC0001237"
   };
 
-  // Logo path
+  // Logo paths
   const companyLogo = "/Asset/Name1.jpg";
+  const qrCodeImage = "/Asset/lakhotia qr code.jpeg"; // QR code image path
 
   // State variables
   const [companies, setCompanies] = useState([]);
@@ -1531,13 +1532,24 @@ export default function QuotationModal() {
           p { font-size: 12px; margin-bottom: 3px; }
           .container { max-width: 100%; }
           .company-logo { max-width: 120px; max-height: 120px; object-fit: contain; }
+          .qr-code { max-width: 80px; max-height: 80px; object-fit: contain; }
           .pincode-badge { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
           .cc-badge { background-color: #d1ecf1; color: #0c5460; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
           .bank-details { 
             background-color: #f8f9fa; 
-            border-left: 4px solid #0d6efd;
-            padding: 10px;
+            border: 1px solid #dee2e6;
+            padding: 15px;
             margin-top: 15px;
+            border-radius: 5px;
+          }
+          .bank-details-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .qr-code-container {
+            text-align: right;
+            padding-left: 20px;
           }
         </style>
       </head>
@@ -1745,17 +1757,25 @@ export default function QuotationModal() {
             </div>
           </div>
           
-          <!-- Bank Details Section -->
+          <!-- Bank Details Section with QR Code on right -->
           <div class="bank-details mt-4">
-            <h5 class="mb-2">Bank Details:</h5>
-            <div class="row">
-              <div class="col-md-6">
-                <p class="mb-1"><strong>Account No:</strong> ${bankDetails.accountNo}</p>
-                <p class="mb-1"><strong>Account Title:</strong> ${bankDetails.accountTitle}</p>
+            <div class="bank-details-row">
+              <div style="flex: 1;">
+                <h5 class="mb-2">Bank Details:</h5>
+                <div class="row">
+                  <div class="col-md-6">
+                    <p class="mb-1"><strong>Account No:</strong> ${bankDetails.accountNo}</p>
+                    <p class="mb-1"><strong>Account Title:</strong> ${bankDetails.accountTitle}</p>
+                  </div>
+                  <div class="col-md-6">
+                    <p class="mb-1"><strong>IFSC Code:</strong> ${bankDetails.ifscCode}</p>
+                    <p class="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                  </div>
+                </div>
               </div>
-              <div class="col-md-6">
-                <p class="mb-1"><strong>IFSC Code:</strong> ${bankDetails.ifscCode}</p>
-                <p class="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+              <div class="qr-code-container">
+                <h5 class="mb-2">QR Code:</h5>
+                <img src="${qrCodeImage}" alt="QR Code" class="qr-code">
               </div>
             </div>
           </div>
@@ -3373,7 +3393,7 @@ export default function QuotationModal() {
                           <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                         </div>
                         <div className="col-5 text-end">
-                          <h2 className="text-primary mb-3">QUOTATION</h2>
+                          <h2 className="text-primary mb-2">QUOTATION</h2>
                           <p className="mb-1"><strong>Quote No:</strong> {quoteNo}</p>
                           <p className="mb-1"><strong>Date:</strong> {date}</p>
                           <p className="mb-1"><strong>Time:</strong> {time}</p>
@@ -3521,16 +3541,33 @@ export default function QuotationModal() {
                       </div>
                     </div>
                     
-                    <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', borderLeft: '4px solid #0d6efd' }}>
-                      <h5 className="mb-2">Bank Details:</h5>
-                      <div className="row">
-                        <div className="col-md-6">
-                          <p className="mb-1"><strong>Account No:</strong> ${bankDetails.accountNo}</p>
-                          <p className="mb-1"><strong>Account Title:</strong> ${bankDetails.accountTitle}</p>
+                    {/* Bank Details with QR Code on right */}
+                    <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '5px' }}>
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div style={{ flex: 1 }}>
+                          <h5 className="mb-2">Bank Details:</h5>
+                          <div className="row">
+                            <div className="col-md-6">
+                              <p className="mb-1"><strong>Account No:</strong> {bankDetails.accountNo}</p>
+                              <p className="mb-1"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
+                            </div>
+                            <div className="col-md-6">
+                              <p className="mb-1"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
+                              <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                            </div>
+                          </div>
                         </div>
-                        <div className="col-md-6">
-                          <p className="mb-1"><strong>IFSC Code:</strong> ${bankDetails.ifscCode}</p>
-                          <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                        <div className="text-end">
+                          <h5 className="mb-2">QR Code:</h5>
+                          <img 
+                            src={qrCodeImage} 
+                            alt="QR Code" 
+                            className="img-fluid"
+                            style={{ maxWidth: '80px', maxHeight: '80px', objectFit: 'contain' }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
                         </div>
                       </div>
                     </div>
@@ -3952,7 +3989,7 @@ export default function QuotationModal() {
                         <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                       </div>
                       <div className="col-5 text-end">
-                        <h2 className="text-info mb-3">QUOTATION</h2>
+                        <h2 className="text-info mb-2">QUOTATION</h2>
                         <p className="mb-1"><strong>Quote No:</strong> {selectedQuotation.quote_number || selectedQuotation.quoteNo}</p>
                         <p className="mb-1"><strong>Date:</strong> {selectedQuotation.date || selectedQuotation.date}</p>
                         <p className="mb-1"><strong>Time:</strong> {selectedQuotation.time || selectedQuotation.time}</p>
@@ -4163,17 +4200,33 @@ export default function QuotationModal() {
                     </div>
                   </div>
                   
-                  {/* Bank Details Section */}
-                  <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', borderLeft: '4px solid #0d6efd' }}>
-                    <h5 className="mb-2">Bank Details:</h5>
-                    <div className="row">
-                      <div className="col-md-6">
-                        <p className="mb-1"><strong>Account No:</strong> ${bankDetails.accountNo}</p>
-                        <p className="mb-1"><strong>Account Title:</strong> ${bankDetails.accountTitle}</p>
+                  {/* Bank Details with QR Code on right */}
+                  <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '5px' }}>
+                    <div className="d-flex justify-content-between align-items-center">
+                      <div style={{ flex: 1 }}>
+                        <h5 className="mb-2">Bank Details:</h5>
+                        <div className="row">
+                          <div className="col-md-6">
+                            <p className="mb-1"><strong>Account No:</strong> {bankDetails.accountNo}</p>
+                            <p className="mb-1"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
+                          </div>
+                          <div className="col-md-6">
+                            <p className="mb-1"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
+                            <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="col-md-6">
-                        <p className="mb-1"><strong>IFSC Code:</strong> ${bankDetails.ifscCode}</p>
-                        <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                      <div className="text-end">
+                        <h5 className="mb-2">QR Code:</h5>
+                        <img 
+                          src={qrCodeImage} 
+                          alt="QR Code" 
+                          className="img-fluid"
+                          style={{ maxWidth: '80px', maxHeight: '80px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                          }}
+                        />
                       </div>
                     </div>
                   </div>

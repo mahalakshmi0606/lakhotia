@@ -35,16 +35,16 @@ export default function StockUploadPage() {
   const [success, setSuccess] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [grnItems, setGrnItems] = useState([]);
-  const [soldItems, setSoldItems] = useState([]); // New state for sold items
+  const [soldItems, setSoldItems] = useState([]);
   const [showGrnModal, setShowGrnModal] = useState(false);
-  const [showSoldModal, setShowSoldModal] = useState(false); // New modal state
+  const [showSoldModal, setShowSoldModal] = useState(false);
   const [existingStockMap, setExistingStockMap] = useState({});
-  const [deductionStatus, setDeductionStatus] = useState({}); // Track deduction status for sold items
+  const [deductionStatus, setDeductionStatus] = useState({});
 
   // Loading states
   const [loadingStock, setLoadingStock] = useState(false);
   const [loadingGrn, setLoadingGrn] = useState(false);
-  const [loadingSold, setLoadingSold] = useState(false); // New loading state
+  const [loadingSold, setLoadingSold] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Pagination states
@@ -68,7 +68,6 @@ export default function StockUploadPage() {
         if (r._id === id) {
           const updatedRow = { ...r, [key]: value };
           
-          // Recalculate count if length, width, or qty changes
           if (key === "Length" || key === "Width" || key === "Qty") {
             const length = key === "Length" ? value : r["Length"];
             const width = key === "Width" ? value : r["Width"];
@@ -84,9 +83,9 @@ export default function StockUploadPage() {
   };
 
   // -------------------------
-  // NEW: Deduct sold quantity from matching stock
+  // NEW: Deduct sold quantity from matching stock and mark as deducted
   // -------------------------
-  const deductFromStock = (soldItem) => {
+  const deductFromStock = async (soldItem) => {
     if (!soldItem._hasMatch) {
       alert("No matching stock found for this item. Cannot deduct.");
       return;
@@ -136,28 +135,42 @@ export default function StockUploadPage() {
       })
     );
 
-    // Mark this sold item as deducted
-    setDeductionStatus(prev => ({
-      ...prev,
-      [soldItem._id]: {
-        deducted: true,
-        stockItemId: matchingStockItem._id,
-        originalQty: stockQty,
-        soldQty: soldQty,
-        newQty: newQty
+    // Mark this sold item as deducted in the backend
+    try {
+      const response = await fetch(`http://localhost:5000/api/stock_sold/mark_deducted/${soldItem._originalId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        // Update local state
+        setDeductionStatus(prev => ({
+          ...prev,
+          [soldItem._id]: {
+            deducted: true,
+            stockItemId: matchingStockItem._id,
+            originalQty: stockQty,
+            soldQty: soldQty,
+            newQty: newQty,
+            deductedOn: new Date().toISOString()
+          }
+        }));
+
+        // Remove deducted item from soldItems list
+        setSoldItems(prev => prev.filter(item => item._id !== soldItem._id));
+
+        setSuccess(`Deducted ${soldQty} from "${soldItem["Item Name"]}". New quantity: ${newQty}. Item marked as deducted.`);
+      } else {
+        alert(`Failed to mark item as deducted: ${result.message}`);
       }
-    }));
-
-    // Update sold item status
-    setSoldItems(prev =>
-      prev.map(item =>
-        item._id === soldItem._id
-          ? { ...item, _deducted: true, _deductionInfo: `Deducted ${soldQty} from stock` }
-          : item
-      )
-    );
-
-    setSuccess(`Deducted ${soldQty} from "${soldItem["Item Name"]}". New quantity: ${newQty}`);
+    } catch (error) {
+      console.error("Error marking item as deducted:", error);
+      alert("Failed to mark item as deducted. Please try again.");
+    }
   };
 
   // -------------------------
@@ -260,7 +273,6 @@ export default function StockUploadPage() {
       const brand = (row["Brand"] || "").toLowerCase().trim();
       const batchCode = (row["Batch Code"] || "").toLowerCase().trim();
       
-      // Create multiple lookup keys
       if (itemName) {
         if (!map[itemName]) map[itemName] = [];
         map[itemName].push(row);
@@ -297,9 +309,7 @@ export default function StockUploadPage() {
     const brand = (importItem["Brand"] || "").toLowerCase().trim();
     const batchCode = (importItem["Batch Code"] || "").toLowerCase().trim();
     
-    // Try to find matching item by different criteria
     if (itemName && existingStockMap[itemName]) {
-      // Return the first matching item with length and width
       const match = existingStockMap[itemName].find(item => 
         item["Length"] && item["Width"] && 
         (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
@@ -335,16 +345,15 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Fetch GRN items with intelligent matching
+  // Fetch GRN items with intelligent matching - ONLY ACTIVE ITEMS
   // ----------------------------------------------------
   const fetchGrnItems = async () => {
     try {
       setLoadingGrn(true);
-      const res = await fetch("http://localhost:5000/api/grn/all");
+      const res = await fetch("http://localhost:5000/api/grn/all?status=active");
       const data = await res.json();
       
       if (data && data.success && Array.isArray(data.data)) {
-        // Map GRN items to match stock format with intelligent matching
         const mappedGrnItems = data.data.map((grn, index) => {
           const baseItem = {
             "ID": `GRN${Date.now()}${index}`,
@@ -366,15 +375,15 @@ export default function StockUploadPage() {
             _source: "grn",
             _invoice: grn.invoice_number,
             _po: grn.po_number,
+            _grnId: grn.id, // Store GRN ID for status update
+            _status: grn.status,
             _hasMatch: false,
             _matchReason: ""
           };
           
-          // Try to find matching stock item
           const matchingStockItem = findMatchingStockItem(baseItem);
           
           if (matchingStockItem) {
-            // Use dimensions from matching stock item
             baseItem["Length"] = matchingStockItem["Length"] || grn.length || 0;
             baseItem["Width"] = matchingStockItem["Width"] || grn.width || 0;
             baseItem["AutoCalculate Count"] = calculateCount(
@@ -402,35 +411,66 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Fetch Stock Sold items with intelligent matching
+  // Update GRN status to "done" when imported
+  // ----------------------------------------------------
+  const updateGrnStatusToDone = async (grnIds) => {
+    try {
+      if (!grnIds || grnIds.length === 0) return;
+      
+      const response = await fetch("http://localhost:5000/api/grn/update-status-bulk", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          grn_ids: grnIds,
+          status: "done"
+        })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log(`Updated ${grnIds.length} GRN items status to 'done'`);
+        // Refresh GRN items to hide the imported ones
+        fetchGrnItems();
+      } else {
+        console.error("Failed to update GRN status:", result.message);
+      }
+    } catch (error) {
+      console.error("Error updating GRN status:", error);
+    }
+  };
+
+  // ----------------------------------------------------
+  // Fetch Stock Sold items with intelligent matching - ONLY NOT DEDUCTED ITEMS
   // ----------------------------------------------------
   const fetchSoldItems = async () => {
     try {
       setLoadingSold(true);
-      const res = await fetch("http://localhost:5000/api/stock_sold/all");
+      const res = await fetch("http://localhost:5000/api/stock_sold/not_deducted");
       const data = await res.json();
       
       if (data && data.success && Array.isArray(data.data)) {
-        // Map Sold items to match stock format with intelligent matching
         const mappedSoldItems = data.data.map((sold, index) => {
-          // Convert sold data to stock format
           const baseItem = {
-            "ID": `SOLD${Date.now()}${index}`,
+            "ID": `SOLD${sold.id || Date.now()}${index}`,
             "Item Name": sold.item_name || "",
-            "Brand": sold.company_name || "", // Using company_name as Brand
-            "Length": 0, // Sold items may not have dimensions
+            "Brand": sold.company_name || "",
+            "Length": 0,
             "Width": 0,
             "Qty": sold.quantity || 0,
             "AutoCalculate Count": calculateCount(0, 0, sold.quantity || 0),
-            "Buy Price": 0, // Sold items may not have buy price
-            "Batch Code": "", // Could use production info if available
-            "Brand Code": "", // May need to map from other fields
+            "Buy Price": 0,
+            "Batch Code": "",
+            "Brand Code": "",
             "Brand Description": "",
             "HSN": sold.hsn_sac || "",
             "MRP": sold.mrp || 0,
             "Unit": sold.unit || "PCS",
             "GST": 0,
             _id: `sold_${index}_${Math.random().toString(36).slice(2, 9)}`,
+            _originalId: sold.id,
             _source: "stock_sold",
             _customer: sold.customer_name,
             _soldDate: sold.sold_date,
@@ -438,15 +478,12 @@ export default function StockUploadPage() {
             _remarks: sold.sold_remarks,
             _hasMatch: false,
             _matchReason: "",
-            _deducted: false,
-            _deductionInfo: ""
+            _stockDeducted: sold.stock_deducted || "No"
           };
           
-          // Try to find matching stock item
           const matchingStockItem = findMatchingStockItem(baseItem);
           
           if (matchingStockItem) {
-            // Use dimensions from matching stock item
             baseItem["Length"] = matchingStockItem["Length"] || 0;
             baseItem["Width"] = matchingStockItem["Width"] || 0;
             baseItem["AutoCalculate Count"] = calculateCount(
@@ -477,31 +514,40 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Load GRN items into stock table
+  // Load GRN items into stock table AND UPDATE GRN STATUS
   // ----------------------------------------------------
-  const loadGrnItemsToStock = (selectedItems = []) => {
+  const loadGrnItemsToStock = async (selectedItems = []) => {
     let itemsToAdd;
+    let grnIdsToUpdate = [];
     
     if (selectedItems.length === 0) {
-      // If no selection, load all GRN items
+      // Use all items
       itemsToAdd = grnItems.map(item => ({
         ...item,
-        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _id: Math.random().toString(36).slice(2, 9),
         _source: "grn_imported"
       }));
+      grnIdsToUpdate = grnItems.map(item => item._grnId).filter(id => id);
     } else {
-      // Load only selected items
+      // Use selected items
       itemsToAdd = selectedItems.map(item => ({
         ...item,
-        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _id: Math.random().toString(36).slice(2, 9),
         _source: "grn_imported"
       }));
+      grnIdsToUpdate = selectedItems.map(item => item._grnId).filter(id => id);
     }
     
-    // Count items with matches
     const matchedItems = itemsToAdd.filter(item => item._hasMatch).length;
     
+    // Add to stock table
     setRows(prev => [...prev, ...itemsToAdd]);
+    
+    // Update GRN status to "done"
+    if (grnIdsToUpdate.length > 0) {
+      await updateGrnStatusToDone(grnIdsToUpdate);
+    }
+    
     setSuccess(`Added ${itemsToAdd.length} items from GRN to stock table. ${matchedItems > 0 ? `(${matchedItems} items have matched dimensions)` : ''}`);
     
     setShowGrnModal(false);
@@ -514,22 +560,19 @@ export default function StockUploadPage() {
     let itemsToAdd;
     
     if (selectedItems.length === 0) {
-      // If no selection, load all Sold items
       itemsToAdd = soldItems.map(item => ({
         ...item,
-        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _id: Math.random().toString(36).slice(2, 9),
         _source: "sold_imported"
       }));
     } else {
-      // Load only selected items
       itemsToAdd = selectedItems.map(item => ({
         ...item,
-        _id: Math.random().toString(36).slice(2, 9), // Generate new ID
+        _id: Math.random().toString(36).slice(2, 9),
         _source: "sold_imported"
       }));
     }
     
-    // Count items with matches
     const matchedItems = itemsToAdd.filter(item => item._hasMatch).length;
     
     setRows(prev => [...prev, ...itemsToAdd]);
@@ -681,7 +724,6 @@ export default function StockUploadPage() {
           setRows(finalRows);
           setFilteredRows(finalRows);
           
-          // Create stock lookup map
           const map = createStockLookupMap(finalRows);
           setExistingStockMap(map);
           
@@ -701,7 +743,7 @@ export default function StockUploadPage() {
     };
 
     fetchStock();
-    fetchGrnItems(); // Also fetch GRN items on initial load
+    fetchGrnItems();
   }, []);
 
   // ----------------------------------------------------
@@ -861,6 +903,8 @@ export default function StockUploadPage() {
         delete copy._matchReason;
         delete copy._deducted;
         delete copy._deductionInfo;
+        delete copy._grnId;
+        delete copy._status;
         
         const numericFields = ["Length", "Width", "Qty", "Buy Price", "MRP", "GST"];
         numericFields.forEach(field => {
@@ -1028,18 +1072,20 @@ export default function StockUploadPage() {
         if (savedNewCount > 0) message += ` Added ${savedNewCount} new items.`;
         if (updatedCount > 0) message += ` Updated ${updatedCount} existing items.`;
         
-        // Check if any deductions were made
         const deductedItems = Object.keys(deductionStatus).length;
         if (deductedItems > 0) {
           message += ` ${deductedItems} sold items deducted from stock.`;
+          
+          // Clear deduction status after successful save
+          setDeductionStatus({});
+          
+          // Refresh sold items to hide deducted ones
+          fetchSoldItems();
         }
         
         setSuccess(message);
         
-        // Clear deduction status after successful save
-        setDeductionStatus({});
-        
-        // Refresh data
+        // Refresh stock data
         const refreshRes = await fetch("http://localhost:5000/api/stock/all");
         const refreshData = await refreshRes.json();
         if (refreshData && refreshData.success && Array.isArray(refreshData.data)) {
@@ -1237,7 +1283,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // GRN Modal Component
+  // GRN Modal Component - SHOWS ONLY ACTIVE ITEMS
   // ----------------------------------------------------
   const GrnModal = () => {
     const [selectedItems, setSelectedItems] = useState([]);
@@ -1272,13 +1318,13 @@ export default function StockUploadPage() {
       }
     };
 
-    const handleLoadSelected = () => {
+    const handleLoadSelected = async () => {
       const itemsToLoad = filteredGrnItems.filter(item => selectedItems.includes(item._id));
-      loadGrnItemsToStock(itemsToLoad);
+      await loadGrnItemsToStock(itemsToLoad);
     };
 
-    const handleLoadAll = () => {
-      loadGrnItemsToStock();
+    const handleLoadAll = async () => {
+      await loadGrnItemsToStock();
     };
 
     return (
@@ -1305,9 +1351,10 @@ export default function StockUploadPage() {
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <div>
-              <h3 style={{ margin: 0 }}>Import Items from GRN</h3>
+              <h3 style={{ margin: 0 }}>Import Items from GRN (Active Items Only)</h3>
               <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>
-                Items with matching stock entries will automatically get Length & Width values
+                Items with matching stock entries will automatically get Length & Width values.
+                Imported items will be marked as "done" and hidden from this list.
               </p>
             </div>
             <button 
@@ -1338,7 +1385,7 @@ export default function StockUploadPage() {
             
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ color: "#666" }}>
-                Found {filteredGrnItems.length} items • Selected {selectedItems.length} items • 
+                Found {filteredGrnItems.length} active items • Selected {selectedItems.length} items • 
                 <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
                   {filteredGrnItems.filter(item => item._hasMatch).length} items have matched dimensions
                 </span>
@@ -1389,7 +1436,15 @@ export default function StockUploadPage() {
             </div>
           ) : filteredGrnItems.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
-              No GRN items found.
+              No active GRN items found. All items may have been imported already.
+              <div style={{ marginTop: "10px" }}>
+                <button
+                  onClick={() => fetchGrnItems()}
+                  style={{ background: "#007bff", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                >
+                  Reload GRN Items
+                </button>
+              </div>
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
@@ -1497,12 +1552,13 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Stock Sold Modal Component
+  // Stock Sold Modal Component - SHOWS ONLY NOT DEDUCTED ITEMS
   // ----------------------------------------------------
   const SoldModal = () => {
     const [selectedItems, setSelectedItems] = useState([]);
     const [searchSoldTerm, setSearchSoldTerm] = useState("");
 
+    // Filter sold items - already filtered by not_deducted from API
     const filteredSoldItems = soldItems.filter(item => {
       if (!searchSoldTerm) return true;
       const term = searchSoldTerm.toLowerCase();
@@ -1557,7 +1613,7 @@ export default function StockUploadPage() {
         <div style={{
           backgroundColor: "white",
           padding: "20px",
-          borderRadius: "8px",
+          borderRadius: "8box",
           maxWidth: "90%",
           maxHeight: "90%",
           overflow: "auto",
@@ -1565,9 +1621,9 @@ export default function StockUploadPage() {
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
             <div>
-              <h3 style={{ margin: 0 }}>Import Items from Stock Sold</h3>
+              <h3 style={{ margin: 0 }}>Import Items from Stock Sold (Not Deducted)</h3>
               <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>
-                Items with matching stock entries will automatically get Length, Width, Batch Code & Brand Code values.
+                Showing only items where stock has not been deducted yet. 
                 Click "Deduct" button to subtract sold quantity from current stock.
               </p>
             </div>
@@ -1589,10 +1645,7 @@ export default function StockUploadPage() {
                 style={{ flex: 1, padding: "8px", border: "1px solid #ddd", borderRadius: "4px" }}
               />
               <button
-                onClick={() => {
-                  fetchSoldItems();
-                  setSearchSoldTerm("");
-                }}
+                onClick={refreshSoldItems}
                 disabled={loadingSold}
                 style={{ background: "#17a2b8", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
               >
@@ -1658,13 +1711,13 @@ export default function StockUploadPage() {
             </div>
           ) : filteredSoldItems.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
-              No Stock Sold items found.
+              No Stock Sold items found that need deduction.
               <div style={{ marginTop: "10px" }}>
                 <button
                   onClick={() => fetchSoldItems()}
                   style={{ background: "#007bff", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
                 >
-                  Load Stock Sold Items
+                  Reload Stock Sold Items
                 </button>
               </div>
             </div>
@@ -1697,146 +1750,102 @@ export default function StockUploadPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSoldItems.map((item) => {
-                    const isDeducted = item._deducted || deductionStatus[item._id]?.deducted;
-                    
-                    return (
-                      <tr key={item._id} style={{ 
-                        background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
-                        borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd",
-                        opacity: isDeducted ? 0.7 : 1
+                  {filteredSoldItems.map((item) => (
+                    <tr key={item._id} style={{ 
+                      background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
+                      borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd"
+                    }}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item._id)}
+                          onChange={() => toggleSelectItem(item._id)}
+                        />
+                      </td>
+                      <td>{item["Item Name"]}</td>
+                      <td>{item["Brand"]}</td>
+                      <td>{item["HSN"] || "-"}</td>
+                      <td style={{ fontWeight: "bold" }}>{item["Qty"]}</td>
+                      <td>{item["MRP"] || "-"}</td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
                       }}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            checked={selectedItems.includes(item._id)}
-                            onChange={() => toggleSelectItem(item._id)}
-                            disabled={isDeducted}
-                          />
-                        </td>
-                        <td>{item["Item Name"]}</td>
-                        <td>{item["Brand"]}</td>
-                        <td>{item["HSN"] || "-"}</td>
-                        <td>
-                          <span style={{ 
-                            fontWeight: "bold",
-                            color: isDeducted ? "#28a745" : "inherit"
-                          }}>
-                            {item["Qty"]}
-                            {isDeducted && (
-                              <span style={{ 
-                                fontSize: "10px", 
-                                color: "#28a745", 
-                                marginLeft: "5px",
-                                fontWeight: "normal"
-                              }}>
-                                ✓ Deducted
-                              </span>
-                            )}
+                        {item["Length"] || "-"}
+                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                      </td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["Width"] || "-"}
+                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
+                      </td>
+                      <td style={{ 
+                        background: item._hasMatch ? "#d4edda" : "transparent",
+                        fontWeight: item._hasMatch ? "bold" : "normal"
+                      }}>
+                        {item["AutoCalculate Count"] || "-"}
+                      </td>
+                      <td>
+                        {item._hasMatch ? (
+                          <span style={{
+                            background: "#28a745",
+                            color: "white",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "12px",
+                            fontWeight: "bold"
+                          }}
+                          title={item._matchReason}
+                          >
+                            Can Deduct
                           </span>
-                        </td>
-                        <td>{item["MRP"] || "-"}</td>
-                        <td style={{ 
-                          background: item._hasMatch ? "#d4edda" : "transparent",
-                          fontWeight: item._hasMatch ? "bold" : "normal"
-                        }}>
-                          {item["Length"] || "-"}
-                          {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                        </td>
-                        <td style={{ 
-                          background: item._hasMatch ? "#d4edda" : "transparent",
-                          fontWeight: item._hasMatch ? "bold" : "normal"
-                        }}>
-                          {item["Width"] || "-"}
-                          {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                        </td>
-                        <td style={{ 
-                          background: item._hasMatch ? "#d4edda" : "transparent",
-                          fontWeight: item._hasMatch ? "bold" : "normal"
-                        }}>
-                          {item["AutoCalculate Count"] || "-"}
-                        </td>
-                        <td>
-                          {isDeducted ? (
-                            <span style={{
-                              background: "#28a745",
+                        ) : (
+                          <span style={{
+                            background: "#6c757d",
+                            color: "white",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "12px"
+                          }}>
+                            No Match
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {item._hasMatch ? (
+                          <button
+                            onClick={() => deductFromStock(item)}
+                            style={{
+                              background: "#ff9800",
                               color: "white",
-                              padding: "2px 8px",
-                              borderRadius: "12px",
+                              border: "none",
+                              padding: "6px 12px",
+                              borderRadius: "4px",
+                              cursor: "pointer",
                               fontSize: "12px",
-                              fontWeight: "bold"
+                              fontWeight: "bold",
+                              width: "100%"
                             }}
-                            title={item._deductionInfo || "Quantity deducted from stock"}
-                            >
-                              Deducted
-                            </span>
-                          ) : item._hasMatch ? (
-                            <span style={{
-                              background: "#28a745",
-                              color: "white",
-                              padding: "2px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px",
-                              fontWeight: "bold"
-                            }}
-                            title={item._matchReason}
-                            >
-                              Can Deduct
-                            </span>
-                          ) : (
-                            <span style={{
-                              background: "#6c757d",
-                              color: "white",
-                              padding: "2px 8px",
-                              borderRadius: "12px",
-                              fontSize: "12px"
-                            }}>
-                              No Match
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {item._hasMatch && !isDeducted ? (
-                            <button
-                              onClick={() => deductFromStock(item)}
-                              style={{
-                                background: "#ff9800",
-                                color: "white",
-                                border: "none",
-                                padding: "6px 12px",
-                                borderRadius: "4px",
-                                cursor: "pointer",
-                                fontSize: "12px",
-                                fontWeight: "bold",
-                                width: "100%"
-                              }}
-                              title={`Deduct ${item["Qty"]} from current stock`}
-                            >
-                              Deduct from Stock
-                            </button>
-                          ) : isDeducted ? (
-                            <span style={{
-                              color: "#28a745",
-                              fontSize: "12px",
-                              fontWeight: "bold"
-                            }}>
-                              ✓ Done
-                            </span>
-                          ) : (
-                            <span style={{
-                              color: "#999",
-                              fontSize: "12px"
-                            }}>
-                              -
-                            </span>
-                          )}
-                        </td>
-                        <td>{item._customer || "-"}</td>
-                        <td>{item._soldDate || "-"}</td>
-                        <td>{item._taskId || "-"}</td>
-                      </tr>
-                    );
-                  })}
+                            title={`Deduct ${item["Qty"]} from current stock`}
+                          >
+                            Deduct from Stock
+                          </button>
+                        ) : (
+                          <span style={{
+                            color: "#999",
+                            fontSize: "12px"
+                          }}>
+                            -
+                          </span>
+                        )}
+                      </td>
+                      <td>{item._customer || "-"}</td>
+                      <td>{item._soldDate || "-"}</td>
+                      <td>{item._taskId || "-"}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1856,30 +1865,28 @@ export default function StockUploadPage() {
               <div style={{ fontSize: "14px", marginBottom: "10px" }}>
                 The following sold quantities have been deducted from stock in this table. 
                 Click "Save All Items" to permanently update the database with the new quantities.
+                <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
+                  ✓ Deducted items are automatically hidden from this list.
+                </span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-                {Object.entries(deductionStatus).map(([itemId, status]) => {
-                  const item = filteredSoldItems.find(i => i._id === itemId);
-                  if (!item) return null;
-                  
-                  return (
-                    <div key={itemId} style={{
-                      background: "white",
-                      padding: "8px 12px",
-                      borderRadius: "4px",
-                      border: "1px solid #86b7fe",
-                      fontSize: "13px"
-                    }}>
-                      <strong>{item["Item Name"]}</strong>: 
-                      <span style={{ color: "#dc3545", marginLeft: "5px" }}>
-                        {status.originalQty} → {status.newQty}
-                      </span>
-                      <span style={{ color: "#28a745", marginLeft: "5px" }}>
-                        (-{status.soldQty})
-                      </span>
-                    </div>
-                  );
-                })}
+                {Object.entries(deductionStatus).map(([itemId, status]) => (
+                  <div key={itemId} style={{
+                    background: "white",
+                    padding: "8px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid #86b7fe",
+                    fontSize: "13px"
+                  }}>
+                    <strong>Deducted:</strong> 
+                    <span style={{ color: "#dc3545", marginLeft: "5px" }}>
+                      {status.originalQty} → {status.newQty}
+                    </span>
+                    <span style={{ color: "#28a745", marginLeft: "5px" }}>
+                      (-{status.soldQty})
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -1991,6 +1998,9 @@ export default function StockUploadPage() {
           <div style={{ marginBottom: 10, color: "#0c5460" }}>
             You have deducted quantities from {Object.keys(deductionStatus).length} sold items.
             Click "Save All Items" to permanently update stock quantities in the database.
+            <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
+              ✓ Deducted items are automatically hidden from the list.
+            </span>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -2008,7 +2018,10 @@ export default function StockUploadPage() {
               💾 Save All Items (Including Deductions)
             </button>
             <button
-              onClick={() => setDeductionStatus({})}
+              onClick={() => {
+                setDeductionStatus({});
+                fetchSoldItems(); // Refresh to show all items again
+              }}
               style={{
                 background: "#6c757d",
                 color: "#fff",
@@ -2061,7 +2074,7 @@ export default function StockUploadPage() {
           <button
             onClick={() => {
               setShowSoldModal(true);
-              fetchSoldItems(); // Fetch sold items when modal opens
+              fetchSoldItems();
             }}
             style={{ background: "#9c27b0", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
             disabled={loadingSold}
@@ -2316,7 +2329,6 @@ export default function StockUploadPage() {
           <tbody>
             {currentRows.length > 0 ? (
               currentRows.map((row, idx) => {
-                // Check if this row has pending deductions
                 const hasDeduction = Object.values(deductionStatus).some(
                   status => status.stockItemId === row._id
                 );
@@ -2477,7 +2489,7 @@ export default function StockUploadPage() {
               borderRadius: "4px"
             }}
             title="Last Page"
-          >
+            >
             Last »
           </button>
         </div>

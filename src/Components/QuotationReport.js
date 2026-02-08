@@ -825,7 +825,7 @@ export default function QuotationModal() {
     setShowCompanyModal(true);
   };
 
-  // Handle item field changes
+  // Handle item field changes - UPDATED CALCULATIONS
   function handleItemChange(index, field, value) {
     setItems(prevItems => {
       const updatedItems = [...prevItems];
@@ -841,13 +841,14 @@ export default function QuotationModal() {
         [field]: newValue
       };
       
-      // Auto-calculate quantity when count, width, or length changes
-      if (["cut_width", "length", "count"].includes(field)) {
+      // UPDATED: Auto-calculate count when width, length, or quantity changes
+      // Formula: Count = Length × Width × Quantity
+      if (["cut_width", "length", "quantity"].includes(field)) {
         const width = updatedItems[index].cut_width || 1;
         const length = updatedItems[index].length || 1;
-        const count = updatedItems[index].count || 1;
+        const quantity = updatedItems[index].quantity || 1;
         // Count = Length × Width × Quantity
-        updatedItems[index].quantity = width * length * count;
+        updatedItems[index].count = parseFloat((width * length * quantity).toFixed(2)) || 1;
       }
       
       return updatedItems;
@@ -864,7 +865,9 @@ export default function QuotationModal() {
     setItems(prevItems => prevItems.filter((_, i) => i !== index));
   }
 
-  // NEW FORMULAS AS PER REQUIREMENTS:
+  // ============================================
+  // UPDATED CALCULATIONS AS PER REQUIREMENTS:
+  // ============================================
   
   // 1. Price/Unit = MRP × Length × Width
   const pricePerUnit = (item) => {
@@ -892,9 +895,9 @@ export default function QuotationModal() {
     return parseFloat((total + packing + freight).toFixed(2));
   };
 
-  // 4. Count = Length × Width × Quantity (already calculated in handleItemChange)
+  // 4. Count = Length × Width × Quantity (calculated in handleItemChange)
   
-  // Calculate GST amount (18% of Grand Total)
+  // Calculate GST amount (tax_rate% of Grand Total)
   const gstAmount = (item) => {
     const grandTotal = calculateGrandTotal(item);
     const tax_rate = parseFloat(item.tax_rate) || 18.0;
@@ -913,9 +916,8 @@ export default function QuotationModal() {
   const calculateProfitAmount = (item) => {
     const pricePerUnitValue = pricePerUnit(item);
     const profitPercentage = parseFloat(item.profit_percentage) || 20;
-    const quantity = parseFloat(item.quantity) || 1;
     const profitPerUnit = pricePerUnitValue * (profitPercentage / 100);
-    return parseFloat((profitPerUnit * quantity).toFixed(2));
+    return parseFloat(profitPerUnit.toFixed(2));
   };
 
   // Calculate total profit for all items
@@ -927,17 +929,13 @@ export default function QuotationModal() {
 
   // Calculate all totals
   const calculateTotals = () => {
-    const totalPricePerUnit = items.reduce((sum, item) => sum + pricePerUnit(item) * (parseFloat(item.quantity) || 1), 0);
+    const totalPricePerUnit = items.reduce((sum, item) => sum + pricePerUnit(item), 0);
     const totalProfit = calculateTotalProfit();
     const totalPacking = items.reduce((sum, item) => sum + (parseFloat(item.packing_charges) || 0), 0);
     const totalFreight = items.reduce((sum, item) => sum + (parseFloat(item.freight_charges) || 0), 0);
     const totalGST = items.reduce((sum, item) => sum + gstAmount(item), 0);
     const grandTotal = items.reduce((sum, item) => sum + itemTotal(item), 0);
-    const totalBuyCost = items.reduce((sum, item) => {
-      const pricePerUnitValue = pricePerUnit(item);
-      const quantity = parseFloat(item.quantity) || 0;
-      return sum + (pricePerUnitValue * quantity);
-    }, 0);
+    const totalBuyCost = items.reduce((sum, item) => sum + pricePerUnit(item), 0);
     
     return {
       totalPricePerUnit: parseFloat(totalPricePerUnit.toFixed(2)),
@@ -1237,9 +1235,8 @@ export default function QuotationModal() {
         const mrp = parseFloat(item.mrp) || 0;
         const width = parseFloat(item.cut_width) || 0;
         const length = parseFloat(item.length) || 0;
-        const quantity = parseFloat(item.quantity) || 0;
         const pricePerUnitValue = mrp * width * length;
-        return sum + (pricePerUnitValue * quantity);
+        return sum + pricePerUnitValue;
       }, 0)
     };
     
@@ -1247,7 +1244,7 @@ export default function QuotationModal() {
     const taxSummary = {};
     items.forEach(item => {
       const taxRate = item.tax_rate || 18;
-      const taxAmount = item.tax_amount || gstAmount(item) || 0;
+      const taxAmount = item.tax_amount || 0;
       if (!taxSummary[taxRate]) {
         taxSummary[taxRate] = 0;
       }
@@ -1333,12 +1330,12 @@ export default function QuotationModal() {
                   <th>Brand Code</th>
                   <th>Cut Width</th>
                   <th>Cut Length</th>
+                  <th>Qty</th>
                   <th>Count</th>
                   <th>Supplier Part No</th>
                   <th>Customer Description</th>
                   <th>Batch No</th>
                   <th>HSN</th>
-                  <th>Qty</th>
                   <th>UoM</th>
                   <th>MRP</th>
                   <th>Price/Unit</th>
@@ -1379,15 +1376,15 @@ export default function QuotationModal() {
                   const mrp = parseFloat(item.mrp) || 0;
                   const width = parseFloat(item.cut_width) || 0;
                   const length = parseFloat(item.length) || 0;
-                  const count = parseFloat(item.count) || 1;
+                  const quantity = parseFloat(item.quantity) || 0;
+                  const count = parseFloat(item.count) || 0;
                   const pricePerUnitValue = mrp * width * length;
                   const profitPercentage = parseFloat(item.profit_percentage) || 20;
                   const totalValue = pricePerUnitValue + (pricePerUnitValue * (profitPercentage / 100));
                   const packing = parseFloat(item.packing_charges) || 0;
                   const freight = parseFloat(item.freight_charges) || 0;
                   const grandTotalValue = totalValue + packing + freight;
-                  const quantity = parseFloat(item.quantity) || 0;
-                  const sellingPrice = parseFloat(item.item_total) || itemTotal(item) || 0;
+                  const sellingPrice = parseFloat(item.item_total) || 0;
                   
                   return `
                     <tr>
@@ -1396,12 +1393,12 @@ export default function QuotationModal() {
                       <td>${brand_code || item.brand_code || ''}</td>
                       <td>${width}</td>
                       <td>${length}</td>
+                      <td>${quantity}</td>
                       <td>${count}</td>
                       <td>${item.supplier_part_no || ''}</td>
                       <td>${customer_description || item.customer_description || ''}</td>
                       <td>${item.batch_no || ''}</td>
                       <td>${item.hsn_sac || ''}</td>
-                      <td>${item.quantity || ''}</td>
                       <td>${item.unit || ''}</td>
                       <td>₹${mrp.toFixed(2)}</td>
                       <td>₹${pricePerUnitValue.toFixed(2)}</td>
@@ -1577,7 +1574,7 @@ export default function QuotationModal() {
 
   const totals = calculateTotals();
 
-  // Item Selection Popup Modal - UPDATED WITH PROFIT PERCENTAGE
+  // Item Selection Popup Modal - UPDATED WITH CORRECT CALCULATIONS
   const renderItemPopup = () => {
     if (!showItemPopup) return null;
     
@@ -1755,12 +1752,13 @@ export default function QuotationModal() {
                             step="0.1"
                             value={newItemCutWidth}
                             onChange={(e) => {
-                              setNewItemCutWidth(e.target.value);
                               const width = parseFloat(e.target.value) || 0;
+                              setNewItemCutWidth(e.target.value);
                               const length = parseFloat(newItemLength) || 0;
-                              const count = parseFloat(newItemCount) || 0;
+                              const quantity = parseFloat(newItemQuantity) || 1;
                               // Count = Length × Width × Quantity
-                              setNewItemQuantity((width * length * count || 1).toString());
+                              const count = width * length * quantity;
+                              setNewItemCount(count.toFixed(2));
                             }}
                             placeholder="Width"
                           />
@@ -1775,12 +1773,13 @@ export default function QuotationModal() {
                             step="0.1"
                             value={newItemLength}
                             onChange={(e) => {
+                              const length = parseFloat(e.target.value) || 0;
                               setNewItemLength(e.target.value);
                               const width = parseFloat(newItemCutWidth) || 0;
-                              const length = parseFloat(e.target.value) || 0;
-                              const count = parseFloat(newItemCount) || 0;
+                              const quantity = parseFloat(newItemQuantity) || 1;
                               // Count = Length × Width × Quantity
-                              setNewItemQuantity((width * length * count || 1).toString());
+                              const count = width * length * quantity;
+                              setNewItemCount(count.toFixed(2));
                             }}
                             placeholder="Length"
                           />
@@ -1788,21 +1787,22 @@ export default function QuotationModal() {
                       </div>
                       <div className="col-md-3">
                         <div className="mb-3">
-                          <label className="form-label">Count</label>
+                          <label className="form-label">Quantity</label>
                           <input
                             type="number"
                             className="form-control"
                             min="1"
-                            value={newItemCount}
+                            value={newItemQuantity}
                             onChange={(e) => {
-                              setNewItemCount(e.target.value);
+                              const quantity = parseFloat(e.target.value) || 1;
+                              setNewItemQuantity(quantity.toString());
                               const width = parseFloat(newItemCutWidth) || 0;
                               const length = parseFloat(newItemLength) || 0;
-                              const count = parseFloat(e.target.value) || 0;
                               // Count = Length × Width × Quantity
-                              setNewItemQuantity((width * length * count || 1).toString());
+                              const count = width * length * quantity;
+                              setNewItemCount(count.toFixed(2));
                             }}
-                            placeholder="Count"
+                            placeholder="Quantity"
                           />
                         </div>
                       </div>
@@ -1819,6 +1819,18 @@ export default function QuotationModal() {
                     </div>
 
                     <div className="row">
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Calculated Count</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={newItemCount}
+                            readOnly
+                          />
+                          <small className="text-muted">Count = Width × Length × Quantity</small>
+                        </div>
+                      </div>
                       <div className="col-md-4">
                         <div className="mb-3">
                           <label className="form-label">Packing Charges</label>
@@ -1845,19 +1857,6 @@ export default function QuotationModal() {
                             onChange={(e) => setNewItemFreightCharges(e.target.value)}
                             placeholder="Freight charges"
                           />
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="mb-3">
-                          <label className="form-label">Quantity (Auto)</label>
-                          <input
-                            type="number"
-                            className="form-control"
-                            min="1"
-                            value={newItemQuantity}
-                            readOnly
-                          />
-                          <small className="text-muted">Width × Length × Count</small>
                         </div>
                       </div>
                     </div>
@@ -1891,6 +1890,7 @@ export default function QuotationModal() {
                         const mrp = parseFloat(selectedStockItem["MRP"]) || 0;
                         const width = parseFloat(newItemCutWidth) || parseFloat(selectedStockItem["Width"]) || 1;
                         const length = parseFloat(newItemLength) || parseFloat(selectedStockItem["Length"]) || 1;
+                        const quantity = parseFloat(newItemQuantity) || 1;
                         const pricePerUnitValue = mrp * width * length;
                         const profitPercentage = parseFloat(newItemProfitPercentage) || 20;
                         const totalValue = pricePerUnitValue + (pricePerUnitValue * (profitPercentage / 100));
@@ -1908,7 +1908,7 @@ export default function QuotationModal() {
                           batch_no: newItemBatchCode || `B-${Date.now().toString().slice(-6)}-${items.length + 1}`,
                           mrp: mrp,
                           buy_price: parseFloat(selectedStockItem["Buy Price"]) || 0,
-                          quantity: parseFloat(newItemQuantity) || 1,
+                          quantity: quantity,
                           unit: selectedStockItem["Unit"] || "pcs",
                           profit_percentage: profitPercentage,
                           tax_rate: selectedStockItem["GST"] || 18.0,
@@ -1927,6 +1927,7 @@ export default function QuotationModal() {
                         setNewItemCutWidth("");
                         setNewItemLength("");
                         setNewItemCount("1");
+                        setNewItemQuantity("1");
                         setNewItemBatchCode("");
                         setNewItemProfitPercentage("20");
                         setNewItemPackingCharges("0");
@@ -1950,7 +1951,7 @@ export default function QuotationModal() {
     );
   };
 
-  // Preview Modal - UPDATED WITH NEW FORMULAS AND BANK DETAILS
+  // Preview Modal - UPDATED WITH CORRECT CALCULATIONS
   const renderPreviewModal = () => {
     if (!showPreviewModal) return null;
     
@@ -2019,12 +2020,12 @@ export default function QuotationModal() {
                           <th>Brand Code</th>
                           <th>Cut Width</th>
                           <th>Cut Length</th>
+                          <th>Qty</th>
                           <th>Count</th>
                           <th>Supplier Part No</th>
                           <th>Customer Description</th>
                           <th>Batch No</th>
                           <th>HSN</th>
-                          <th>Qty</th>
                           <th>UoM</th>
                           <th>MRP</th>
                           <th>Price/Unit</th>
@@ -2051,12 +2052,12 @@ export default function QuotationModal() {
                               <td>{item.brand_code || ''}</td>
                               <td>{item.cut_width}</td>
                               <td>{item.length}</td>
-                              <td>{item.count}</td>
+                              <td>{item.quantity}</td>
+                              <td>{parseFloat(item.count || 0).toFixed(2)}</td>
                               <td>{item.supplier_part_no}</td>
                               <td>{item.customer_description || ''}</td>
                               <td>{item.batch_no}</td>
                               <td>{item.hsn_sac}</td>
-                              <td>{item.quantity}</td>
                               <td>{item.unit}</td>
                               <td>₹{parseFloat(item.mrp || 0).toFixed(2)}</td>
                               <td>₹{pricePerUnitValue.toFixed(2)}</td>
@@ -2218,7 +2219,7 @@ export default function QuotationModal() {
     );
   };
 
-  // View Quotation Modal - UPDATED WITH NEW FORMULAS AND BANK DETAILS
+  // View Quotation Modal - UPDATED WITH CORRECT CALCULATIONS
   const renderViewModal = () => {
     if (!showViewModal || !selectedQuotation) return null;
     
@@ -2284,12 +2285,12 @@ export default function QuotationModal() {
                         <th>Brand Code</th>
                         <th>Cut Width</th>
                         <th>Cut Length</th>
+                        <th>Qty</th>
                         <th>Count</th>
                         <th>Supplier Part No</th>
                         <th>Customer Description</th>
                         <th>Batch No</th>
                         <th>HSN</th>
-                        <th>Qty</th>
                         <th>UoM</th>
                         <th>MRP</th>
                         <th>Price/Unit</th>
@@ -2330,7 +2331,8 @@ export default function QuotationModal() {
                         const mrp = parseFloat(item.mrp) || 0;
                         const width = parseFloat(item.cut_width) || 0;
                         const length = parseFloat(item.length) || 0;
-                        const count = parseFloat(item.count) || 1;
+                        const quantity = parseFloat(item.quantity) || 0;
+                        const count = parseFloat(item.count) || 0;
                         const pricePerUnitValue = mrp * width * length;
                         const profitPercentage = parseFloat(item.profit_percentage) || 20;
                         const totalValue = pricePerUnitValue + (pricePerUnitValue * (profitPercentage / 100));
@@ -2346,12 +2348,12 @@ export default function QuotationModal() {
                             <td>{brand_code || item.brand_code || ''}</td>
                             <td>{item.cut_width || ''}</td>
                             <td>{item.length || ''}</td>
-                            <td>{item.count || ''}</td>
+                            <td>{quantity}</td>
+                            <td>{count.toFixed(2)}</td>
                             <td>{item.supplier_part_no || ''}</td>
                             <td>{customer_description || item.customer_description || ''}</td>
                             <td>{item.batch_no || ''}</td>
                             <td>{item.hsn_sac || ''}</td>
-                            <td>{item.quantity || ''}</td>
                             <td>{item.unit || ''}</td>
                             <td>₹{mrp.toFixed(2)}</td>
                             <td>₹{pricePerUnitValue.toFixed(2)}</td>
@@ -2424,9 +2426,8 @@ export default function QuotationModal() {
                             const mrp = parseFloat(item.mrp) || 0;
                             const width = parseFloat(item.cut_width) || 0;
                             const length = parseFloat(item.length) || 0;
-                            const quantity = parseFloat(item.quantity) || 0;
                             const pricePerUnitValue = mrp * width * length;
-                            return sum + (pricePerUnitValue * quantity);
+                            return sum + pricePerUnitValue;
                           }, 0);
                           
                           return (
@@ -2494,7 +2495,7 @@ export default function QuotationModal() {
     );
   };
 
-  // Items Modal - UPDATED WITH NEW FORMULAS
+  // Items Modal - UPDATED WITH CORRECT CALCULATIONS
   const renderItemsModal = () => {
     if (!showItemsModal) return null;
     
@@ -2554,8 +2555,8 @@ export default function QuotationModal() {
                             <th width="120">Part No</th>
                             <th width="80">Width</th>
                             <th width="80">Length</th>
-                            <th width="80">Count</th>
                             <th width="80">Qty</th>
+                            <th width="80">Count</th>
                             <th width="80">Unit</th>
                             <th width="100">MRP</th>
                             <th width="100">Price/Unit</th>
@@ -2616,8 +2617,8 @@ export default function QuotationModal() {
                                     type="number"
                                     className="form-control form-control-sm"
                                     min="1"
-                                    value={item.count}
-                                    onChange={(e) => handleItemChange(index, "count", e.target.value)}
+                                    value={item.quantity}
+                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
                                   />
                                 </td>
                                 <td>
@@ -2625,8 +2626,7 @@ export default function QuotationModal() {
                                     type="number"
                                     className="form-control form-control-sm"
                                     min="1"
-                                    value={item.quantity}
-                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                    value={item.count}
                                     readOnly
                                   />
                                 </td>
@@ -3087,10 +3087,9 @@ export default function QuotationModal() {
                         const width = parseFloat(item.cut_width) || 0;
                         const length = parseFloat(item.length) || 0;
                         const profitPercentage = parseFloat(item.profit_percentage) || 20;
-                        const quantity = parseFloat(item.quantity) || 0;
                         const pricePerUnitValue = mrp * width * length;
                         const profitPerUnit = pricePerUnitValue * (profitPercentage / 100);
-                        return sum + (profitPerUnit * quantity);
+                        return sum + profitPerUnit;
                       }, 0);
                       
                       // Calculate total buy cost
@@ -3098,9 +3097,8 @@ export default function QuotationModal() {
                         const mrp = parseFloat(item.mrp) || 0;
                         const width = parseFloat(item.cut_width) || 0;
                         const length = parseFloat(item.length) || 0;
-                        const quantity = parseFloat(item.quantity) || 0;
                         const pricePerUnitValue = mrp * width * length;
-                        return sum + (pricePerUnitValue * quantity);
+                        return sum + pricePerUnitValue;
                       }, 0);
                       
                       const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";

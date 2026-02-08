@@ -1526,12 +1526,6 @@ export default function EnquiryModal() {
           >
             <i className="bi bi-download me-2"></i>Export
           </button>
-          <button
-            className="btn btn-primary"
-            onClick={startNewEnquiry}
-          >
-            <i className="bi bi-question-circle me-2"></i>New Enquiry
-          </button>
         </div>
       </div>
 
