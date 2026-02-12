@@ -41,8 +41,43 @@ import {
   FaClipboard,
   FaTruck,
   FaFileAlt,
-  FaBan as FaBanIcon,
-  FaWarehouse as FaWarehouseIcon
+  // Fixed icons - using available ones
+  FaChartPie,
+  FaSitemap,
+  FaFileExport,
+  FaFileImport,
+  FaShieldAlt,
+  FaUserClock,
+  FaMoneyBillWave,
+  FaTruckLoading,
+  FaBox,
+  FaTags,
+  FaCheckCircle,
+  FaTimesCircle,
+  FaFileDownload,
+  FaRegFileAlt,
+  FaRegChartBar,
+  FaRegFile,
+  FaFileExcel,
+  FaRegClipboard,
+  FaBriefcase,
+  FaIndustry as FaIndustryIcon,
+  FaChartArea,
+  FaRegListAlt,
+  FaUserMd,
+  FaHardHat,
+  FaCoins,
+  FaStore,
+  FaEdit,
+  FaThumbsUp,
+  FaThumbsDown,
+  FaSearchDollar,
+  FaBusinessTime,
+  FaFileInvoiceDollar,
+  FaRegCalendarCheck,
+  FaReceipt,
+  FaFileSignature,
+  FaArchive
 } from "react-icons/fa";
 import { Link, useLocation } from "react-router-dom";
 
@@ -53,17 +88,16 @@ export const menuItems = [
     category: "Dashboard",
     items: [
       { name: "Dashboard", icon: <FaHome />, path: "/dashboard" },
-      { name: "Customer Dashboard", path: "/company-dashboard" },
-      { name: "Admin Dashboard", path: "/dashboardsetter" },
-      
+      { name: "Customer Dashboard", icon: <FaChartPie />, path: "/company-dashboard" },
+      { name: "Admin Dashboard", icon: <FaUserShield />, path: "/dashboardsetter" },
     ]
   },
 
   // ========== COMPANY MASTER ==========
   {
-    category: "Company Master",
+    category: "Partner Masters",
     items: [
-      { name: "Companies", icon: <FaIndustry />, path: "/companies" },
+      { name: "Partners", icon: <FaBuilding />, path: "/companies" },
     ]
   },
 
@@ -71,12 +105,12 @@ export const menuItems = [
   {
     category: "User & System",
     items: [
-      { name: "Departments", icon: <FaLayerGroup />, path: "/departments" },
+      { name: "Departments", icon: <FaSitemap />, path: "/departments" },
       { name: "Designations", icon: <FaUserTag />, path: "/designations" },
       { name: "Employees", icon: <FaUserTie />, path: "/employees" },
       { name: "User Types", icon: <FaUserCog />, path: "/user-types" },
       { name: "Settings", icon: <FaCogs />, path: "/Settings" },
-      { name: "AccessControl", icon: <FaKey />, path: "/accesscontrol" }
+      { name: "AccessControl", icon: <FaShieldAlt />, path: "/accesscontrol" }
     ]
   },
 
@@ -84,9 +118,9 @@ export const menuItems = [
   {
     category: "Attendance & Reports",
     items: [
-      { name: "Attendance", icon: <FaClock />, path: "/attendance" },
+      { name: "Attendance", icon: <FaUserClock />, path: "/attendance" },
       { name: "Admin Attendance", icon: <FaUserCheck />, path: "/AdminAttendance" },
-      { name: "Attendance Report", icon: <FaChartLine />, path: "/AttendanceReport" },
+      { name: "Attendance Report", icon: <FaChartBar />, path: "/AttendanceReport" },
       { name: "Visit Report", icon: <FaRoute />, path: "/visitreport" },
       { name: "Admin Visit Report", icon: <FaClipboardCheck />, path: "/AdminVisitReport" }
     ]
@@ -98,7 +132,7 @@ export const menuItems = [
     items: [
       { name: "Task", icon: <FaTasks />, path: "/Task" },
       { name: "Admin Task", icon: <FaClipboardList />, path: "/AdminTask" },
-      { name: "Task Status", icon: <FaClipboardCheck />, path: "/TaskStatus" }
+      { name: "Task Status", icon: <FaCheckCircle />, path: "/TaskStatus" }
     ]
   },
 
@@ -106,10 +140,10 @@ export const menuItems = [
   {
     category: "Labour Management",
     items: [
-      { name: "ESI Labours", icon: <FaFileMedical />, path: "/EsiReport" },
-      { name: "Casual Labours", icon: <FaCalendarAlt />, path: "/CasualLeave" },
+      { name: "ESI Labours", icon: <FaUserMd />, path: "/EsiReport" },
+      { name: "Casual Labours", icon: <FaHardHat />, path: "/CasualLeave" },
       { name: "NoESiPf Labours", icon: <FaBan />, path: "/noesipf" },
-      { name: "Loan", icon: <FaHandHoldingUsd />, path: "/Loan" }
+      { name: "Loan", icon: <FaCoins />, path: "/Loan" }
     ]
   },
 
@@ -118,14 +152,13 @@ export const menuItems = [
     category: "Stock & Sales",
     items: [
       { name: "Stock Upload", icon: <FaUpload />, path: "/stockupload" },
-      { name: "GRN", icon: <FaWarehouse />, path: "/grn" },
+      { name: "GRN", icon: <FaTruckLoading />, path: "/grn" },
       { name: "Stock sold", icon: <FaShoppingCart />, path: "/stocksold" },
-      { name: "Mrp Update", icon: <FaExchangeAlt />, path: "/mrpchange" },
-      { name: "Sales Order", icon: <FaUpload />, path: "/salesorder" },
-      { name: "Lost Order", icon: <FaUpload />, path: "/rejected" },
-      { name: "Purchase Order", icon: <FaUpload />, path: "/PurchaseOrder" },///PurchaseOrderapproval
-      { name: "Purchase Order approval", icon: <FaUpload />, path: "/PurchaseOrderapproval" }
-
+      { name: "Mrp Update", icon: <FaTags />, path: "/mrpchange" },
+      { name: "Sales Order", icon: <FaReceipt />, path: "/salesorder" },
+      { name: "Lost Order", icon: <FaTimesCircle />, path: "/rejected" },
+      { name: "Purchase Order", icon: <FaFileSignature />, path: "/PurchaseOrder" },
+      { name: "Purchase Order approval", icon: <FaThumbsUp />, path: "/PurchaseOrderapproval" }
     ]
   },
 
@@ -133,13 +166,12 @@ export const menuItems = [
   {
     category: "Quotation & Projects",
     items: [
-      { name: "Enquiry", icon: <FaFileInvoice />, path: "/enquiry" },
-      { name: "Quotation", icon: <FaFileInvoice />, path: "/quotation" },
-      { name: "Quotation Approval", icon: <FaClipboardList />, path: "/quotationreport" },
-      { name: "Industrial Segmentation", icon: <FaProjectDiagram />, path: "/IndustrialSegmentation" },
-      { name: "Enquiry Report", icon: <FaFileInvoice />, path: "/enquiryreport" },
-      { name: "Quotation Report", icon: <FaFileInvoice />, path: "/QuotationWholeReport" }
-
+      { name: "Enquiry", icon: <FaSearchDollar />, path: "/enquiry" },
+      { name: "Quotation", icon: <FaFileInvoiceDollar />, path: "/quotation" },
+      { name: "Quotation Approval", icon: <FaThumbsUp />, path: "/quotationreport" },
+      { name: "Industrial Segmentation", icon: <FaIndustryIcon />, path: "/IndustrialSegmentation" },
+      { name: "Enquiry Report", icon: <FaRegFileAlt />, path: "/enquiryreport" },
+      { name: "Quotation Report", icon: <FaFileExport />, path: "/QuotationWholeReport" }
     ]
   }
 ];
@@ -295,14 +327,14 @@ const Sidebar = ({ isOpen }) => {
 // ⭐ Helper function to get category icons
 const getCategoryIcon = (category) => {
   switch(category) {
-    case "Dashboard": return <FaHome />;
-    case "Company Master": return <FaBuilding />;
-    case "User & System": return <FaUserFriends />;
-    case "Attendance & Reports": return <FaChartBar />;
-    case "Task Management": return <FaClipboard />;
-    case "Labour Management": return <FaUsers />;
-    case "Stock & Sales": return <FaTruck />;
-    case "Quotation & Projects": return <FaFileAlt />;
+    case "Dashboard": return <FaChartArea />;
+    case "Company Master": return <FaBriefcase />;
+    case "User & System": return <FaUsers />;
+    case "Attendance & Reports": return <FaRegCalendarCheck />;
+    case "Task Management": return <FaRegClipboard />;
+    case "Labour Management": return <FaHardHat />;
+    case "Stock & Sales": return <FaStore />;
+    case "Quotation & Projects": return <FaBusinessTime />;
     default: return <FaFolder />;
   }
 };

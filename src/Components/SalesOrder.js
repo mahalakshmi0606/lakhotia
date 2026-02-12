@@ -15,8 +15,7 @@ import {
   Col,
   Container,
   InputGroup,
-  FormControl,
-  Collapse
+  FormControl
 } from "react-bootstrap";
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
@@ -36,14 +35,16 @@ export default function QuotationModal() {
   // State variables
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
+  const [selectedItemForView, setSelectedItemForView] = useState(null);
 
   // Saved quotations state
   const [savedQuotations, setSavedQuotations] = useState([]);
+  const [flattenedItems, setFlattenedItems] = useState([]);
   const [loadingQuotations, setLoadingQuotations] = useState(false);
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(20);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
@@ -62,6 +63,7 @@ export default function QuotationModal() {
   const [itemRejectionReasons, setItemRejectionReasons] = useState({});
   const [showItemStatusModal, setShowItemStatusModal] = useState(false);
   const [quotationForStatusUpdate, setQuotationForStatusUpdate] = useState(null);
+  const [currentItemForStatusUpdate, setCurrentItemForStatusUpdate] = useState(null);
 
   // Rejection reason modal
   const [showRejectionModal, setShowRejectionModal] = useState(false);
@@ -106,8 +108,8 @@ export default function QuotationModal() {
   // Stock cache for buy prices
   const [stockCache, setStockCache] = useState({});
 
-  // Expanded rows for showing items
-  const [expandedRows, setExpandedRows] = useState({});
+  // Filter state
+  const [statusFilter, setStatusFilter] = useState("all");
 
   // API base URLs
   const API_BASE_URL = "http://127.0.0.1:5000";
@@ -193,10 +195,8 @@ export default function QuotationModal() {
 
   // Extract batch number from description or use item data
   const extractBatchNo = (item) => {
-    // First check if batch_no exists directly in item
     if (item.batch_no) return item.batch_no;
     
-    // Then check description for batch information
     if (item.description && item.description.includes('[BATCH:')) {
       try {
         const match = item.description.match(/\[BATCH:(.*?)\]/);
@@ -247,7 +247,6 @@ export default function QuotationModal() {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/tasks/by-item/${itemId}`);
       if (response.data && response.data.length > 0) {
-        // Return the first task (there should ideally be only one task per item)
         return response.data[0];
       }
       return null;
@@ -273,6 +272,33 @@ export default function QuotationModal() {
     } catch (err) {
       console.error("Error loading quotation counts:", err);
     }
+  };
+
+  // Flatten quotations into items array
+  const flattenQuotationsToItems = (quotations) => {
+    const items = [];
+    
+    quotations.forEach(quotation => {
+      (quotation.items || []).forEach(item => {
+        items.push({
+          ...item,
+          quotation_id: quotation.id,
+          quotation_number: quotation.quote_number || quotation.quoteNo,
+          quotation_date: quotation.date || quotation.date,
+          quotation_time: quotation.time || quotation.time,
+          company_name: quotation.company_name || quotation.billTo,
+          company_address: quotation.company_address || "",
+          company_gstin: quotation.company_gstin || "",
+          contact_person: quotation.contact_person || quotation.contactPerson,
+          contact_mobile: quotation.contact_mobile || quotation.contactMob,
+          contact_email: quotation.contact_email || quotation.contactEmail,
+          quotation_status: quotation.status || 'completed',
+          quotation_grand_total: quotation.grand_total || quotation.totals?.grandTotal || 0
+        });
+      });
+    });
+    
+    return items;
   };
 
   // Fetch saved quotations with pagination - ONLY COMPLETED
@@ -347,6 +373,11 @@ export default function QuotationModal() {
         });
         
         setSavedQuotations(quotationsWithBuyPrices);
+        
+        // Flatten quotations to items array
+        const flattened = flattenQuotationsToItems(quotationsWithBuyPrices);
+        setFlattenedItems(flattened);
+        
         setTotalItems(pagination.total || fetchedQuotations.length);
         setTotalPages(pagination.pages || Math.ceil((pagination.total || fetchedQuotations.length) / itemsPerPage) || 1);
       } else {
@@ -355,19 +386,12 @@ export default function QuotationModal() {
     } catch (err) {
       console.error("Error loading quotations from API:", err);
       setSavedQuotations([]);
+      setFlattenedItems([]);
       setTotalItems(0);
       setTotalPages(1);
     } finally {
       setLoadingQuotations(false);
     }
-  };
-
-  // Toggle row expansion
-  const toggleRowExpansion = (quotationId) => {
-    setExpandedRows(prev => ({
-      ...prev,
-      [quotationId]: !prev[quotationId]
-    }));
   };
 
   // Reset search function
@@ -419,22 +443,30 @@ export default function QuotationModal() {
     setShowViewModal(true);
   };
 
-  // Open item status update modal for completed quotations
-  const openItemStatusModal = (quotation) => {
-    if (quotation.status !== 'completed') {
-      alert("Only completed quotations can have their item statuses updated.");
-      return;
+  // View item details in modal
+  const viewItemDetails = (item) => {
+    setSelectedItemForView(item);
+    // Find the full quotation for this item
+    const quotation = savedQuotations.find(q => q.id === item.quotation_id);
+    if (quotation) {
+      setSelectedQuotation(quotation);
+      setShowViewModal(true);
     }
+  };
+
+  // Open item status update modal for individual item
+  const openSingleItemStatusModal = (item) => {
+    const quotation = savedQuotations.find(q => q.id === item.quotation_id);
+    if (!quotation) return;
     
     setQuotationForStatusUpdate(quotation);
+    setCurrentItemForStatusUpdate(item);
     
-    // Initialize status updates based on sales_order_item_status
+    // Initialize status updates for this single item
     const initialUpdates = {};
     const initialRejectionReasons = {};
-    (quotation.items || []).forEach(item => {
-      initialUpdates[item.id] = item.sales_order_item_status || "not_created";
-      initialRejectionReasons[item.id] = item.rejection_reason || "";
-    });
+    initialUpdates[item.id] = item.sales_order_item_status || "not_created";
+    initialRejectionReasons[item.id] = item.rejection_reason || "";
     
     setItemStatusUpdates(initialUpdates);
     setItemRejectionReasons(initialRejectionReasons);
@@ -444,14 +476,12 @@ export default function QuotationModal() {
   // Handle item status change
   const handleItemStatusChange = async (itemId, newStatus) => {
     if (newStatus === "rejected") {
-      // Store the pending status change and open rejection reason modal
       setCurrentRejectionItem({
         id: itemId,
         newStatus: newStatus
       });
       setShowRejectionModal(true);
     } else {
-      // Update status immediately for non-rejected statuses
       setItemStatusUpdates(prev => ({
         ...prev,
         [itemId]: newStatus
@@ -469,7 +499,6 @@ export default function QuotationModal() {
     const { id, newStatus } = currentRejectionItem;
     
     try {
-      // Update rejection reason in backend
       const loggedInUser = localStorage.getItem("username") || "Admin User";
       
       const response = await axios.patch(
@@ -481,7 +510,6 @@ export default function QuotationModal() {
       );
       
       if (response.data.success) {
-        // Update local state
         setItemStatusUpdates(prev => ({
           ...prev,
           [id]: newStatus
@@ -492,7 +520,6 @@ export default function QuotationModal() {
           [id]: rejectionReason
         }));
         
-        // Close modal and reset
         setShowRejectionModal(false);
         setCurrentRejectionItem(null);
         setRejectionReason("");
@@ -507,7 +534,7 @@ export default function QuotationModal() {
     }
   };
 
-  // Update item statuses for completed quotation
+  // Update item statuses
   const updateItemStatuses = async () => {
     if (!quotationForStatusUpdate) return;
     
@@ -516,7 +543,6 @@ export default function QuotationModal() {
     try {
       const loggedInUser = localStorage.getItem("username") || "Admin User";
       
-      // Prepare updates for backend
       const updates = [];
       
       for (const [itemId, salesOrderItemStatus] of Object.entries(itemStatusUpdates)) {
@@ -525,12 +551,10 @@ export default function QuotationModal() {
           sales_order_item_status: salesOrderItemStatus
         };
         
-        // If there's a rejection reason, include it
         if (salesOrderItemStatus === "rejected" && itemRejectionReasons[itemId]) {
           updateData.rejection_reason = itemRejectionReasons[itemId];
         }
         
-        // If status is 'ordered', mark sales order as created
         if (salesOrderItemStatus === "ordered") {
           updateData.sales_order_created = true;
         }
@@ -538,7 +562,6 @@ export default function QuotationModal() {
         updates.push(updateData);
       }
       
-      // Send bulk update request
       const response = await axios.put(
         `${API_BASE_URL}/api/quotations/${quotationForStatusUpdate.id}/items/status`,
         {
@@ -548,9 +571,8 @@ export default function QuotationModal() {
       );
       
       if (response.data.success) {
-        alert(`✅ Item statuses updated successfully! ${response.data.data.updated_count} item(s) updated.`);
+        alert(`✅ Item statuses updated successfully!`);
         
-        // Refresh the quotation data
         const refreshedResponse = await axios.get(`${API_BASE_URL}/api/quotations/${quotationForStatusUpdate.id}`);
         if (refreshedResponse.data.success) {
           setSelectedQuotation(refreshedResponse.data.data);
@@ -559,6 +581,7 @@ export default function QuotationModal() {
         
         setShowItemStatusModal(false);
         setQuotationForStatusUpdate(null);
+        setCurrentItemForStatusUpdate(null);
         setItemStatusUpdates({});
         setItemRejectionReasons({});
       } else {
@@ -572,86 +595,11 @@ export default function QuotationModal() {
     }
   };
 
-  // Bulk update all items to a specific status
-  const bulkUpdateItemStatus = async (status) => {
-    if (!quotationForStatusUpdate) return;
-    
-    if (!window.confirm(`Are you sure you want to set all items to "${status}"?`)) {
-      return;
-    }
-    
-    // If status is rejected, ask for a general rejection reason
-    if (status === "rejected") {
-      const reason = prompt("Please provide a reason for rejecting all items:");
-      if (!reason || !reason.trim()) {
-        alert("Rejection reason is required.");
-        return;
-      }
-      
-      // Update all items with rejection reason
-      const updatedRejectionReasons = {};
-      (quotationForStatusUpdate.items || []).forEach(item => {
-        updatedRejectionReasons[item.id] = reason;
-      });
-      setItemRejectionReasons(updatedRejectionReasons);
-    }
-    
-    setUpdatingItemStatus(true);
-    
-    try {
-      const allItemIds = (quotationForStatusUpdate.items || []).map(item => item.id);
-      
-      // Update local state
-      const updatedUpdates = {};
-      allItemIds.forEach(itemId => {
-        updatedUpdates[itemId] = status;
-      });
-      setItemStatusUpdates(updatedUpdates);
-      
-      // If status is not rejected, we can update immediately
-      if (status !== "rejected") {
-        const loggedInUser = localStorage.getItem("username") || "Admin User";
-        
-        const response = await axios.patch(
-          `${API_BASE_URL}/api/quotations/${quotationForStatusUpdate.id}/items/bulk-status`,
-          {
-            item_ids: allItemIds,
-            status: status,
-            updated_by: loggedInUser
-          }
-        );
-        
-        if (response.data.success) {
-          alert(`✅ All items updated to "${status}" successfully!`);
-          
-          // Refresh data
-          const refreshedResponse = await axios.get(`${API_BASE_URL}/api/quotations/${quotationForStatusUpdate.id}`);
-          if (refreshedResponse.data.success) {
-            setSelectedQuotation(refreshedResponse.data.data);
-            await fetchQuotations();
-          }
-        } else {
-          throw new Error(response.data.message || "Failed to bulk update item statuses");
-        }
-      } else {
-        // For rejected items, we'll update when the form is submitted
-        alert("Rejection reason saved. Click 'Save Item Statuses' to apply.");
-      }
-    } catch (err) {
-      console.error("Bulk update item statuses failed:", err);
-      alert("Failed to bulk update item statuses. Please try again.");
-    } finally {
-      setUpdatingItemStatus(false);
-    }
-  };
-
   // Open Task Creation/Update Modal
   const openTaskModal = async (item, quotation) => {
-    // Get logged in user info
     const loggedInUser = localStorage.getItem("username") || "Admin User";
     const loggedInEmail = localStorage.getItem("email") || "admin@example.com";
     
-    // Check if there's an existing task for this item
     const existingTask = await fetchExistingTaskForItem(item.id);
     
     setSelectedItemForTask({
@@ -663,12 +611,10 @@ export default function QuotationModal() {
       contact_person: quotation.contact_person || quotation.contactPerson
     });
     
-    // Determine if we're updating an existing task
     if (existingTask) {
       setIsUpdatingExistingTask(true);
       setExistingTaskId(existingTask.id);
       
-      // Set form data from existing task
       setTaskFormData({
         po_number: existingTask.po_number || generatePONumber(quotation.quote_number || quotation.quoteNo),
         description: existingTask.description || item.description || "",
@@ -696,10 +642,8 @@ export default function QuotationModal() {
       setIsUpdatingExistingTask(false);
       setExistingTaskId(null);
       
-      // Generate PO number for new task
       const poNumber = generatePONumber(quotation.quote_number || quotation.quoteNo);
       
-      // Set task form data for new task
       setTaskFormData({
         po_number: poNumber,
         description: item.description || "",
@@ -748,11 +692,9 @@ export default function QuotationModal() {
     setTaskError(null);
     
     try {
-      // Get logged in user info
       const loggedInUser = localStorage.getItem("username") || "Admin User";
       const loggedInEmail = localStorage.getItem("email") || "admin@example.com";
       
-      // Prepare task data for API with ALL fields
       const taskData = {
         po_number: taskFormData.po_number,
         description: taskFormData.description,
@@ -762,13 +704,11 @@ export default function QuotationModal() {
         assignedBy: loggedInUser,
         assignedByEmail: loggedInEmail,
         
-        // Quotation and item info
         quotation_id: taskFormData.quotation_id,
         quotation_number: taskFormData.quotation_number,
         company_name: taskFormData.company_name,
         company_address: taskFormData.company_address,
         
-        // Item details
         item_id: taskFormData.item_id,
         item_name: taskFormData.item_name,
         supplier_part_no: taskFormData.supplier_part_no,
@@ -776,14 +716,12 @@ export default function QuotationModal() {
         length: taskFormData.length,
         quantity: taskFormData.quantity,
         
-        // Brand and batch details
         brand_code: taskFormData.brand_code,
         batch_no: taskFormData.batch_no,
         mrp: taskFormData.mrp,
         hsn_sac: taskFormData.hsn_sac,
         unit: taskFormData.unit,
         
-        // Status and notes
         status: "Pending",
         note: taskFormData.note,
       };
@@ -791,11 +729,9 @@ export default function QuotationModal() {
       let response;
       
       if (isUpdatingExistingTask && existingTaskId) {
-        // Update existing task
         console.log("📤 Updating existing sales order (task) with data:", taskData);
         response = await axios.put(`${API_TASKS}/${existingTaskId}`, taskData);
       } else {
-        // Create new task
         console.log("📤 Creating sales order (task) with data:", taskData);
         response = await axios.post(API_TASKS, taskData);
       }
@@ -803,7 +739,6 @@ export default function QuotationModal() {
       if (response.data) {
         alert(`✅ Sales Order ${isUpdatingExistingTask ? 'updated' : 'created'} successfully with PO number!`);
         
-        // Update item sales order status to "ordered" after task creation/update
         try {
           await axios.patch(
             `${API_BASE_URL}/api/quotations/items/${taskFormData.item_id}/sales-order-status`,
@@ -813,7 +748,6 @@ export default function QuotationModal() {
             }
           );
           
-          // Also mark sales order as created
           await axios.patch(
             `${API_BASE_URL}/api/quotations/items/${taskFormData.item_id}/mark-sales-order`,
             {
@@ -827,7 +761,6 @@ export default function QuotationModal() {
           console.error("❌ Error updating item sales order status:", statusErr);
         }
         
-        // Close modal and reset
         setShowTaskModal(false);
         setSelectedItemForTask(null);
         setIsUpdatingExistingTask(false);
@@ -856,10 +789,8 @@ export default function QuotationModal() {
           unit: "",
         });
         
-        // Refresh quotations to show updated status
         await fetchQuotations();
         
-        // Refresh selected quotation if open
         if (selectedQuotation && selectedQuotation.id === taskFormData.quotation_id) {
           const refreshedResponse = await axios.get(`${API_BASE_URL}/api/quotations/${taskFormData.quotation_id}`);
           if (refreshedResponse.data.success) {
@@ -1160,6 +1091,16 @@ export default function QuotationModal() {
     }
   };
 
+  // Filter items by status
+  const getFilteredItems = () => {
+    if (statusFilter === "all") {
+      return flattenedItems;
+    }
+    return flattenedItems.filter(item => 
+      (item.sales_order_item_status || "not_created") === statusFilter
+    );
+  };
+
   // Rejection Reason Modal
   const renderRejectionModal = () => (
     <Modal show={showRejectionModal} onHide={() => {
@@ -1197,7 +1138,7 @@ export default function QuotationModal() {
         {currentRejectionItem && (
           <Alert variant="info" className="mt-3">
             <i className="bi bi-box me-2"></i>
-            <strong>Item:</strong> {quotationForStatusUpdate?.items?.find(item => item.id === currentRejectionItem.id)?.item_name}
+            <strong>Item:</strong> {flattenedItems.find(item => item.id === currentRejectionItem.id)?.item_name}
           </Alert>
         )}
       </Modal.Body>
@@ -1258,7 +1199,7 @@ export default function QuotationModal() {
       <Modal.Header closeButton className="bg-warning text-dark">
         <Modal.Title>
           <i className="bi bi-clipboard-check me-2"></i>
-          {isUpdatingExistingTask ? 'Update Sales Order' : 'Create Sales Order from Approved Item'}
+          {isUpdatingExistingTask ? 'Update Sales Order' : 'Create Sales Order'}
         </Modal.Title>
       </Modal.Header>
       <Modal.Body>
@@ -1267,15 +1208,15 @@ export default function QuotationModal() {
             <Alert variant={isUpdatingExistingTask ? "info" : "success"} className="mb-4">
               <i className="bi bi-info-circle me-2"></i>
               {isUpdatingExistingTask 
-                ? `Updating existing sales order. Current status: "${selectedItemForTask.sales_order_item_status || 'Not Created'}"`
-                : 'Creating sales order from approved item. This will update the item\'s sales order status to "ordered".'}
+                ? `Updating existing sales order for item: ${selectedItemForTask.item_name}`
+                : 'Creating sales order. This will update the item\'s status to "ordered".'}
             </Alert>
 
             <Row className="mb-4">
               <Col md={6}>
                 <Card className="h-100">
                   <Card.Header className="bg-light">
-                    <h6 className="mb-0">Item Details from Quotation</h6>
+                    <h6 className="mb-0">Item Details</h6>
                   </Card.Header>
                   <Card.Body>
                     <div className="mb-2">
@@ -1328,10 +1269,6 @@ export default function QuotationModal() {
                         <p className="mb-1">{selectedItemForTask.hsn_sac || 'N/A'}</p>
                       </div>
                     </div>
-                    <div className="mb-0">
-                      <label className="form-label text-muted small mb-0">Description</label>
-                      <p className="mb-0 small">{selectedItemForTask.description || 'No description'}</p>
-                    </div>
                   </Card.Body>
                 </Card>
               </Col>
@@ -1352,9 +1289,6 @@ export default function QuotationModal() {
                         required
                         placeholder="PO number"
                       />
-                      <Form.Text className="text-muted">
-                        {isUpdatingExistingTask ? 'Update PO number if needed' : 'PO number is auto-generated but can be edited if needed.'}
-                      </Form.Text>
                     </Form.Group>
                     
                     <Form.Group className="mb-3">
@@ -1385,9 +1319,6 @@ export default function QuotationModal() {
                           </option>
                         ))}
                       </Form.Select>
-                      {loadingEmployees && (
-                        <Form.Text className="text-muted">Loading employees...</Form.Text>
-                      )}
                     </Form.Group>
                     
                     <Row className="mb-3">
@@ -1419,62 +1350,6 @@ export default function QuotationModal() {
                       </Col>
                     </Row>
                     
-                    {/* Additional Fields for Brand and Batch */}
-                    <Row className="mb-3">
-                      <Col md={6}>
-                        <Form.Group>
-                          <Form.Label className="fw-bold">Brand Code</Form.Label>
-                          <Form.Control
-                            type="text"
-                            name="brand_code"
-                            value={taskFormData.brand_code}
-                            onChange={handleTaskFormChange}
-                            placeholder="Brand code"
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={6}>
-                        <Form.Group>
-                          <Form.Label className="fw-bold">Batch No</Form.Label>
-                          <Form.Control
-                            type="text"
-                            name="batch_no"
-                            value={taskFormData.batch_no}
-                            onChange={handleTaskFormChange}
-                            placeholder="Batch number"
-                          />
-                        </Form.Group>
-                      </Col>
-                    </Row>
-                    
-                    <Row className="mb-3">
-                      <Col md={6}>
-                        <Form.Group>
-                          <Form.Label className="fw-bold">MRP</Form.Label>
-                          <Form.Control
-                            type="number"
-                            step="0.01"
-                            name="mrp"
-                            value={taskFormData.mrp}
-                            onChange={handleTaskFormChange}
-                            placeholder="Maximum Retail Price"
-                          />
-                        </Form.Group>
-                      </Col>
-                      <Col md={6}>
-                        <Form.Group>
-                          <Form.Label className="fw-bold">HSN/SAC</Form.Label>
-                          <Form.Control
-                            type="text"
-                            name="hsn_sac"
-                            value={taskFormData.hsn_sac}
-                            onChange={handleTaskFormChange}
-                            placeholder="HSN or SAC code"
-                          />
-                        </Form.Group>
-                      </Col>
-                    </Row>
-                    
                     <Form.Group className="mb-3">
                       <Form.Label className="fw-bold">Notes (Optional)</Form.Label>
                       <Form.Control
@@ -1497,13 +1372,6 @@ export default function QuotationModal() {
                 {taskError}
               </Alert>
             )}
-
-            <Alert variant="warning">
-              <i className="bi bi-exclamation-triangle me-2"></i>
-              <strong>Note:</strong> {isUpdatingExistingTask 
-                ? 'Updating this sales order will modify the existing record.'
-                : 'Once created, the sales order will be assigned and the item\'s sales order status will be updated to "ordered".'}
-            </Alert>
           </>
         )}
       </Modal.Body>
@@ -1515,29 +1383,6 @@ export default function QuotationModal() {
             setSelectedItemForTask(null);
             setIsUpdatingExistingTask(false);
             setExistingTaskId(null);
-            setTaskFormData({
-              po_number: "",
-              description: "",
-              priority: "Medium",
-              dueDate: "",
-              assignedTo: "",
-              note: "",
-              quotation_id: "",
-              quotation_number: "",
-              company_name: "",
-              company_address: "",
-              item_id: "",
-              item_name: "",
-              supplier_part_no: "",
-              cut_width: "",
-              length: "",
-              quantity: "",
-              brand_code: "",
-              batch_no: "",
-              mrp: "",
-              hsn_sac: "",
-              unit: "",
-            });
           }}
           disabled={creatingTask}
         >
@@ -1551,7 +1396,7 @@ export default function QuotationModal() {
           {creatingTask ? (
             <>
               <Spinner animation="border" size="sm" className="me-2" />
-              {isUpdatingExistingTask ? 'Updating Sales Order...' : 'Creating Sales Order...'}
+              {isUpdatingExistingTask ? 'Updating...' : 'Creating...'}
             </>
           ) : (
             <>
@@ -1569,29 +1414,58 @@ export default function QuotationModal() {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
-          <h1 className="h2 mb-1">Completed Quotations</h1>
-          <p className="text-muted mb-0">View and manage completed quotations - Create and update sales orders</p>
+          <h1 className="h2 mb-1">Completed Quotations - Item Wise View</h1>
+          <p className="text-muted mb-0">View and manage individual items across all completed quotations</p>
         </div>
       </div>
 
       {/* Statistics Cards */}
       <Row className="mb-4">
-        <Col md={12}>
-          <Card>
+        <Col md={4}>
+          <Card className="border-0 shadow-sm">
             <Card.Body className="p-3">
-              <h6 className="card-title mb-3">Completed Quotations Overview</h6>
-              <div className="row">
-                <Col md={12}>
-                  <div className="d-flex align-items-center justify-content-center">
-                    <div className="rounded-circle bg-success d-flex align-items-center justify-content-center text-white me-3" style={{ width: '60px', height: '60px' }}>
-                      <i className="bi bi-check-circle display-6"></i>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-muted small">Total Completed Quotations</div>
-                      <div className="h1 mb-0">{quotationCounts.completed}</div>
-                    </div>
+              <div className="d-flex align-items-center">
+                <div className="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                  <i className="bi bi-check-circle text-success fs-4"></i>
+                </div>
+                <div>
+                  <div className="text-muted small">Total Completed Quotations</div>
+                  <div className="h3 mb-0">{quotationCounts.completed}</div>
+                </div>
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={4}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body className="p-3">
+              <div className="d-flex align-items-center">
+                <div className="rounded-circle bg-info bg-opacity-10 p-3 me-3">
+                  <i className="bi bi-box-seam text-info fs-4"></i>
+                </div>
+                <div>
+                  <div className="text-muted small">Total Items</div>
+                  <div className="h3 mb-0">{flattenedItems.length}</div>
+                </div>
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+        <Col md={4}>
+          <Card className="border-0 shadow-sm">
+            <Card.Body className="p-3">
+              <div className="d-flex align-items-center">
+                <div className="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
+                  <i className="bi bi-truck text-warning fs-4"></i>
+                </div>
+                <div>
+                  <div className="text-muted small">Pending Orders</div>
+                  <div className="h3 mb-0">
+                    {flattenedItems.filter(item => 
+                      (item.sales_order_item_status || "not_created") === "not_created"
+                    ).length}
                   </div>
-                </Col>
+                </div>
               </div>
             </Card.Body>
           </Card>
@@ -1605,131 +1479,69 @@ export default function QuotationModal() {
       <Modal show={showItemStatusModal} onHide={() => {
         setShowItemStatusModal(false);
         setQuotationForStatusUpdate(null);
+        setCurrentItemForStatusUpdate(null);
         setItemStatusUpdates({});
         setItemRejectionReasons({});
-      }} size="xl">
+      }} size="lg">
         <Modal.Header closeButton className="bg-success text-white">
           <Modal.Title>
             <i className="bi bi-check-circle me-2"></i>
-            Update Sales Order Status - {quotationForStatusUpdate?.quote_number || quotationForStatusUpdate?.quoteNo}
+            Update Item Status
           </Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {quotationForStatusUpdate && (
+          {currentItemForStatusUpdate && (
             <>
               <Alert variant="info">
                 <i className="bi bi-info-circle me-2"></i>
-                This quotation is marked as <strong>Completed</strong>. Update sales order status for each item.
-                When you mark as "ordered", a sales order will be created or updated.
+                Updating status for item: <strong>{currentItemForStatusUpdate.item_name}</strong>
+                <br/>
+                <small>Quotation: {currentItemForStatusUpdate.quotation_number}</small>
               </Alert>
-
-              <Card className="mb-3">
-                <Card.Header className="bg-light">
-                  <h6 className="mb-0">Bulk Actions</h6>
-                </Card.Header>
-                <Card.Body>
-                  <div className="d-flex flex-wrap gap-2">
-                    <Button 
-                      variant="info"
-                      size="sm"
-                      onClick={() => bulkUpdateItemStatus("ordered")}
-                      disabled={updatingItemStatus}
-                    >
-                      <i className="bi bi-check-circle me-1"></i>Set All to Ordered
-                    </Button>
-                    <Button 
-                      variant="danger"
-                      size="sm"
-                      onClick={() => bulkUpdateItemStatus("rejected")}
-                      disabled={updatingItemStatus}
-                    >
-                      <i className="bi bi-x-circle me-1"></i>Set All to Rejected
-                    </Button>
-                    <Button 
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => bulkUpdateItemStatus("not_created")}
-                      disabled={updatingItemStatus}
-                    >
-                      <i className="bi bi-clock me-1"></i>Set All to Not Created
-                    </Button>
-                  </div>
-                </Card.Body>
-              </Card>
 
               <Table bordered hover responsive>
                 <thead className="table-light">
                   <tr>
-                    <th width="50">#</th>
                     <th>Item Name</th>
                     <th>Brand Code</th>
                     <th>Batch No</th>
-                    <th>Buy Price</th>
                     <th>Current Status</th>
-                    <th width="200">New Sales Order Status</th>
-                    <th width="150">Actions</th>
+                    <th width="200">New Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(quotationForStatusUpdate.items || []).map((item, index) => {
-                    const currentStatus = item.sales_order_item_status || "not_created";
-                    const newStatus = itemStatusUpdates[item.id] || currentStatus;
-                    const rejectionReason = itemRejectionReasons[item.id] || "";
-                    
-                    return (
-                      <tr key={item.id || index}>
-                        <td>{index + 1}</td>
-                        <td>
-                          <div className="fw-bold">{item.item_name}</div>
-                          <small className="text-muted">{item.description?.substring(0, 50)}...</small>
-                        </td>
-                        <td>{item.brand_code || ''}</td>
-                        <td>{item.batch_no || ''}</td>
-                        <td>₹{item.buy_price ? item.buy_price.toFixed(2) : '0.00'}</td>
-                        <td>
-                          <Badge bg={getStatusBadgeColor(currentStatus)}>
-                            {getStatusDisplayText(currentStatus)}
-                          </Badge>
-                          {item.rejection_reason && (
-                            <div className="small text-danger mt-1">
-                              <i className="bi bi-exclamation-triangle"></i> {item.rejection_reason}
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <Form.Select
-                            size="sm"
-                            value={newStatus}
-                            onChange={(e) => handleItemStatusChange(item.id, e.target.value)}
-                            disabled={updatingItemStatus}
-                          >
-                            <option value="not_created">⬜ Not Created</option>
-                            <option value="ordered">🟢 Ordered (Create/Update Sales Order)</option>
-                            <option value="rejected">🔴 Rejected</option>
-                          </Form.Select>
-                          
-                          {newStatus === "rejected" && itemRejectionReasons[item.id] && (
-                            <div className="mt-1 small">
-                              <i className="bi bi-chat-left-text text-danger"></i>
-                              <span className="ms-1 text-danger">{itemRejectionReasons[item.id]}</span>
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          {(newStatus === "ordered" || currentStatus === "ordered") && (
-                            <Button
-                              variant={currentStatus === "ordered" ? "primary" : "warning"}
-                              size="sm"
-                              onClick={() => openTaskModal(item, quotationForStatusUpdate)}
-                              title={currentStatus === "ordered" ? "Update Sales Order" : "Create Sales Order"}
-                            >
-                              <i className="bi bi-clipboard-check"></i> {currentStatus === "ordered" ? "Update Sales Order" : "Create Sales Order"}
-                            </Button>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  <tr>
+                    <td>
+                      <div className="fw-bold">{currentItemForStatusUpdate.item_name}</div>
+                      <small className="text-muted">{currentItemForStatusUpdate.description?.substring(0, 50)}...</small>
+                    </td>
+                    <td>{currentItemForStatusUpdate.brand_code || ''}</td>
+                    <td>{currentItemForStatusUpdate.batch_no || ''}</td>
+                    <td>
+                      <Badge bg={getStatusBadgeColor(currentItemForStatusUpdate.sales_order_item_status || "not_created")}>
+                        {getStatusDisplayText(currentItemForStatusUpdate.sales_order_item_status || "not_created")}
+                      </Badge>
+                    </td>
+                    <td>
+                      <Form.Select
+                        size="sm"
+                        value={itemStatusUpdates[currentItemForStatusUpdate.id] || currentItemForStatusUpdate.sales_order_item_status || "not_created"}
+                        onChange={(e) => handleItemStatusChange(currentItemForStatusUpdate.id, e.target.value)}
+                        disabled={updatingItemStatus}
+                      >
+                        <option value="not_created">⬜ Not Created</option>
+                        <option value="ordered">🟢 Ordered (Create/Update Sales Order)</option>
+                        <option value="rejected">🔴 Rejected</option>
+                      </Form.Select>
+                      
+                      {itemStatusUpdates[currentItemForStatusUpdate.id] === "rejected" && itemRejectionReasons[currentItemForStatusUpdate.id] && (
+                        <div className="mt-2 small">
+                          <i className="bi bi-chat-left-text text-danger"></i>
+                          <span className="ms-1 text-danger">{itemRejectionReasons[currentItemForStatusUpdate.id]}</span>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
                 </tbody>
               </Table>
             </>
@@ -1741,12 +1553,13 @@ export default function QuotationModal() {
             onClick={() => {
               setShowItemStatusModal(false);
               setQuotationForStatusUpdate(null);
+              setCurrentItemForStatusUpdate(null);
               setItemStatusUpdates({});
               setItemRejectionReasons({});
             }}
             disabled={updatingItemStatus}
           >
-            <i className="bi bi-x-circle me-1"></i>Cancel
+            Cancel
           </Button>
           <Button 
             variant="success" 
@@ -1760,7 +1573,7 @@ export default function QuotationModal() {
               </>
             ) : (
               <>
-                <i className="bi bi-save me-1"></i>Save Item Statuses
+                <i className="bi bi-save me-1"></i>Save Status
               </>
             )}
           </Button>
@@ -1773,7 +1586,9 @@ export default function QuotationModal() {
       {/* View Quotation Modal */}
       <Modal show={showViewModal} onHide={() => setShowViewModal(false)} size="xl">
         <Modal.Header closeButton className="bg-info text-white">
-          <Modal.Title>Quotation Details</Modal.Title>
+          <Modal.Title>
+            Quotation Details - {selectedQuotation?.quote_number || selectedQuotation?.quoteNo}
+          </Modal.Title>
         </Modal.Header>
         <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
           {selectedQuotation && (
@@ -1821,28 +1636,19 @@ export default function QuotationModal() {
                 </Col>
               </Row>
               
-              <Table bordered responsive>
+              <Table bordered responsive size="sm">
                 <thead className="table-light">
                   <tr>
                     <th>#</th>
                     <th>Item Name</th>
                     <th>Brand Code</th>
                     <th>Batch No</th>
-                    <th>Cut Width</th>
-                    <th>Cut Length</th>
-                    <th>Count</th>
-                    <th>Supplier Part No</th>
-                    <th>Customer Description</th>
-                    <th>HSN</th>
+                    <th>Part No</th>
                     <th>Qty</th>
-                    <th>UoM</th>
+                    <th>Unit</th>
                     <th>Price/Unit</th>
-                    <th>MRP</th>
-                    <th>Buy Price</th>
-                    <th>GST %</th>
                     <th>Amount</th>
-                    <th>Sales Order Status</th>
-                    <th>Rejection Reason</th>
+                    <th>Status</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -1850,7 +1656,10 @@ export default function QuotationModal() {
                   {(selectedQuotation.items || []).map((item, index) => (
                     <tr key={index}>
                       <td>{index + 1}</td>
-                      <td><strong>{item.item_name}</strong></td>
+                      <td>
+                        <div className="fw-bold">{item.item_name}</div>
+                        <small className="text-muted">{item.description?.substring(0, 50)}...</small>
+                      </td>
                       <td>
                         {item.brand_code ? (
                           <Badge bg="primary">{item.brand_code}</Badge>
@@ -1861,30 +1670,20 @@ export default function QuotationModal() {
                           <Badge bg="secondary">{item.batch_no}</Badge>
                         ) : ''}
                       </td>
-                      <td>{item.cut_width || ''}</td>
-                      <td>{item.length || ''}</td>
-                      <td>{item.count || ''}</td>
-                      <td>{item.supplier_part_no}</td>
-                      <td>{item.customer_description || ''}</td>
-                      <td>{item.hsn_sac}</td>
-                      <td>{item.quantity}</td>
-                      <td>{item.unit}</td>
+                      <td>{item.supplier_part_no || 'N/A'}</td>
+                      <td>{item.quantity || 1}</td>
+                      <td>{item.unit || 'pcs'}</td>
                       <td>₹{(item.price_per_unit || 0).toFixed(2)}</td>
-                      <td>₹{(item.mrp || item.price_per_unit || 0).toFixed(2)}</td>
-                      <td><strong className="text-success">₹{(item.buy_price || 0).toFixed(2)}</strong></td>
-                      <td>{item.tax_rate || 18}%</td>
-                      <td><strong>₹{(item.amount_after_discount || 0).toFixed(2)}</strong></td>
+                      <td>₹{(item.amount_after_discount || 0).toFixed(2)}</td>
                       <td>
                         <Badge bg={getStatusBadgeColor(item.sales_order_item_status || "not_created")}>
                           {getStatusDisplayText(item.sales_order_item_status || "not_created")}
                         </Badge>
-                      </td>
-                      <td className="small">
-                        {item.rejection_reason ? (
-                          <span className="text-danger">
+                        {item.rejection_reason && (
+                          <div className="small text-danger mt-1">
                             <i className="bi bi-exclamation-triangle"></i> {item.rejection_reason}
-                          </span>
-                        ) : ''}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <Button
@@ -1901,72 +1700,30 @@ export default function QuotationModal() {
                 </tbody>
               </Table>
               
-              <Row className="mt-4">
-                <Col md={7}>
-                  <h5 className="mb-2">Tax Summary:</h5>
-                  <Table bordered size="sm">
-                    <thead className="table-light">
-                      <tr>
-                        <th>GST %</th>
-                        <th>Taxable Amount</th>
-                        <th>Tax Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(() => {
-                        const taxSummary = {};
-                        (selectedQuotation.items || []).forEach(item => {
-                          const taxRate = item.tax_rate || 18;
-                          const taxAmount = item.tax_amount || 0;
-                          if (!taxSummary[taxRate]) {
-                            taxSummary[taxRate] = 0;
-                          }
-                          taxSummary[taxRate] += taxAmount;
-                        });
-                        
-                        return Object.entries(taxSummary).map(([rate, amount]) => (
-                          <tr key={rate}>
-                            <td>{rate}%</td>
-                            <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
-                            <td>₹{amount.toFixed(2)}</td>
-                          </tr>
-                        ));
-                      })()}
-                    </tbody>
-                  </Table>
-                </Col>
-                <Col md={5}>
-                  <Card className="border-0">
+              <Row className="mt-3">
+                <Col md={12}>
+                  <Card className="border-0 bg-light">
                     <Card.Body>
-                      <h5 className="card-title">Total Summary</h5>
-                      <div className="d-flex justify-content-between mb-2">
-                        <span>Subtotal:</span>
-                        <strong>₹{(selectedQuotation.subtotal || selectedQuotation.totals?.subtotal || 0).toFixed(2)}</strong>
-                      </div>
-                      <div className="d-flex justify-content-between mb-2">
-                        <span>Discount:</span>
-                        <strong className="text-danger">- ₹{(selectedQuotation.total_discount || selectedQuotation.totals?.totalDiscount || 0).toFixed(2)}</strong>
-                      </div>
-                      {(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0) > 0 && (
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Packing:</span>
-                          <strong>₹{(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0).toFixed(2)}</strong>
+                      <div className="d-flex justify-content-end">
+                        <div style={{ width: '300px' }}>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Subtotal:</span>
+                            <strong>₹{(selectedQuotation.subtotal || selectedQuotation.totals?.subtotal || 0).toFixed(2)}</strong>
+                          </div>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Discount:</span>
+                            <strong className="text-danger">- ₹{(selectedQuotation.total_discount || selectedQuotation.totals?.totalDiscount || 0).toFixed(2)}</strong>
+                          </div>
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total Tax:</span>
+                            <strong>₹{(selectedQuotation.total_tax || selectedQuotation.totals?.totalGST || 0).toFixed(2)}</strong>
+                          </div>
+                          <hr className="my-2"/>
+                          <div className="d-flex justify-content-between">
+                            <span className="fw-bold">Grand Total:</span>
+                            <strong className="text-primary fs-5">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</strong>
+                          </div>
                         </div>
-                      )}
-                      {(selectedQuotation.total_other || selectedQuotation.totals?.totalOther || 0) > 0 && (
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Other Charges:</span>
-                          <strong>₹{(selectedQuotation.total_other || selectedQuotation.totals?.totalOther || 0).toFixed(2)}</strong>
-                        </div>
-                      )}
-                      <div className="d-flex justify-content-between mb-2">
-                        <span>Total Tax:</span>
-                        <strong>₹{(selectedQuotation.total_tax || selectedQuotation.totals?.totalGST || 0).toFixed(2)}</strong>
-                      </div>
-                      <hr/>
-                      <div className="d-flex justify-content-between total-row">
-                        <span>Grand Total:</span>
-                        <strong className="text-primary">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</strong>
                       </div>
                     </Card.Body>
                   </Card>
@@ -1979,35 +1736,39 @@ export default function QuotationModal() {
           <Button variant="secondary" onClick={() => setShowViewModal(false)}>
             <i className="bi bi-x-circle me-1"></i>Close
           </Button>
-          <Button 
-            variant="success"
-            onClick={() => openItemStatusModal(selectedQuotation)}
-          >
-            <i className="bi bi-check-circle me-1"></i>Update Sales Order Status
-          </Button>
           <Button variant="primary" onClick={() => printQuotation(selectedQuotation)}>
             <i className="bi bi-printer me-1"></i>Print
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Saved Quotations Section */}
+      {/* Main Items Table - Flat Item Wise View */}
       <Card>
         <Card.Header className="bg-light">
           <div className="d-flex justify-content-between align-items-center">
             <h5 className="mb-0">
-              Completed Quotations 
-              <span className="ms-2">
-                <Badge bg="success">Total: {totalItems}</Badge>
-                {searchTerm && (
-                  <Badge bg="info" className="ms-1">Search Results: {savedQuotations.length}</Badge>
-                )}
-              </span>
+              <i className="bi bi-list-check me-2"></i>
+              All Items from Completed Quotations
+              <Badge bg="secondary" className="ms-2">{flattenedItems.length} Total Items</Badge>
             </h5>
-            <div className="d-flex gap-2">
+            <div className="d-flex gap-2 align-items-center">
+              {/* Status Filter */}
+              <Form.Select 
+                size="sm" 
+                style={{ width: '180px' }}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">All Status</option>
+                <option value="not_created">Not Created</option>
+                <option value="ordered">Ordered</option>
+                <option value="rejected">Rejected</option>
+              </Form.Select>
+
+              {/* Search */}
               <InputGroup size="sm" style={{ width: '250px' }}>
                 <FormControl
-                  placeholder="Search completed quotations..."
+                  placeholder="Search items, quotations..."
                   value={searchTerm}
                   onChange={(e) => handleSearch(e.target.value)}
                 />
@@ -2017,6 +1778,7 @@ export default function QuotationModal() {
                   </Button>
                 )}
               </InputGroup>
+              
               <Button variant="outline-primary" size="sm" onClick={fetchQuotations} disabled={loadingQuotations} title="Refresh">
                 <i className="bi bi-arrow-clockwise"></i>
               </Button>
@@ -2027,238 +1789,129 @@ export default function QuotationModal() {
           {loadingQuotations ? (
             <div className="text-center py-5">
               <Spinner animation="border" variant="primary" />
-              <p className="mt-2 text-muted">Loading completed quotations...</p>
+              <p className="mt-2 text-muted">Loading items...</p>
             </div>
-          ) : savedQuotations.length > 0 ? (
+          ) : getFilteredItems().length > 0 ? (
             <>
-              <Table hover responsive className="mb-0">
-                <thead className="table-light">
-                  <tr>
-                    <th width="50">#</th>
-                    <th width="70"></th>
-                    <th>Quote No</th>
-                    <th>Date</th>
-                    <th>Company</th>
-                    <th>Contact Person</th>
-                    <th>Items</th>
-                    <th>Sales Order Status</th>
-                    <th>Grand Total</th>
-                    <th>Quotation Status</th>
-                    <th width="180">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {savedQuotations.map((quote, index) => {
-                    const notCreatedItems = (quote.items || []).filter(item => 
-                      (item.sales_order_item_status || "not_created") === "not_created").length;
-                    const orderedItems = (quote.items || []).filter(item => 
-                      item.sales_order_item_status === "ordered").length;
-                    const rejectedItems = (quote.items || []).filter(item => 
-                      item.sales_order_item_status === "rejected").length;
-                    const isExpanded = expandedRows[quote.id];
-                    
-                    return (
-                      <React.Fragment key={quote.id || index}>
-                        {/* Main Row */}
-                        <tr className={isExpanded ? "table-primary" : ""}>
+              <div className="table-responsive">
+                <Table hover responsive className="mb-0">
+                  <thead className="table-light">
+                    <tr>
+                      <th width="50">#</th>
+                      <th>Quotation No</th>
+                      <th>Date</th>
+                      <th>Company</th>
+                      <th>Item Name</th>
+                      <th>Brand Code</th>
+                      <th>Batch No</th>
+                      <th>Part No</th>
+                      <th>Qty</th>
+                      <th>Unit</th>
+                      <th>Price/Unit</th>
+                      <th>Amount</th>
+                      <th>Buy Price</th>
+                      <th>Status</th>
+                      <th width="180">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getFilteredItems().map((item, index) => {
+                      const itemStatus = item.sales_order_item_status || "not_created";
+                      
+                      return (
+                        <tr key={`${item.quotation_id}-${item.id}-${index}`}>
                           <td>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
                           <td>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              onClick={() => toggleRowExpansion(quote.id)}
-                              className="p-0"
-                            >
-                              <i className={`bi ${isExpanded ? 'bi-chevron-down' : 'bi-chevron-right'}`}></i>
-                            </Button>
+                            <strong className="text-primary">{item.quotation_number}</strong>
                           </td>
                           <td>
-                            <strong>{quote.quote_number || quote.quoteNo}</strong>
+                            <small>{item.quotation_date}</small>
                           </td>
                           <td>
-                            {quote.date || quote.date}<br/>
-                            <small className="text-muted">{quote.time || quote.time}</small>
+                            <div className="fw-bold small">{item.company_name}</div>
+                            <small className="text-muted">{item.contact_person}</small>
                           </td>
                           <td>
-                            {quote.company_name || quote.billTo}<br/>
-                            <small className="text-muted">{quote.contact_email || quote.contactEmail}</small>
+                            <div className="fw-bold">{item.item_name}</div>
+                            <small className="text-muted">{item.description?.substring(0, 40)}...</small>
                           </td>
                           <td>
-                            {quote.contact_person || quote.contactPerson}<br/>
-                            <small className="text-muted">{quote.contact_mobile || quote.contactMob}</small>
-                          </td>
-                          <td>{(quote.items || []).length} items</td>
-                          <td>
-                            <div className="d-flex flex-column">
-                              {orderedItems > 0 && (
-                                <Badge bg="info" className="mb-1">{orderedItems} ordered</Badge>
-                              )}
-                              {notCreatedItems > 0 && (
-                                <Badge bg="secondary" className="mb-1">{notCreatedItems} not created</Badge>
-                              )}
-                              {rejectedItems > 0 && (
-                                <Badge bg="danger">{rejectedItems} rejected</Badge>
-                              )}
-                            </div>
+                            {item.brand_code ? (
+                              <Badge bg="primary">{item.brand_code}</Badge>
+                            ) : '-'}
                           </td>
                           <td>
-                            <strong className="text-primary">
-                              ₹{((quote.grand_total || quote.totals?.grandTotal) || 0).toFixed(2)}
-                            </strong>
+                            {item.batch_no ? (
+                              <Badge bg="secondary">{item.batch_no}</Badge>
+                            ) : '-'}
+                          </td>
+                          <td>{item.supplier_part_no || '-'}</td>
+                          <td>{item.quantity || 1}</td>
+                          <td>{item.unit || 'pcs'}</td>
+                          <td>₹{(item.price_per_unit || 0).toFixed(2)}</td>
+                          <td>
+                            <strong>₹{(item.amount_after_discount || 0).toFixed(2)}</strong>
                           </td>
                           <td>
-                            <Badge bg="success">
-                              {quote.status || 'completed'}
+                            <span className="text-success small fw-bold">
+                              ₹{(item.buy_price || 0).toFixed(2)}
+                            </span>
+                          </td>
+                          <td>
+                            <Badge bg={getStatusBadgeColor(itemStatus)}>
+                              {getStatusDisplayText(itemStatus)}
                             </Badge>
+                            {item.rejection_reason && (
+                              <div className="small text-danger mt-1" title={item.rejection_reason}>
+                                <i className="bi bi-exclamation-triangle"></i> Rejected
+                              </div>
+                            )}
                           </td>
                           <td>
                             <div className="btn-group btn-group-sm">
                               <Button
                                 variant="outline-info"
-                                onClick={() => viewQuotation(quote)}
-                                title="View Details"
+                                size="sm"
+                                onClick={() => viewItemDetails(item)}
+                                title="View Quotation"
                               >
                                 <i className="bi bi-eye"></i>
                               </Button>
                               <Button
                                 variant="outline-success"
-                                onClick={() => openItemStatusModal(quote)}
-                                title="Update Sales Order Status"
+                                size="sm"
+                                onClick={() => openSingleItemStatusModal(item)}
+                                title="Update Status"
                               >
                                 <i className="bi bi-check-circle"></i>
                               </Button>
-                              <Button
-                                variant="outline-primary"
-                                onClick={() => printQuotation(quote)}
-                                title="Print"
-                              >
-                                <i className="bi bi-printer"></i>
-                              </Button>
+                              {itemStatus !== "rejected" && (
+                                <Button
+                                  variant={itemStatus === "ordered" ? "outline-primary" : "outline-warning"}
+                                  size="sm"
+                                  onClick={() => {
+                                    const quotation = savedQuotations.find(q => q.id === item.quotation_id);
+                                    if (quotation) openTaskModal(item, quotation);
+                                  }}
+                                  title={itemStatus === "ordered" ? "Update Sales Order" : "Create Sales Order"}
+                                >
+                                  <i className="bi bi-clipboard-check"></i>
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>
-                        
-                        {/* Expanded Row for Items */}
-                        {isExpanded && (
-                          <tr>
-                            <td colSpan="11" className="p-0">
-                              <Collapse in={isExpanded}>
-                                <div className="p-3 bg-light border-top">
-                                  <h6 className="mb-3">
-                                    <i className="bi bi-list-check me-2"></i>
-                                    Items in Quotation #{quote.quote_number || quote.quoteNo}
-                                  </h6>
-                                  
-                                  <Table bordered hover size="sm" className="mb-0">
-                                    <thead className="table-secondary">
-                                      <tr>
-                                        <th width="50">#</th>
-                                        <th>Item Name</th>
-                                        <th>Brand Code</th>
-                                        <th>Batch No</th>
-                                        <th>Part No</th>
-                                        <th>Qty</th>
-                                        <th>Unit</th>
-                                        <th>Price/Unit</th>
-                                        <th>MRP</th>
-                                        <th>Buy Price</th>
-                                        <th>Amount</th>
-                                        <th width="120">Sales Order Status</th>
-                                        <th width="150">Actions</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {(quote.items || []).map((item, itemIndex) => (
-                                        <tr key={item.id || itemIndex}>
-                                          <td>{itemIndex + 1}</td>
-                                          <td>
-                                            <div className="fw-bold">{item.item_name}</div>
-                                            <small className="text-muted">{item.description?.substring(0, 60)}...</small>
-                                          </td>
-                                          <td>
-                                            {item.brand_code ? (
-                                              <Badge bg="primary">{item.brand_code}</Badge>
-                                            ) : 'N/A'}
-                                          </td>
-                                          <td>
-                                            {item.batch_no ? (
-                                              <Badge bg="secondary">{item.batch_no}</Badge>
-                                            ) : 'N/A'}
-                                          </td>
-                                          <td>{item.supplier_part_no || 'N/A'}</td>
-                                          <td>{item.quantity || 1}</td>
-                                          <td>{item.unit || 'pcs'}</td>
-                                          <td>₹{(item.price_per_unit || 0).toFixed(2)}</td>
-                                          <td>₹{(item.mrp || item.price_per_unit || 0).toFixed(2)}</td>
-                                          <td>
-                                            <strong className="text-success">
-                                              ₹{(item.buy_price || 0).toFixed(2)}
-                                            </strong>
-                                          </td>
-                                          <td>
-                                            <strong>₹{(item.amount_after_discount || 0).toFixed(2)}</strong>
-                                          </td>
-                                          <td>
-                                            <Badge bg={getStatusBadgeColor(item.sales_order_item_status || "not_created")}>
-                                              {getStatusDisplayText(item.sales_order_item_status || "not_created")}
-                                            </Badge>
-                                            {item.rejection_reason && (
-                                              <div className="small text-danger mt-1">
-                                                <i className="bi bi-exclamation-triangle"></i> {item.rejection_reason}
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td>
-                                            <Button
-                                              variant={item.sales_order_item_status === "ordered" ? "primary" : "warning"}
-                                              size="sm"
-                                              onClick={() => openTaskModal(item, quote)}
-                                              title={item.sales_order_item_status === "ordered" ? "Update Sales Order" : "Create Sales Order"}
-                                            >
-                                              <i className="bi bi-clipboard-check"></i> {item.sales_order_item_status === "ordered" ? "Update" : "Create"}
-                                            </Button>
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                    <tfoot className="table-light">
-                                      <tr>
-                                        <td colSpan="10" className="text-end fw-bold">Subtotal:</td>
-                                        <td colSpan="3" className="fw-bold">
-                                          ₹{((quote.subtotal || quote.totals?.subtotal) || 0).toFixed(2)}
-                                        </td>
-                                      </tr>
-                                    </tfoot>
-                                  </Table>
-                                  
-                                  <div className="mt-3 d-flex justify-content-between align-items-center">
-                                    <div className="text-muted small">
-                                      Click on any item to create or update sales order.
-                                    </div>
-                                    <Button
-                                      variant="outline-secondary"
-                                      size="sm"
-                                      onClick={() => toggleRowExpansion(quote.id)}
-                                    >
-                                      <i className="bi bi-chevron-up me-1"></i> Collapse
-                                    </Button>
-                                  </div>
-                                </div>
-                              </Collapse>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </Table>
+                      );
+                    })}
+                  </tbody>
+                </Table>
+              </div>
               
               {/* PAGINATION */}
               {totalPages > 1 && (
                 <div className="d-flex justify-content-between align-items-center p-3 border-top">
-                  <div className="text-muted">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+                  <div className="text-muted small">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, getFilteredItems().length)} of {getFilteredItems().length} items
                   </div>
                   <Pagination size="sm" className="mb-0">
                     <Pagination.Prev 
@@ -2266,9 +1919,9 @@ export default function QuotationModal() {
                       disabled={currentPage === 1}
                     />
                     
-                    {getPaginationItems().map((pageNum, index) => (
+                    {getPaginationItems().map((pageNum, idx) => (
                       <Pagination.Item
-                        key={index}
+                        key={idx}
                         active={pageNum === currentPage}
                         onClick={() => typeof pageNum === 'number' ? handlePageChange(pageNum) : null}
                         disabled={pageNum === '...'}
@@ -2288,16 +1941,16 @@ export default function QuotationModal() {
           ) : (
             <div className="text-center py-5">
               <div className="mb-3">
-                <i className="bi bi-file-earmark-check display-1 text-muted"></i>
+                <i className="bi bi-inbox display-1 text-muted"></i>
               </div>
-              <h5 className="text-muted">No completed quotations found</h5>
+              <h5 className="text-muted">No items found</h5>
               <p className="text-muted">
-                {searchTerm ? 'Try a different search term' : 'There are no completed quotations available.'}
+                {searchTerm ? 'Try a different search term' : 'No items available in completed quotations.'}
               </p>
             </div>
           )}
         </Card.Body>
-      </Card> 
+      </Card>
     </Container>
   );
 }

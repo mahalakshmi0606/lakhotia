@@ -700,7 +700,7 @@ const CompanyPage = () => {
     <div className="container mt-4">
       {/* Login/Logout Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h3 className="fw-bold">Company Management</h3>
+        <h3 className="fw-bold">Partner Management</h3>
         
         <div className="d-flex gap-2">
 
@@ -781,10 +781,10 @@ const CompanyPage = () => {
         <Table bordered hover striped>
           <thead style={{ background: "#fff3cd" }}>
             <tr className="text-center">
-              <th>Company</th>
+              <th>Partner Name</th>
               <th>GST Number</th>
               <th>Industry</th>
-              <th>Customer</th>
+              <th>Customer Name</th>
               <th>Mobile</th>
               <th>Department</th>
               <th>Pin Code</th>
