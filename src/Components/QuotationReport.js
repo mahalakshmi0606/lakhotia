@@ -1332,7 +1332,7 @@ export default function QuotationModal() {
                   <th>Cut Length</th>
                   <th>Qty</th>
                   <th>Count</th>
-                  <th>Supplier Part No</th>
+                  <th>Customer Part No</th>
                   <th>Customer Description</th>
                   <th>Batch No</th>
                   <th>HSN</th>
@@ -1716,7 +1716,7 @@ export default function QuotationModal() {
                     <div className="row">
                       <div className="col-md-6">
                         <div className="mb-3">
-                          <label className="form-label">Supplier Part No</label>
+                          <label className="form-label">Customer Part No</label>
                           <input
                             type="text"
                             className="form-control"
@@ -2022,7 +2022,7 @@ export default function QuotationModal() {
                           <th>Cut Length</th>
                           <th>Qty</th>
                           <th>Count</th>
-                          <th>Supplier Part No</th>
+                          <th>Customer Part No</th>
                           <th>Customer Description</th>
                           <th>Batch No</th>
                           <th>HSN</th>
@@ -2287,7 +2287,7 @@ export default function QuotationModal() {
                         <th>Cut Length</th>
                         <th>Qty</th>
                         <th>Count</th>
-                        <th>Supplier Part No</th>
+                        <th>Customer Part No</th>
                         <th>Customer Description</th>
                         <th>Batch No</th>
                         <th>HSN</th>

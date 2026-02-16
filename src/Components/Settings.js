@@ -171,8 +171,7 @@ const SettingsMatrix = () => {
   return (
     <div style={styles.container}>
       <ToastContainer position="top-right" autoClose={2000} hideProgressBar />
-      <h2 style={styles.heading}>User Type vs Module Access</h2>
-      <p style={styles.subtitle}>Checkboxes indicate module access for each user type</p>
+      <h2 style={styles.heading}>Settings</h2>
 
       <div style={styles.tableWrapper}>
         <table style={styles.table}>

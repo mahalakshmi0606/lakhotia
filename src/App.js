@@ -48,6 +48,7 @@ import EnquiryModal from "./Components/enquiry";
 import QuotationWholeReport from "./Components/QuotationWholeReport";
 import Enquiryreport from "./Components/EnquiryReport";
 import Dashboardsetter from "./Components/Dashboardsetter";
+import EmployeeReportPage from "./Components/EmployeeReport";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -184,6 +185,7 @@ function AppContent({
               <Route path="/enquiry" element={<EnquiryModal />} />
               <Route path="/QuotationWholeReport" element={<QuotationWholeReport />} />
               <Route path="/PurchaseOrderapproval" element={<PurchaseOrderPage />} />
+              <Route path="/EmployeeReport" element={<EmployeeReportPage />} />
               <Route path="/mrpchange" element={<MRPChangePage />} />
               <Route path="/enquiryreport" element={<Enquiryreport />}/>
               <Route path="/dashboardsetter" element={<Dashboardsetter />} />

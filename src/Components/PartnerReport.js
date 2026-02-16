@@ -703,12 +703,6 @@ const CompanyPage = () => {
         <h3 className="fw-bold">Partner Management</h3>
         
         <div className="d-flex gap-2">
-
-      
-          
-          <Button variant="warning" onClick={() => setFormOpen(true)}>
-            <FaPlus className="me-2" /> Add Company
-          </Button>
         </div>
       </div>
 
@@ -742,6 +736,16 @@ const CompanyPage = () => {
               Search
             </Button>
           </InputGroup>
+        </Col>
+
+        <Col md="auto" className="mt-2 mt-md-0">
+          <Button variant="success" className="me-2" onClick={exportExcel} disabled={filteredCompanies.length === 0}>
+            <FaFileExcel className="me-1" /> Excel
+          </Button>
+
+          <Button variant="danger" onClick={exportPDF} disabled={filteredCompanies.length === 0}>
+            <FaFilePdf className="me-1" /> PDF
+          </Button>
         </Col>
       </Row>
 
