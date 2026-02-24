@@ -1609,166 +1609,227 @@ const PurchaseOrderPage = () => {
         </div>
       )}
 
-      {/* VIEW POPUP MODAL */}
+      {/* VIEW POPUP MODAL - ENHANCED VERSION */}
       {viewData && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-lg">
+          <div className="modal-dialog modal-xl modal-dialog-scrollable">
             <div className="modal-content">
               <div className="modal-header bg-dark text-white">
                 <h5 className="modal-title">
                   <i className="fas fa-file-invoice me-2"></i>
-                  Purchase Order Details
+                  Purchase Order Details - {viewData.po_number}
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setViewData(null)}></button>
               </div>
               <div className="modal-body">
                 <div className="card border-0 shadow-sm">
                   <div className="card-body">
+                    {/* Order Summary Section */}
                     <div className="row mb-4">
                       <div className="col-md-6">
-                        <h4 className="text-primary fw-bold">{viewData.po_number}</h4>
-                        <p className="mb-1">
-                          <strong>
-                            <FaBuilding className="me-1" />
-                            Company:
-                          </strong> {viewData.company_name}
-                        </p>
-                        <p className="mb-1">
-                          <strong>
-                            <FaUser className="me-1" />
-                            Customer:
-                          </strong> {viewData.customer_name}
-                        </p>
-                        <p className="mb-1">
-                          <strong>Address:</strong> {viewData.company_address}
-                        </p>
-                        {viewData.gst_number && (
+                        <h4 className="text-primary fw-bold mb-3">{viewData.po_number}</h4>
+                        <div className="card bg-light p-3">
+                          <h6 className="fw-bold border-bottom pb-2">Company Details</h6>
                           <p className="mb-1">
-                            <strong>GST:</strong> {viewData.gst_number}
+                            <strong>
+                              <FaBuilding className="me-1 text-secondary" />
+                              Company:
+                            </strong> {viewData.company_name}
                           </p>
-                        )}
-                        <p className="mb-1">
-                          <strong>Mobile:</strong> {viewData.customer_mobile}
-                        </p>
-                        <p className="mb-1">
-                          <strong>Email:</strong> {viewData.customer_email}
-                        </p>
-                        <p className="mb-1">
-                          <strong>Department:</strong> {viewData.department}
-                        </p>
+                          <p className="mb-1">
+                            <strong>
+                              <FaUser className="me-1 text-secondary" />
+                              Customer:
+                            </strong> {viewData.customer_name}
+                          </p>
+                          <p className="mb-1">
+                            <strong>Address:</strong> {viewData.company_address || 'N/A'}
+                          </p>
+                          {viewData.gst_number && (
+                            <p className="mb-1">
+                              <strong>GST:</strong> {viewData.gst_number}
+                            </p>
+                          )}
+                          <p className="mb-1">
+                            <strong>Mobile:</strong> {viewData.customer_mobile || 'N/A'}
+                          </p>
+                          {viewData.customer_email && (
+                            <p className="mb-1">
+                              <strong>Email:</strong> {viewData.customer_email}
+                            </p>
+                          )}
+                          <p className="mb-1">
+                            <strong>Department:</strong> {viewData.department || 'N/A'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="col-md-6 text-end">
-                        <span className={`badge ${getStatusBadgeClass(viewData.status)} fs-6`}>
-                          {viewData.status.toUpperCase()}
-                        </span>
-                        <p className="mt-2 mb-1">
-                          <strong>PO Date:</strong> {viewData.po_date?.slice(0, 10)}
-                        </p>
-                        {viewData.delivery_date && (
+                      <div className="col-md-6">
+                        <div className="card bg-light p-3">
+                          <h6 className="fw-bold border-bottom pb-2">Order Details</h6>
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <span className="fw-bold">Status:</span>
+                            <span className={`badge ${getStatusBadgeClass(viewData.status)} fs-6`}>
+                              {viewData.status.toUpperCase()}
+                            </span>
+                          </div>
                           <p className="mb-1">
                             <strong>
-                              <FaTruck className="me-1" />
-                              Delivery Date:
-                            </strong> {viewData.delivery_date?.slice(0, 10)}
+                              <FaCalendarAlt className="me-1 text-secondary" />
+                              PO Date:
+                            </strong> {viewData.po_date?.slice(0, 10)}
                           </p>
-                        )}
-                        <p className="mb-1">
-                          <strong>Created:</strong> {viewData.created_on?.slice(0, 16)}
-                        </p>
-                        {viewData.approved_date && (
+                          {viewData.delivery_date && (
+                            <p className="mb-1">
+                              <strong>
+                                <FaTruck className="me-1 text-secondary" />
+                                Delivery Date:
+                              </strong> {viewData.delivery_date?.slice(0, 10)}
+                            </p>
+                          )}
                           <p className="mb-1">
-                            <strong>Approved:</strong> {viewData.approved_date?.slice(0, 16)}
+                            <strong>Created On:</strong> {new Date(viewData.created_on).toLocaleString('en-IN')}
                           </p>
-                        )}
-                        {viewData.rejection_remarks && (
-                          <p className="mb-1 text-danger">
-                            <strong>
-                              <FaComment className="me-1" />
-                              Rejection Remarks:
-                            </strong> {viewData.rejection_remarks}
-                          </p>
-                        )}
-                        {viewData.supplier_part_no && (
-                          <p className="mb-1">
-                            <strong>Part No:</strong> {viewData.supplier_part_no}
-                          </p>
-                        )}
-                        {viewData.supplier_description && (
-                          <p className="mb-1">
-                            <strong>Description:</strong> {viewData.supplier_description}
-                          </p>
-                        )}
+                          {viewData.approved_date && (
+                            <p className="mb-1">
+                              <strong>Approved On:</strong> {new Date(viewData.approved_date).toLocaleString('en-IN')}
+                            </p>
+                          )}
+                          {viewData.rejection_remarks && (
+                            <div className="mt-2 p-2 bg-danger bg-opacity-10 rounded">
+                              <strong className="text-danger">
+                                <FaComment className="me-1" />
+                                Rejection Remarks:
+                              </strong>
+                              <p className="mb-0 text-danger mt-1">{viewData.rejection_remarks}</p>
+                            </div>
+                          )}
+                          {viewData.supplier_part_no && (
+                            <p className="mb-1 mt-2">
+                              <strong>Part No:</strong> {viewData.supplier_part_no}
+                            </p>
+                          )}
+                          {viewData.supplier_description && (
+                            <p className="mb-1">
+                              <strong>Description:</strong> {viewData.supplier_description}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
+                    {/* Items Table */}
                     <div className="border-top pt-3">
-                      <h6 className="fw-bold">
-                        <FaBox className="me-2" />
-                        Items ({viewData.items?.length || 0})
-                      </h6>
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h5 className="fw-bold mb-0">
+                          <FaBox className="me-2 text-primary" />
+                          Item-wise Details ({viewData.items?.length || 0} Items)
+                        </h5>
+                        <span className="text-muted">
+                          Total Quantity: {viewData.items?.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                        </span>
+                      </div>
+                      
                       <div className="table-responsive">
-                        <table className="table table-sm table-bordered">
-                          <thead className="table-light">
+                        <table className="table table-bordered table-hover">
+                          <thead className="table-dark">
                             <tr>
                               <th>#</th>
                               <th>Item Name</th>
                               <th>Brand</th>
-                              <th>Code</th>
-                              <th>Description</th>
-                              <th>HSN</th>
-                              <th>Size (L×W)</th>
+                              <th>Brand Code</th>
+                              <th>Brand Description</th>
+                              <th>HSN Code</th>
+                              <th>Dimensions</th>
                               <th>Unit</th>
                               <th>Qty</th>
-                              <th>MRP</th>
-                              <th>Count</th>
-                              <th>Buy Price</th>
-                              <th>Total</th>
+                              <th>MRP/Unit</th>
+                              <th>Count (L×W×Qty)</th>
+                              <th>Buy Price/Unit</th>
+                              <th>Total Price</th>
                             </tr>
                           </thead>
                           <tbody>
                             {viewData.items?.map((item, index) => {
                               const count = calculateCount(item.length, item.width, item.quantity);
+                              const totalPrice = item.quantity * item.buy_price;
+                              
                               return (
                                 <tr key={index}>
-                                  <td>{index + 1}</td>
-                                  <td className="fw-bold">{item.item_name}</td>
-                                  <td>{item.brand}</td>
-                                  <td>{item.brand_code || '-'}</td>
-                                  <td>{item.brand_description || '-'}</td>
+                                  <td className="fw-bold text-center">{index + 1}</td>
+                                  <td>
+                                    <span className="fw-bold">{item.item_name}</span>
+                                  </td>
+                                  <td>{item.brand || '-'}</td>
+                                  <td>
+                                    {item.brand_code ? (
+                                      <span className="badge bg-secondary">{item.brand_code}</span>
+                                    ) : '-'}
+                                  </td>
+                                  <td>
+                                    <small>{item.brand_description || '-'}</small>
+                                  </td>
                                   <td>
                                     {item.hsn_code ? (
                                       <span className="badge bg-info text-dark">
+                                        <FaHashtag className="me-1" size={10} />
                                         {item.hsn_code}
                                       </span>
                                     ) : '-'}
                                   </td>
-                                  <td>
-                                    {item.length || item.width
-                                      ? `${item.length || ''}${item.width ? '×' + item.width : ''}`
-                                      : '-'
-                                    }
+                                  <td className="text-center">
+                                    {item.length && item.width ? (
+                                      <span className="badge bg-light text-dark border">
+                                        {item.length} × {item.width}
+                                      </span>
+                                    ) : item.length ? (
+                                      <span className="badge bg-light text-dark border">
+                                        L: {item.length}
+                                      </span>
+                                    ) : item.width ? (
+                                      <span className="badge bg-light text-dark border">
+                                        W: {item.width}
+                                      </span>
+                                    ) : '-'}
                                   </td>
-                                  <td>{item.unit}</td>
-                                  <td>{item.quantity}</td>
-                                  <td>
-                                    <FaRupeeSign className="me-1" />
-                                    {parseFloat(item.mrp || item.buy_price).toFixed(2)}
+                                  <td className="text-center">
+                                    <span className="badge bg-secondary">
+                                      {item.unit || 'PCS'}
+                                    </span>
                                   </td>
-                                  <td className="fw-bold text-primary">
+                                  <td className="text-center fw-bold">
+                                    {item.quantity}
+                                  </td>
+                                  <td className="text-end">
+                                    <FaRupeeSign className="me-1 text-muted" size={12} />
+                                    {parseFloat(item.mrp || item.buy_price).toLocaleString('en-IN', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2
+                                    })}
+                                  </td>
+                                  <td className="text-center fw-bold text-primary">
                                     {count > 0 ? (
                                       <>
-                                        <FaCalculator className="me-1" />
-                                        {count}
+                                        <FaCalculator className="me-1" size={12} />
+                                        {parseFloat(count).toLocaleString('en-IN', {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2
+                                        })}
                                       </>
                                     ) : '-'}
                                   </td>
-                                  <td>
-                                    <FaRupeeSign className="me-1" />
-                                    {parseFloat(item.buy_price).toFixed(2)}
+                                  <td className="text-end">
+                                    <FaRupeeSign className="me-1 text-muted" size={12} />
+                                    {parseFloat(item.buy_price).toLocaleString('en-IN', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2
+                                    })}
                                   </td>
-                                  <td className="fw-bold text-success">
-                                    <FaRupeeSign className="me-1" />
-                                    {(item.quantity * item.buy_price).toFixed(2)}
+                                  <td className="text-end fw-bold text-success">
+                                    <FaRupeeSign className="me-1" size={12} />
+                                    {totalPrice.toLocaleString('en-IN', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2
+                                    })}
                                   </td>
                                 </tr>
                               );
@@ -1776,8 +1837,10 @@ const PurchaseOrderPage = () => {
                           </tbody>
                           <tfoot className="table-secondary">
                             <tr>
-                              <td colSpan="12" className="text-end fw-bold">Total Amount:</td>
-                              <td className="fw-bold text-success">
+                              <td colSpan="12" className="text-end fw-bold fs-5">
+                                Grand Total:
+                              </td>
+                              <td className="text-end fw-bold fs-5 text-success">
                                 <FaRupeeSign className="me-1" />
                                 {parseFloat(viewData.total_amount || 0).toLocaleString('en-IN', {
                                   minimumFractionDigits: 2,
@@ -1788,24 +1851,82 @@ const PurchaseOrderPage = () => {
                           </tfoot>
                         </table>
                       </div>
+
+                      {/* Summary Cards */}
+                      <div className="row mt-4">
+                        <div className="col-md-3">
+                          <div className="card bg-primary bg-opacity-10 border-primary">
+                            <div className="card-body py-3">
+                              <small className="text-primary text-uppercase fw-bold">Total Items</small>
+                              <h4 className="mb-0 fw-bold">{viewData.items?.length || 0}</h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="card bg-info bg-opacity-10 border-info">
+                            <div className="card-body py-3">
+                              <small className="text-info text-uppercase fw-bold">Total Quantity</small>
+                              <h4 className="mb-0 fw-bold">
+                                {viewData.items?.reduce((sum, item) => sum + (item.quantity || 0), 0)}
+                              </h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="card bg-warning bg-opacity-10 border-warning">
+                            <div className="card-body py-3">
+                              <small className="text-warning text-uppercase fw-bold">Total Count</small>
+                              <h4 className="mb-0 fw-bold">
+                                {viewData.items?.reduce((sum, item) => {
+                                  const count = calculateCount(item.length, item.width, item.quantity);
+                                  return sum + (parseFloat(count) || 0);
+                                }, 0).toLocaleString('en-IN', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </h4>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-md-3">
+                          <div className="card bg-success bg-opacity-10 border-success">
+                            <div className="card-body py-3">
+                              <small className="text-success text-uppercase fw-bold">Total Amount</small>
+                              <h4 className="mb-0 fw-bold text-success">
+                                <FaRupeeSign className="me-1" size={18} />
+                                {parseFloat(viewData.total_amount || 0).toLocaleString('en-IN', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2
+                                })}
+                              </h4>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
               <div className="modal-footer">
-                {/* Only show action buttons for pending POs */}
+                {/* Action buttons based on status */}
                 {viewData.status === 'pending' && (
                   <>
                     <button 
                       className="btn btn-success"
-                      onClick={() => handleApproveClick(viewData)}
+                      onClick={() => {
+                        setViewData(null);
+                        handleApproveClick(viewData);
+                      }}
                     >
                       <FaCheck className="me-2" />
                       Approve
                     </button>
                     <button 
                       className="btn btn-danger"
-                      onClick={() => handleRejectClick(viewData)}
+                      onClick={() => {
+                        setViewData(null);
+                        handleRejectClick(viewData);
+                      }}
                     >
                       <FaTimes className="me-2" />
                       Reject
@@ -1815,7 +1936,10 @@ const PurchaseOrderPage = () => {
                 {viewData.status === 'approved' && (
                   <button 
                     className="btn btn-info"
-                    onClick={() => markAsComplete(viewData.id)}
+                    onClick={() => {
+                      setViewData(null);
+                      markAsComplete(viewData.id);
+                    }}
                   >
                     Mark Complete
                   </button>
@@ -1859,6 +1983,10 @@ const PurchaseOrderPage = () => {
         .page-item.active .page-link {
           background-color: #0d6efd;
           border-color: #0d6efd;
+        }
+        
+        .table td, .table th {
+          vertical-align: middle;
         }
       `}</style>
     </div>

@@ -11,18 +11,7 @@ import {
   FaChevronLeft,
   FaChevronRight,
   FaKey,
-  FaLock,
-  FaFilter,
-  FaTimes,
-  FaBuilding,
-  FaUser,
-  FaEnvelope,
-  FaPhone,
-  FaMapMarkerAlt,
-  FaIdCard,
-  FaIndustry,
-  FaBriefcase,
-  FaUserTie
+  FaLock
 } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
 import { Table, Button, Modal, Form, Row, Col, InputGroup, Pagination, Alert } from "react-bootstrap";
@@ -118,7 +107,6 @@ const CompanyPage = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   useEffect(() => {
     fetchCompanies();
@@ -573,7 +561,7 @@ const CompanyPage = () => {
 
   const renderPaginationItems = () => {
     const items = [];
-    const maxVisiblePages = window.innerWidth < 768 ? 3 : 5;
+    const maxVisiblePages = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
     let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
@@ -590,7 +578,7 @@ const CompanyPage = () => {
       />
     );
 
-    // First page (show on mobile only if needed)
+    // First page
     if (startPage > 1) {
       items.push(
         <Pagination.Item key={1} onClick={() => goToPage(1)}>
@@ -686,204 +674,50 @@ const CompanyPage = () => {
       headStyles: {
         fillColor: [255, 243, 205],
         textColor: [0, 0, 0],
-        fontSize: window.innerWidth < 768 ? 8 : 10,
+        fontSize: 10,
         fontStyle: 'bold'
       },
       styles: {
-        fontSize: window.innerWidth < 768 ? 7 : 9,
-        cellPadding: window.innerWidth < 768 ? 2 : 3,
+        fontSize: 9,
+        cellPadding: 3,
       },
       columnStyles: {
-        0: { cellWidth: window.innerWidth < 768 ? 20 : 25 },
-        1: { cellWidth: window.innerWidth < 768 ? 25 : 30 },
-        2: { cellWidth: window.innerWidth < 768 ? 18 : 22 },
-        3: { cellWidth: window.innerWidth < 768 ? 18 : 22 },
-        4: { cellWidth: window.innerWidth < 768 ? 15 : 18 },
-        5: { cellWidth: window.innerWidth < 768 ? 18 : 22 },
-        6: { cellWidth: window.innerWidth < 768 ? 12 : 15 },
-        7: { cellWidth: window.innerWidth < 768 ? 30 : 35 },
+        0: { cellWidth: 25 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 18 },
+        5: { cellWidth: 22 },
+        6: { cellWidth: 15 },
+        7: { cellWidth: 35 },
       },
     });
 
     doc.save("companies.pdf");
   };
 
-  // Improved Mobile card view for companies - shows ALL information
-  const renderMobileCompanyCard = (company) => (
-    <div key={company.id} className="mobile-company-card mb-3 p-3" style={{ 
-      backgroundColor: '#fff', 
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-      borderRadius: '12px',
-      border: '1px solid #ffeaa7'
-    }}>
-      {/* Header with Company Name and Actions */}
-      <div className="d-flex justify-content-between align-items-start mb-3 pb-2" style={{ borderBottom: '2px solid #fff3cd' }}>
-        <div className="d-flex align-items-center">
-          <FaBuilding className="me-2" style={{ color: '#f5c518', fontSize: '1.2rem' }} />
-          <h6 className="fw-bold mb-0" style={{ color: '#856404', fontSize: '1.1rem' }}>{company.companyName || 'N/A'}</h6>
-        </div>
-        <div className="d-flex gap-2">
-          <Button size="sm" variant="outline-info" className="p-2" onClick={() => handleView(company)} title="View Details">
-            <FaEye />
-          </Button>
-          <Button size="sm" variant="outline-warning" className="p-2" onClick={() => handleEdit(company)} title="Edit">
-            <FaEdit />
-          </Button>
-          <Button size="sm" variant="outline-danger" className="p-2" onClick={() => handleDelete(company)} title="Delete">
-            <FaTrash />
-          </Button>
-        </div>
-      </div>
-
-      {/* GST and PIN Code Section */}
-      <div className="row g-2 mb-3">
-        <div className="col-6">
-          <div className="d-flex align-items-center">
-            <FaIdCard className="me-2" style={{ color: '#6c757d', fontSize: '0.9rem' }} />
-            <div>
-              <small className="text-muted d-block">GST Number</small>
-              <span className="badge bg-info text-dark p-2" style={{ fontSize: '0.85rem' }}>{company.gstNumber || 'N/A'}</span>
-            </div>
-          </div>
-        </div>
-        <div className="col-6">
-          <div className="d-flex align-items-center">
-            <FaMapMarkerAlt className="me-2" style={{ color: '#6c757d', fontSize: '0.9rem' }} />
-            <div>
-              <small className="text-muted d-block">Pin Code</small>
-              <span className="badge bg-light text-dark p-2" style={{ fontSize: '0.85rem' }}>{company.pinCode || 'N/A'}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Industry and Department Section */}
-      <div className="row g-2 mb-3">
-        <div className="col-6">
-          <div className="d-flex align-items-center">
-            <FaIndustry className="me-2" style={{ color: '#6c757d', fontSize: '0.9rem' }} />
-            <div>
-              <small className="text-muted d-block">Industry</small>
-              <strong style={{ fontSize: '0.95rem' }}>{company.industrySegment || 'N/A'}</strong>
-            </div>
-          </div>
-        </div>
-        <div className="col-6">
-          <div className="d-flex align-items-center">
-            <FaBriefcase className="me-2" style={{ color: '#6c757d', fontSize: '0.9rem' }} />
-            <div>
-              <small className="text-muted d-block">Department</small>
-              <strong style={{ fontSize: '0.95rem' }}>{company.department || 'N/A'}</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Customer Information Section */}
-      <div className="mb-3 p-2" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-        <small className="fw-bold text-warning mb-2 d-block">
-          <FaUserTie className="me-1" /> Customer Details
-        </small>
-        
-        <div className="row g-2">
-          <div className="col-12">
-            <div className="d-flex align-items-center">
-              <FaUser className="me-2" style={{ color: '#6c757d', fontSize: '0.85rem', minWidth: '16px' }} />
-              <span className="fw-semibold me-2" style={{ minWidth: '60px', fontSize: '0.9rem' }}>Name:</span>
-              <span style={{ fontSize: '0.9rem' }}>{company.customerName || 'N/A'}</span>
-            </div>
-          </div>
-          <div className="col-12">
-            <div className="d-flex align-items-center">
-              <FaPhone className="me-2" style={{ color: '#6c757d', fontSize: '0.85rem', minWidth: '16px' }} />
-              <span className="fw-semibold me-2" style={{ minWidth: '60px', fontSize: '0.9rem' }}>Mobile:</span>
-              <span style={{ fontSize: '0.9rem' }}>{company.customerMobile || 'N/A'}</span>
-            </div>
-          </div>
-          {company.customerEmail && (
-            <div className="col-12">
-              <div className="d-flex align-items-center">
-                <FaEnvelope className="me-2" style={{ color: '#6c757d', fontSize: '0.85rem', minWidth: '16px' }} />
-                <span className="fw-semibold me-2" style={{ minWidth: '60px', fontSize: '0.9rem' }}>Email:</span>
-                <small style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>{company.customerEmail}</small>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Personal Information Section (if available) */}
-      {(company.personalMobile || company.personalEmail) && (
-        <div className="mb-3 p-2" style={{ backgroundColor: '#fff3cd', borderRadius: '8px' }}>
-          <small className="fw-bold text-warning mb-2 d-block">
-            <FaUser className="me-1" /> Personal Details
-          </small>
-          
-          <div className="row g-2">
-            {company.personalMobile && (
-              <div className="col-12">
-                <div className="d-flex align-items-center">
-                  <FaPhone className="me-2" style={{ color: '#6c757d', fontSize: '0.85rem', minWidth: '16px' }} />
-                  <span className="fw-semibold me-2" style={{ minWidth: '60px', fontSize: '0.9rem' }}>Mobile:</span>
-                  <span style={{ fontSize: '0.9rem' }}>{company.personalMobile}</span>
-                </div>
-              </div>
-            )}
-            {company.personalEmail && (
-              <div className="col-12">
-                <div className="d-flex align-items-center">
-                  <FaEnvelope className="me-2" style={{ color: '#6c757d', fontSize: '0.85rem', minWidth: '16px' }} />
-                  <span className="fw-semibold me-2" style={{ minWidth: '60px', fontSize: '0.9rem' }}>Email:</span>
-                  <small style={{ fontSize: '0.85rem', wordBreak: 'break-all' }}>{company.personalEmail}</small>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Address Section */}
-      <div className="p-2" style={{ backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-        <div className="d-flex">
-          <FaMapMarkerAlt className="me-2 mt-1" style={{ color: '#dc3545', fontSize: '0.9rem', minWidth: '16px' }} />
-          <div>
-            <small className="text-muted d-block">Address</small>
-            <span style={{ fontSize: '0.9rem', lineHeight: '1.4', display: 'block' }}>
-              {company.companyAddress || 'N/A'}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   return (
-    <div className="container-fluid px-2 px-md-4 mt-2 mt-md-4">
+    <div className="container mt-4">
       {/* Login/Logout Header */}
-      <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 mb-md-4 gap-2">
-        <h3 className="fw-bold mb-0" style={{ fontSize: 'clamp(1.2rem, 5vw, 1.75rem)' }}>Partner Management</h3>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h3 className="fw-bold">Partner Management</h3>
         
-        <div className="d-flex gap-2 w-100 w-md-auto">
-          <Button variant="warning" className="w-100 w-md-auto d-flex align-items-center justify-content-center" onClick={() => setFormOpen(true)}>
-            <FaPlus className="me-2" /> Add Company
-          </Button>
+        <div className="d-flex gap-2">
         </div>
       </div>
 
-      {/* Search and Export Section */}
-      <div className="d-flex flex-column flex-md-row gap-2 mb-3">
-        <div className="flex-grow-1">
+      <Row className="mb-3">
+        <Col md={8}>
           <InputGroup>
             <InputGroup.Text style={{ background: "#fff3cd", borderColor: "#ffc107" }}>
               <FaSearch />
             </InputGroup.Text>
             <Form.Control
-              placeholder="Search companies..."
+              placeholder="Search by company, customer, GST, mobile, email, etc."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyPress={handleKeyPress}
               style={{ borderColor: "#ffc107" }}
-              className="py-2"
             />
             {search && (
               <Button 
@@ -891,7 +725,7 @@ const CompanyPage = () => {
                 onClick={handleClearSearch}
                 title="Clear search"
               >
-                <FaTimes />
+                ✕
               </Button>
             )}
             <Button 
@@ -902,9 +736,9 @@ const CompanyPage = () => {
               Search
             </Button>
           </InputGroup>
-        </div>
+        </Col>
 
-        <div className="d-flex gap-2 mt-2 mt-md-0">
+        <Col md="auto" className="mt-2 mt-md-0">
           <Button variant="success" className="me-2" onClick={exportExcel} disabled={filteredCompanies.length === 0}>
             <FaFileExcel className="me-1" /> Excel
           </Button>
@@ -912,13 +746,13 @@ const CompanyPage = () => {
           <Button variant="danger" onClick={exportPDF} disabled={filteredCompanies.length === 0}>
             <FaFilePdf className="me-1" /> PDF
           </Button>
-        </div>
-      </div>
+        </Col>
+      </Row>
 
       {/* Search Results Info */}
       {search && (
-        <Alert variant="warning" className="py-2 mb-3">
-          <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+        <div className="alert alert-warning py-2 mb-3" role="alert">
+          <div className="d-flex justify-content-between align-items-center">
             <div>
               <FaSearch className="me-2" />
               Found <strong>{filteredCompanies.length}</strong> companies matching "<strong>{search}</strong>"
@@ -929,131 +763,110 @@ const CompanyPage = () => {
                 variant="outline-warning" 
                 size="sm" 
                 onClick={handleClearSearch}
-                className="w-100 w-md-auto"
               >
                 Clear Search
               </Button>
             )}
           </div>
-        </Alert>
+        </div>
       )}
 
-      {/* Desktop Table View */}
-      <div className="d-none d-md-block">
-        <div className="table-responsive">
-          <Table bordered hover striped>
-            <thead style={{ background: "#fff3cd" }}>
-              <tr className="text-center">
-                <th>Partner Name</th>
-                <th>GST Number</th>
-                <th>Industry</th>
-                <th>Customer Name</th>
-                <th>Mobile</th>
-                <th>Department</th>
-                <th>Pin Code</th>
-                <th>Action</th>
-              </tr>
-            </thead>
+      <div className="table-responsive">
+        <Table bordered hover striped>
+          <thead style={{ background: "#fff3cd" }}>
+            <tr className="text-center">
+              <th>Partner Name</th>
+              <th>GST Number</th>
+              <th>Industry</th>
+              <th>Customer Name</th>
+              <th>Mobile</th>
+              <th>Department</th>
+              <th>Pin Code</th>
+              <th>Action</th>
+            </tr>
+          </thead>
 
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="8" className="text-center py-4">
-                    <div className="spinner-border text-warning" role="status">
-                      <span className="visually-hidden">Loading...</span>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="8" className="text-center">
+                  <div className="spinner-border text-warning" role="status">
+                    <span className="visually-hidden">Loading...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : paginatedCompanies.length === 0 ? (
+              <tr>
+                <td colSpan="8" className="text-center text-muted py-4">
+                  {search ? "No companies match your search criteria" : "No companies found"}
+                </td>
+              </tr>
+            ) : (
+              paginatedCompanies.map((c) => (
+                <tr key={c.id} className="text-center">
+                  <td>
+                    <div className="fw-semibold">{c.companyName}</div>
+                    <small className="text-muted">{c.companyAddress ? c.companyAddress.substring(0, 40) + "..." : ""}</small>
+                  </td>
+                  <td>
+                    <span className="badge bg-info text-dark">{c.gstNumber || "N/A"}</span>
+                  </td>
+                  <td>{c.industrySegment}</td>
+                  <td>
+                    <div>{c.customerName}</div>
+                    <small className="text-muted">{c.customerEmail}</small>
+                  </td>
+                  <td>{c.customerMobile}</td>
+                  <td>{c.department}</td>
+                  <td>
+                    <span className="badge bg-light text-dark">{c.pinCode}</span>
+                  </td>
+                  <td>
+                    <div className="d-flex justify-content-center">
+                      <Button size="sm" variant="outline-info" className="me-2" onClick={() => handleView(c)} title="View Details">
+                        <FaEye />
+                      </Button>
+
+                      <Button size="sm" variant="outline-warning" className="me-2" onClick={() => handleEdit(c)} title="Edit">
+                        <FaEdit />
+                      </Button>
+
+                      <Button size="sm" variant="outline-danger" onClick={() => handleDelete(c)} title="Delete">
+                        <FaTrash />
+                      </Button>
                     </div>
                   </td>
                 </tr>
-              ) : paginatedCompanies.length === 0 ? (
-                <tr>
-                  <td colSpan="8" className="text-center text-muted py-4">
-                    {search ? "No companies match your search criteria" : "No companies found"}
-                  </td>
-                </tr>
-              ) : (
-                paginatedCompanies.map((c) => (
-                  <tr key={c.id} className="text-center">
-                    <td>
-                      <div className="fw-semibold">{c.companyName}</div>
-                      <small className="text-muted">{c.companyAddress ? c.companyAddress.substring(0, 40) + "..." : ""}</small>
-                    </td>
-                    <td>
-                      <span className="badge bg-info text-dark">{c.gstNumber || "N/A"}</span>
-                    </td>
-                    <td>{c.industrySegment}</td>
-                    <td>
-                      <div>{c.customerName}</div>
-                      <small className="text-muted">{c.customerEmail}</small>
-                    </td>
-                    <td>{c.customerMobile}</td>
-                    <td>{c.department}</td>
-                    <td>
-                      <span className="badge bg-light text-dark">{c.pinCode}</span>
-                    </td>
-                    <td>
-                      <div className="d-flex justify-content-center">
-                        <Button size="sm" variant="outline-info" className="me-2" onClick={() => handleView(c)} title="View Details">
-                          <FaEye />
-                        </Button>
-                        <Button size="sm" variant="outline-warning" className="me-2" onClick={() => handleEdit(c)} title="Edit">
-                          <FaEdit />
-                        </Button>
-                        <Button size="sm" variant="outline-danger" onClick={() => handleDelete(c)} title="Delete">
-                          <FaTrash />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </Table>
-        </div>
-      </div>
-
-      {/* Mobile Card View - IMPROVED */}
-      <div className="d-block d-md-none">
-        {loading ? (
-          <div className="text-center py-4">
-            <div className="spinner-border text-warning" role="status">
-              <span className="visually-hidden">Loading...</span>
-            </div>
-          </div>
-        ) : paginatedCompanies.length === 0 ? (
-          <div className="text-center text-muted py-4 bg-light rounded">
-            {search ? "No companies match your search criteria" : "No companies found"}
-          </div>
-        ) : (
-          paginatedCompanies.map(renderMobileCompanyCard)
-        )}
+              ))
+            )}
+          </tbody>
+        </Table>
       </div>
 
       {/* Pagination */}
       {filteredCompanies.length > 0 && (
-        <div className="d-flex flex-column flex-md-row justify-content-between align-items-center mt-3 gap-2">
-          <div className="text-muted small text-center text-md-start">
+        <div className="d-flex justify-content-between align-items-center mt-3">
+          <div className="text-muted">
             Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, filteredCompanies.length)} of {filteredCompanies.length} entries
             {search && " (filtered)"}
           </div>
-          <Pagination className="mb-0 flex-wrap justify-content-center">
+          <Pagination className="mb-0">
             {renderPaginationItems()}
           </Pagination>
         </div>
       )}
 
       {/* ADD/EDIT COMPANY MODAL */}
-      <Modal show={formOpen} onHide={() => setFormOpen(false)} centered size="lg" fullscreen="sm-down">
-        <Modal.Header closeButton style={{ background: "#fff3cd" }} className="py-3">
-          <Modal.Title className="fs-6 fs-md-5">
-            {editId ? "Edit Company" : "Add Company"} — Step {step} of 3
-          </Modal.Title>
+      <Modal show={formOpen} onHide={() => setFormOpen(false)} centered size="lg">
+        <Modal.Header closeButton style={{ background: "#fff3cd" }}>
+          <Modal.Title>{editId ? "Edit Company" : "Add Company"} — Step {step} of 3</Modal.Title>
         </Modal.Header>
 
-        <Modal.Body className="px-3 px-md-4">
+        <Modal.Body>
           {step === 1 && (
             <>
               <Row>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">Company Name <span className="text-danger">*</span></Form.Label>
                     <Form.Control 
@@ -1063,33 +876,34 @@ const CompanyPage = () => {
                       required 
                       placeholder="Enter company name"
                       isInvalid={!!errors.companyName}
-                      className="py-2"
                     />
                     <Form.Control.Feedback type="invalid">
                       {errors.companyName}
                     </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">GST Number</Form.Label>
                     <Form.Control 
                       name="gstNumber"
                       value={formData.gstNumber} 
                       onChange={handleChange} 
-                      placeholder="Enter GST number"
+                      placeholder="Enter GST number (e.g., 27ABCDE1234F1Z5)"
                       isInvalid={!!errors.gstNumber}
-                      className="py-2"
                     />
                     <Form.Control.Feedback type="invalid">
                       {errors.gstNumber}
                     </Form.Control.Feedback>
+                    <Form.Text className="text-muted">
+                      Format: 2-digit state code + 10-digit PAN + 1-digit entity + 1-digit checksum
+                    </Form.Text>
                   </Form.Group>
                 </Col>
               </Row>
 
               <Row>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">Pin Code</Form.Label>
                     <Form.Control 
@@ -1098,18 +912,17 @@ const CompanyPage = () => {
                       onChange={handleChange} 
                       placeholder="Enter 6-digit pin code"
                       isInvalid={!!errors.pinCode}
-                      className="py-2"
                     />
                     <Form.Control.Feedback type="invalid">
                       {errors.pinCode}
                     </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">Industry Segment</Form.Label>
-                    <Form.Select name="industrySegment" value={formData.industrySegment} onChange={handleChange} className="py-2">
-                      <option value="">Select Industry</option>
+                    <Form.Select name="industrySegment" value={formData.industrySegment} onChange={handleChange}>
+                      <option value="">Select Industry Segment</option>
                       {industryOptions.map((i) => (
                         <option key={i.id} value={i.name}>
                           {i.name}
@@ -1137,8 +950,8 @@ const CompanyPage = () => {
                 </Form.Control.Feedback>
               </Form.Group>
 
-              <div className="d-flex justify-content-end mt-3">
-                <Button className="px-4 w-100 w-md-auto" variant="warning" onClick={nextStep}>
+              <div className="d-flex justify-content-end">
+                <Button className="px-4" variant="warning" onClick={nextStep}>
                   Next <FaChevronRight className="ms-1" />
                 </Button>
               </div>
@@ -1149,7 +962,7 @@ const CompanyPage = () => {
             <>
               <h6 className="mb-3 fw-semibold">Customer Details</h6>
               <Row>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">Customer Name</Form.Label>
                     <Form.Control 
@@ -1157,20 +970,18 @@ const CompanyPage = () => {
                       value={formData.customerName} 
                       onChange={handleChange} 
                       placeholder="Enter customer name"
-                      className="py-2"
                     />
                   </Form.Group>
                 </Col>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">Customer Mobile</Form.Label>
                     <Form.Control 
                       name="customerMobile" 
                       value={formData.customerMobile} 
                       onChange={handleChange} 
-                      placeholder="Enter 10-digit mobile"
+                      placeholder="Enter 10-digit mobile number"
                       isInvalid={!!errors.customerMobile}
-                      className="py-2"
                     />
                     <Form.Control.Feedback type="invalid">
                       {errors.customerMobile}
@@ -1188,7 +999,6 @@ const CompanyPage = () => {
                   onChange={handleChange} 
                   placeholder="Enter email address"
                   isInvalid={!!errors.customerEmail}
-                  className="py-2"
                 />
                 <Form.Control.Feedback type="invalid">
                   {errors.customerEmail}
@@ -1197,7 +1007,7 @@ const CompanyPage = () => {
 
               <Form.Group className="mb-3">
                 <Form.Label className="fw-semibold">Department</Form.Label>
-                <Form.Select name="department" value={formData.department} onChange={handleChange} className="py-2">
+                <Form.Select name="department" value={formData.department} onChange={handleChange}>
                   <option value="">Select Department</option>
                   {departmentOptions.map((d) => (
                     <option key={d.id} value={d.name}>
@@ -1209,23 +1019,22 @@ const CompanyPage = () => {
 
               <h6 className="mb-3 fw-semibold mt-4">Personal Details</h6>
               <Row>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">Personal Mobile</Form.Label>
                     <Form.Control 
                       name="personalMobile" 
                       value={formData.personalMobile} 
                       onChange={handleChange} 
-                      placeholder="Enter 10-digit mobile"
+                      placeholder="Enter 10-digit mobile number"
                       isInvalid={!!errors.personalMobile}
-                      className="py-2"
                     />
                     <Form.Control.Feedback type="invalid">
                       {errors.personalMobile}
                     </Form.Control.Feedback>
                   </Form.Group>
                 </Col>
-                <Col xs={12} md={6}>
+                <Col md={6}>
                   <Form.Group className="mb-3">
                     <Form.Label className="fw-semibold">Personal Email</Form.Label>
                     <Form.Control 
@@ -1235,7 +1044,6 @@ const CompanyPage = () => {
                       onChange={handleChange} 
                       placeholder="Enter email address"
                       isInvalid={!!errors.personalEmail}
-                      className="py-2"
                     />
                     <Form.Control.Feedback type="invalid">
                       {errors.personalEmail}
@@ -1244,11 +1052,12 @@ const CompanyPage = () => {
                 </Col>
               </Row>
 
-              <div className="d-flex flex-column flex-md-row justify-content-between mt-4 gap-2">
-                <Button variant="outline-secondary" onClick={prevStep} className="w-100 w-md-auto">
+              <div className="d-flex justify-content-between mt-4">
+                <Button variant="outline-secondary" onClick={prevStep}>
                   <FaChevronLeft className="me-1" /> Previous
                 </Button>
-                <Button className="px-4 w-100 w-md-auto" variant="warning" onClick={nextStep}>
+
+                <Button className="px-4" variant="warning" onClick={nextStep}>
                   Next <FaChevronRight className="ms-1" />
                 </Button>
               </div>
@@ -1279,7 +1088,6 @@ const CompanyPage = () => {
                     onChange={handleChange}
                     placeholder={editId ? "Enter new password (optional)" : "Enter password"}
                     isInvalid={!!errors.password}
-                    className="py-2"
                   />
                   <Button
                     variant="outline-secondary"
@@ -1305,7 +1113,6 @@ const CompanyPage = () => {
                     onChange={handleChange}
                     placeholder="Confirm password"
                     isInvalid={!!errors.confirmPassword}
-                    className="py-2"
                   />
                   <Button
                     variant="outline-secondary"
@@ -1319,16 +1126,17 @@ const CompanyPage = () => {
                 </InputGroup>
               </Form.Group>
 
-              <div className="d-flex flex-column flex-md-row justify-content-between mt-4 gap-2">
-                <Button variant="outline-secondary" onClick={prevStep} className="w-100 w-md-auto">
+              <div className="d-flex justify-content-between mt-4">
+                <Button variant="outline-secondary" onClick={prevStep}>
                   <FaChevronLeft className="me-1" /> Previous
                 </Button>
-                <div className="d-flex gap-2 w-100 w-md-auto">
-                  <Button variant="outline-secondary" className="flex-grow-1" onClick={() => setFormOpen(false)}>
+
+                <div>
+                  <Button variant="outline-secondary" className="me-2" onClick={() => setFormOpen(false)}>
                     Cancel
                   </Button>
-                  <Button variant="warning" className="flex-grow-1" onClick={handleSubmit}>
-                    {editId ? "Update" : "Add"}
+                  <Button variant="warning" onClick={handleSubmit}>
+                    {editId ? "Update Company" : "Add Company"}
                   </Button>
                 </div>
               </div>
@@ -1338,12 +1146,12 @@ const CompanyPage = () => {
       </Modal>
 
       {/* LOGIN MODAL */}
-      <Modal show={loginOpen} onHide={() => setLoginOpen(false)} centered fullscreen="sm-down">
-        <Modal.Header closeButton style={{ background: "#d1ecf1" }} className="py-3">
-          <Modal.Title className="fs-6 fs-md-5"><FaKey className="me-2" /> Company Login</Modal.Title>
+      <Modal show={loginOpen} onHide={() => setLoginOpen(false)} centered>
+        <Modal.Header closeButton style={{ background: "#d1ecf1" }}>
+          <Modal.Title><FaKey className="me-2" /> Company Login</Modal.Title>
         </Modal.Header>
         <Form onSubmit={handleLogin}>
-          <Modal.Body className="px-3 px-md-4">
+          <Modal.Body>
             <Form.Group className="mb-3">
               <Form.Label className="fw-semibold">Email Address <span className="text-danger">*</span></Form.Label>
               <Form.Control
@@ -1353,7 +1161,6 @@ const CompanyPage = () => {
                 onChange={handleLoginChange}
                 placeholder="Enter registered email"
                 required
-                className="py-2"
               />
             </Form.Group>
 
@@ -1367,7 +1174,6 @@ const CompanyPage = () => {
                   onChange={handleLoginChange}
                   placeholder="Enter password"
                   required
-                  className="py-2"
                 />
                 <Button
                   variant="outline-secondary"
@@ -1378,11 +1184,11 @@ const CompanyPage = () => {
               </InputGroup>
             </Form.Group>
           </Modal.Body>
-          <Modal.Footer className="px-3 px-md-4">
-            <Button variant="outline-secondary" onClick={() => setLoginOpen(false)} className="w-100 w-md-auto">
+          <Modal.Footer>
+            <Button variant="outline-secondary" onClick={() => setLoginOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" type="submit" className="w-100 w-md-auto">
+            <Button variant="primary" type="submit">
               <FaKey className="me-2" /> Login
             </Button>
           </Modal.Footer>
@@ -1390,204 +1196,51 @@ const CompanyPage = () => {
       </Modal>
 
       {/* VIEW MODAL */}
-      <Modal show={viewOpen} onHide={() => setViewOpen(false)} centered size="lg" fullscreen="sm-down">
-        <Modal.Header closeButton style={{ background: "#fff3cd" }} className="py-3">
-          <Modal.Title className="fs-6 fs-md-5">Company Details</Modal.Title>
+      <Modal show={viewOpen} onHide={() => setViewOpen(false)} centered size="lg">
+        <Modal.Header closeButton style={{ background: "#fff3cd" }}>
+          <Modal.Title>Company Details</Modal.Title>
         </Modal.Header>
 
-        <Modal.Body className="px-3 px-md-4">
+        <Modal.Body>
           {viewData && (
-            <>
-              <div className="mb-3">
-                <h6 className="fw-semibold text-warning border-bottom pb-2">Company Information</h6>
-                <div className="row g-2 mt-2">
-                  <div className="col-6">
-                    <small className="text-muted d-block">Company Name</small>
-                    <strong>{viewData.companyName || "N/A"}</strong>
-                  </div>
-                  <div className="col-6">
-                    <small className="text-muted d-block">GST Number</small>
-                    <strong>{viewData.gstNumber || "N/A"}</strong>
-                  </div>
-                  <div className="col-12 mt-2">
-                    <small className="text-muted d-block">Address</small>
-                    <strong>{viewData.companyAddress || "N/A"}</strong>
-                  </div>
-                  <div className="col-6 mt-2">
-                    <small className="text-muted d-block">Pin Code</small>
-                    <strong>{viewData.pinCode || "N/A"}</strong>
-                  </div>
-                  <div className="col-6 mt-2">
-                    <small className="text-muted d-block">Industry</small>
-                    <strong>{viewData.industrySegment || "N/A"}</strong>
-                  </div>
+            <Row>
+              <Col md={6}>
+                <div className="mb-3">
+                  <h6 className="fw-semibold text-warning">Company Information</h6>
+                  <p><strong>Company Name:</strong> {viewData.companyName || "N/A"}</p>
+                  <p><strong>GST Number:</strong> {viewData.gstNumber || "N/A"}</p>
+                  <p><strong>Address:</strong> {viewData.companyAddress || "N/A"}</p>
+                  <p><strong>Pin Code:</strong> {viewData.pinCode || "N/A"}</p>
+                  <p><strong>Industry Segment:</strong> {viewData.industrySegment || "N/A"}</p>
                 </div>
-              </div>
-
-              <div className="mb-3">
-                <h6 className="fw-semibold text-warning border-bottom pb-2">Customer Information</h6>
-                <div className="row g-2 mt-2">
-                  <div className="col-6">
-                    <small className="text-muted d-block">Customer Name</small>
-                    <strong>{viewData.customerName || "N/A"}</strong>
-                  </div>
-                  <div className="col-6">
-                    <small className="text-muted d-block">Mobile</small>
-                    <strong>{viewData.customerMobile || "N/A"}</strong>
-                  </div>
-                  <div className="col-6 mt-2">
-                    <small className="text-muted d-block">Email</small>
-                    <strong>{viewData.customerEmail || "N/A"}</strong>
-                  </div>
-                  <div className="col-6 mt-2">
-                    <small className="text-muted d-block">Department</small>
-                    <strong>{viewData.department || "N/A"}</strong>
-                  </div>
+              </Col>
+              <Col md={6}>
+                <div className="mb-3">
+                  <h6 className="fw-semibold text-warning">Customer Information</h6>
+                  <p><strong>Customer Name:</strong> {viewData.customerName || "N/A"}</p>
+                  <p><strong>Mobile:</strong> {viewData.customerMobile || "N/A"}</p>
+                  <p><strong>Email:</strong> {viewData.customerEmail || "N/A"}</p>
+                  <p><strong>Department:</strong> {viewData.department || "N/A"}</p>
                 </div>
-              </div>
-
-              <div className="mb-3">
-                <h6 className="fw-semibold text-warning border-bottom pb-2">Personal Information</h6>
-                <div className="row g-2 mt-2">
-                  <div className="col-6">
-                    <small className="text-muted d-block">Personal Mobile</small>
-                    <strong>{viewData.personalMobile || "N/A"}</strong>
-                  </div>
-                  <div className="col-6">
-                    <small className="text-muted d-block">Personal Email</small>
-                    <strong>{viewData.personalEmail || "N/A"}</strong>
-                  </div>
+              </Col>
+              <Col md={12}>
+                <div className="mb-3">
+                  <h6 className="fw-semibold text-warning">Personal Information</h6>
+                  <p><strong>Personal Mobile:</strong> {viewData.personalMobile || "N/A"}</p>
+                  <p><strong>Personal Email:</strong> {viewData.personalEmail || "N/A"}</p>
                 </div>
-              </div>
-            </>
+              </Col>
+            </Row>
           )}
         </Modal.Body>
-        <Modal.Footer className="px-3 px-md-4">
-          <Button variant="outline-secondary" onClick={() => setViewOpen(false)} className="w-100 w-md-auto">
+        <Modal.Footer>
+          <Button variant="outline-secondary" onClick={() => setViewOpen(false)}>
             Close
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Add custom CSS for better mobile experience */}
-      <style jsx="true">{`
-        @media (max-width: 767px) {
-          .btn {
-            padding: 0.5rem 0.75rem;
-            font-size: 0.9rem;
-          }
-          
-          .modal-dialog {
-            margin: 0.5rem;
-          }
-          
-          .pagination {
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 0.25rem;
-          }
-          
-          .page-link {
-            padding: 0.4rem 0.6rem;
-            font-size: 0.85rem;
-          }
-          
-          .mobile-company-card {
-            border-radius: 12px;
-            transition: transform 0.2s;
-          }
-          
-          .mobile-company-card:active {
-            transform: scale(0.98);
-          }
-          
-          .badge {
-            font-size: 0.8rem;
-            padding: 0.4rem 0.6rem;
-          }
-          
-          .form-control, .form-select {
-            font-size: 16px !important; /* Prevents zoom on mobile */
-            padding: 0.6rem 0.75rem;
-          }
-          
-          .input-group-text {
-            padding: 0.5rem 0.75rem;
-          }
-          
-          /* Ensure all text is visible */
-          .text-muted, small, .small {
-            font-size: 0.8rem !important;
-          }
-          
-          /* Better spacing for mobile cards */
-          .mobile-company-card .row {
-            margin-left: -4px;
-            margin-right: -4px;
-          }
-          
-          .mobile-company-card .col-6 {
-            padding-left: 4px;
-            padding-right: 4px;
-          }
-        }
-
-        /* Tablet optimizations */
-        @media (min-width: 768px) and (max-width: 991px) {
-          .container-fluid {
-            padding-left: 1rem;
-            padding-right: 1rem;
-          }
-          
-          .table th, .table td {
-            padding: 0.5rem;
-            font-size: 0.9rem;
-          }
-        }
-
-        /* Better touch targets */
-        .btn, .page-link, .dropdown-item {
-          touch-action: manipulation;
-        }
-        
-        /* Smooth transitions */
-        .mobile-company-card, .btn, .form-control {
-          transition: all 0.2s ease;
-        }
-        
-        /* Modal improvements */
-        .modal-content {
-          border-radius: 12px;
-        }
-        
-        @media (max-width: 767px) {
-          .modal-content {
-            border-radius: 16px 16px 0 0;
-            margin-bottom: 0;
-          }
-          
-          .modal-fullscreen-sm-down {
-            margin: 0;
-          }
-          
-          .modal-fullscreen-sm-down .modal-content {
-            border-radius: 16px 16px 0 0;
-            min-height: auto;
-          }
-        }
-      `}</style>
-
-      <ToastContainer 
-        position={window.innerWidth < 768 ? "top-center" : "top-right"}
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
+      <ToastContainer />
     </div>
   );
 };

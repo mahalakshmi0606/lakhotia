@@ -796,16 +796,23 @@ const EmployeePage = () => {
           )}
         </div>
         
-        <div style={styles.buttonGroup}>                    
+        <div style={styles.buttonGroup}>
           <button
-            style={styles.addButton}
-            onClick={() => {
-              resetForm();
-              setFormOpen(true);
-            }}
-            title="Add New Employee"
+            style={styles.excelButton}
+            onClick={exportToExcel}
+            title="Export to Excel"
+            disabled={filteredEmployees.length === 0}
           >
-            <FaPlus style={{ marginRight: 6 }} /> Add Employee
+            <FaFileExcel style={{ marginRight: 6 }} /> Excel
+          </button>
+          
+          <button
+            style={styles.pdfButton}
+            onClick={exportToPDF}
+            title="Export to PDF"
+            disabled={filteredEmployees.length === 0}
+          >
+            <FaFilePdf style={{ marginRight: 6 }} /> PDF
           </button>
         </div>
       </div>
