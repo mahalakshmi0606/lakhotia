@@ -1575,7 +1575,7 @@ export default function QuotationModal() {
           p { font-size: 12px; margin-bottom: 3px; }
           .container { max-width: 100%; }
           .company-logo { max-width: 120px; max-height: 120px; object-fit: contain; }
-          .qr-code { max-width: 80px; max-height: 80px; object-fit: contain; }
+          .qr-code { max-width: 120px; max-height: 120px; object-fit: contain; }
           .pincode-badge { background-color: #e9ecef; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
           .cc-badge { background-color: #d1ecf1; color: #0c5460; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 5px; }
           .bank-details { 
@@ -3631,7 +3631,7 @@ export default function QuotationModal() {
                             src={qrCodeImage} 
                             alt="QR Code" 
                             className="img-fluid"
-                            style={{ maxWidth: '80px', maxHeight: '80px', objectFit: 'contain' }}
+                            style={{ maxWidth: '320px', maxHeight: '320px', objectFit: 'contain' }}
                             onError={(e) => {
                               e.target.style.display = 'none';
                             }}
@@ -4275,7 +4275,7 @@ export default function QuotationModal() {
                             src={qrCodeImage} 
                             alt="QR Code" 
                             className="img-fluid"
-                            style={{ maxWidth: '400px', maxHeight: '400px', objectFit: 'contain' }}
+                            style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
                             onError={(e) => {
                               e.target.style.display = 'none';
                             }}
@@ -4582,7 +4582,7 @@ export default function QuotationModal() {
                           src={qrCodeImage} 
                           alt="QR Code" 
                           className="img-fluid"
-                          style={{ maxWidth: '80px', maxHeight: '80px', objectFit: 'contain' }}
+                          style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
                           onError={(e) => {
                             e.target.style.display = 'none';
                           }}
