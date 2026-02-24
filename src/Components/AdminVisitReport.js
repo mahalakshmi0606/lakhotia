@@ -152,150 +152,217 @@ const VisitReportPage = () => {
   };
 
   return (
-    <div className="container py-4">
+    <div className="container py-2 py-md-4">
       <ToastContainer position="top-right" autoClose={2000} />
 
       {/* Header Section */}
       <div
-        className="d-flex flex-wrap justify-content-between align-items-center mb-3 p-3 rounded-3 shadow-sm"
+        className="d-flex flex-wrap justify-content-between align-items-center mb-3 p-2 p-md-3 rounded-3 shadow-sm"
         style={{ backgroundColor: "#fff9c4" }}
       >
-        <h3 className="fw-bold text-dark mb-2 mb-md-0">📋 Visit Report</h3>
+        <h3 className="fw-bold text-dark mb-2 mb-md-0 fs-5 fs-md-3">📋 Visit Report</h3>
 
-        <div className="d-flex flex-wrap gap-2 align-items-center">
+        <div className="d-flex flex-wrap gap-2 align-items-center w-100 w-md-auto">
           {/* Export Buttons */}
-          <button className="btn btn-success btn-sm" onClick={exportToExcel}>
-            <FaFileExcel /> Excel
-          </button>
+          <div className="d-flex gap-2 w-100 w-md-auto">
+            <button className="btn btn-success btn-sm flex-fill flex-md-grow-0" onClick={exportToExcel}>
+              <FaFileExcel /> Excel
+            </button>
 
-          <button className="btn btn-danger btn-sm" onClick={exportToPDF}>
-            <FaFilePdf /> PDF
-          </button>
-
-          {/* 🔍 Search by Name */}
-          <div className="d-flex align-items-center gap-2">
-            <input
-              type="text"
-              className="form-control border-warning"
-              placeholder="Search by name / keyword"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ minWidth: "220px" }}
-            />
-            <button
-              className="btn btn-warning text-dark fw-semibold d-flex align-items-center gap-2 shadow-sm"
-              onClick={handleNameSearch}
-            >
-              <FaSearch /> Search
+            <button className="btn btn-danger btn-sm flex-fill flex-md-grow-0" onClick={exportToPDF}>
+              <FaFilePdf /> PDF
             </button>
           </div>
 
-          {/* 📅 Date range search */}
-          <div className="d-flex align-items-center gap-2">
-            <div>
-              <label className="form-label mb-0 small fw-semibold">From</label>
+          {/* 🔍 Search by Name - Mobile Optimized */}
+          <div className="d-flex flex-column flex-md-row align-items-stretch align-items-md-center gap-2 w-100">
+            <div className="d-flex gap-2 w-100">
               <input
-                type="date"
-                className="form-control border-warning"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                type="text"
+                className="form-control form-control-sm border-warning"
+                placeholder="Search name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
+              <button
+                className="btn btn-warning text-dark fw-semibold d-flex align-items-center gap-2 shadow-sm px-3"
+                onClick={handleNameSearch}
+              >
+                <FaSearch /> 
+                <span className="d-none d-md-inline">Search</span>
+              </button>
             </div>
-            <div>
-              <label className="form-label mb-0 small fw-semibold">To</label>
-              <input
-                type="date"
-                className="form-control border-warning"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+
+            {/* 📅 Date range search - Mobile Optimized */}
+            <div className="d-flex flex-column flex-sm-row align-items-stretch gap-2 w-100 mt-2 mt-md-0">
+              <div className="d-flex gap-2 w-100">
+                <div className="flex-fill">
+                  <input
+                    type="date"
+                    className="form-control form-control-sm border-warning"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    placeholder="From"
+                  />
+                </div>
+                <div className="flex-fill">
+                  <input
+                    type="date"
+                    className="form-control form-control-sm border-warning"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    placeholder="To"
+                  />
+                </div>
+              </div>
+              <button
+                className="btn btn-warning text-dark fw-semibold d-flex align-items-center justify-content-center gap-2 shadow-sm w-100 w-sm-auto"
+                onClick={handleDateSearch}
+              >
+                <FaSearch /> Filter
+              </button>
             </div>
-            <button
-              className="btn btn-warning text-dark fw-semibold d-flex align-items-center gap-2 shadow-sm"
-              onClick={handleDateSearch}
-            >
-              <FaSearch /> Filter
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card border-0 shadow-lg rounded-4">
-        <div className="table-responsive">
-          <table className="table table-hover align-middle mb-0">
-            <thead style={{ backgroundColor: "#fff59d" }}>
-              <tr>
-                <th>ID</th>
-                <th>Customer</th>
-                <th>Company</th>
-                <th>Mobile</th>
-                <th>Created By</th>
-                <th>Created At</th>
-                <th>Attachment</th>
-                <th>Notes</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.length > 0 ? (
-                reports.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.id}</td>
-                    <td>{r.customer_name}</td>
-                    <td>{r.company_name}</td>
-                    <td>{r.customer_mobile}</td>
-                    <td>{r.created_by}</td>
-                    <td>{new Date(r.created_at).toLocaleDateString()}</td>
-                    <td>
-                      {r.attachment ? (
-                        <a
-                          href={`${API_BASE}/visit_reports/${r.attachment}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary d-flex align-items-center gap-1 text-decoration-none"
-                        >
-                          <FaPaperclip /> View
-                        </a>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td>
-                      {r.notes ? (
-                        <span className="text-muted">
-                          <FaStickyNote className="me-1 text-warning" />
-                          {r.notes.slice(0, 30)}...
-                        </span>
-                      ) : (
-                        "-"
-                      )}
-                    </td>
-                    <td className="text-center">
-                      <div className="d-flex justify-content-center">
-                        <FaEye
-                          className="text-info mx-2"
-                          title="View Details"
-                          style={{ cursor: "pointer" }}
-                          onClick={() => openModal(r)}
-                        />
-                      </div>
+      {/* Table - Mobile Optimized with Card Layout */}
+      <div className="card border-0 shadow-lg rounded-4 overflow-hidden">
+        <div className="d-block d-md-none">
+          {/* Mobile Card View */}
+          {reports.length > 0 ? (
+            reports.map((r) => (
+              <div key={r.id} className="border-bottom p-3 hover-bg-light">
+                <div className="d-flex justify-content-between align-items-start mb-2">
+                  <div className="d-flex align-items-center gap-2">
+                    <span className="badge bg-warning text-dark">#{r.id}</span>
+                    <FaEye
+                      className="text-info"
+                      title="View Details"
+                      style={{ cursor: "pointer", fontSize: "1.2rem" }}
+                      onClick={() => openModal(r)}
+                    />
+                  </div>
+                  <small className="text-muted">{new Date(r.created_at).toLocaleDateString()}</small>
+                </div>
+                
+                <div className="mb-2">
+                  <div className="fw-bold">{r.customer_name}</div>
+                  <div className="small text-muted">{r.company_name}</div>
+                </div>
+                
+                <div className="d-flex justify-content-between align-items-center">
+                  <div className="small">
+                    <span className="text-muted">📞</span> {r.customer_mobile}
+                  </div>
+                  <div className="d-flex gap-3">
+                    {r.attachment && (
+                      <a
+                        href={`${API_BASE}/visit_reports/${r.attachment}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-primary text-decoration-none small"
+                      >
+                        <FaPaperclip /> File
+                      </a>
+                    )}
+                    {r.notes && (
+                      <span className="text-muted small" title={r.notes}>
+                        <FaStickyNote className="text-warning" /> Note
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="mt-2 small">
+                  <span className="text-muted">Created by:</span> {r.created_by}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-4 text-muted">
+              No visit reports available.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="d-none d-md-block">
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead style={{ backgroundColor: "#fff59d" }}>
+                <tr>
+                  <th>ID</th>
+                  <th>Customer</th>
+                  <th>Company</th>
+                  <th>Mobile</th>
+                  <th>Created By</th>
+                  <th>Created At</th>
+                  <th>Attachment</th>
+                  <th>Notes</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.length > 0 ? (
+                  reports.map((r) => (
+                    <tr key={r.id}>
+                      <td>{r.id}</td>
+                      <td>{r.customer_name}</td>
+                      <td>{r.company_name}</td>
+                      <td>{r.customer_mobile}</td>
+                      <td>{r.created_by}</td>
+                      <td>{new Date(r.created_at).toLocaleDateString()}</td>
+                      <td>
+                        {r.attachment ? (
+                          <a
+                            href={`${API_BASE}/visit_reports/${r.attachment}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary d-flex align-items-center gap-1 text-decoration-none"
+                          >
+                            <FaPaperclip /> View
+                          </a>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td>
+                        {r.notes ? (
+                          <span className="text-muted" title={r.notes}>
+                            <FaStickyNote className="me-1 text-warning" />
+                            {r.notes.length > 30 ? r.notes.slice(0, 30) + "..." : r.notes}
+                          </span>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
+                      <td className="text-center">
+                        <div className="d-flex justify-content-center">
+                          <FaEye
+                            className="text-info mx-2"
+                            title="View Details"
+                            style={{ cursor: "pointer", fontSize: "1.2rem" }}
+                            onClick={() => openModal(r)}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="9" className="text-center py-3 text-muted">
+                      No visit reports available.
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="9" className="text-center py-3 text-muted">
-                    No visit reports available.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
-      {/* View Modal */}
+      {/* View Modal - Mobile Optimized */}
       {showModal && selectedReport && (
         <div
           className="modal fade show"
@@ -304,78 +371,78 @@ const VisitReportPage = () => {
             background: "rgba(0,0,0,0.6)",
           }}
         >
-          <div className="modal-dialog modal-md modal-dialog-centered modal-dialog-scrollable">
+          <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-sm modal-md">
             <div
               className="modal-content border-0 shadow-lg rounded-4"
               style={{ backgroundColor: "#fffde7" }}
             >
-              <div className="modal-header bg-warning text-dark py-2">
-                <h5 className="modal-title fw-bold">View Visit Report</h5>
+              <div className="modal-header bg-warning text-dark py-2 px-3">
+                <h5 className="modal-title fw-bold fs-6 fs-md-5">View Visit Report</h5>
                 <button
                   type="button"
-                  className="btn-close"
+                  className="btn-close btn-close-sm"
                   onClick={closeModal}
                 ></button>
               </div>
 
-              <div className="modal-body p-3">
+              <div className="modal-body p-2 p-md-3">
                 <ul className="list-group list-group-flush">
-                  <li className="list-group-item d-flex justify-content-between">
-                    <strong>Customer Name:</strong> 
-                    <span>{selectedReport.customer_name || "-"}</span>
+                  <li className="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center px-2 py-2">
+                    <strong className="small">Customer Name:</strong> 
+                    <span className="small">{selectedReport.customer_name || "-"}</span>
                   </li>
-                  <li className="list-group-item d-flex justify-content-between">
-                    <strong>Company Name:</strong> 
-                    <span>{selectedReport.company_name || "-"}</span>
+                  <li className="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center px-2 py-2">
+                    <strong className="small">Company Name:</strong> 
+                    <span className="small">{selectedReport.company_name || "-"}</span>
                   </li>
-                  <li className="list-group-item d-flex justify-content-between">
-                    <strong>Mobile:</strong> 
-                    <span>{selectedReport.customer_mobile || "-"}</span>
+                  <li className="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center px-2 py-2">
+                    <strong className="small">Mobile:</strong> 
+                    <span className="small">{selectedReport.customer_mobile || "-"}</span>
                   </li>
-                  <li className="list-group-item d-flex justify-content-between">
-                    <strong>Created By:</strong> 
-                    <span>{selectedReport.created_by || "-"}</span>
+                  <li className="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center px-2 py-2">
+                    <strong className="small">Created By:</strong> 
+                    <span className="small">{selectedReport.created_by || "-"}</span>
                   </li>
-                  <li className="list-group-item d-flex justify-content-between">
-                    <strong>Created At:</strong> 
-                    <span>
+                  <li className="list-group-item d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center px-2 py-2">
+                    <strong className="small">Created At:</strong> 
+                    <span className="small">
                       {selectedReport.created_at 
                         ? new Date(selectedReport.created_at).toLocaleString() 
                         : "-"
                       }
                     </span>
                   </li>
-                  <li className="list-group-item">
-                    <strong>Notes:</strong>
-                    <div className="mt-1 p-2 bg-light rounded">
+                  <li className="list-group-item px-2 py-2">
+                    <strong className="small d-block mb-1">Notes:</strong>
+                    <div className="p-2 bg-light rounded small">
                       {selectedReport.notes || "-"}
                     </div>
                   </li>
-                  <li className="list-group-item">
-                    <strong>Attachment:</strong>
+                  <li className="list-group-item px-2 py-2">
+                    <strong className="small d-block mb-1">Attachment:</strong>
                     <div className="mt-1">
                       {selectedReport.attachment ? (
                         <a
                           href={`${API_BASE}/visit_reports/${selectedReport.attachment}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="btn btn-sm btn-outline-primary"
+                          className="btn btn-sm btn-outline-primary w-100 w-sm-auto"
                         >
                           <FaPaperclip className="me-1" />
                           View Attachment
                         </a>
                       ) : (
-                        <span className="text-muted">No attachment</span>
+                        <span className="text-muted small">No attachment</span>
                       )}
                     </div>
                   </li>
                 </ul>
               </div>
 
-              <div className="modal-footer bg-light py-2">
+              <div className="modal-footer bg-light py-2 px-3">
                 <button
                   type="button"
-                  className="btn btn-secondary btn-sm"
+                  className="btn btn-secondary btn-sm w-100 w-sm-auto"
                   onClick={closeModal}
                 >
                   Close
@@ -385,6 +452,30 @@ const VisitReportPage = () => {
           </div>
         </div>
       )}
+
+      {/* Add these styles for better mobile experience */}
+      <style jsx>{`
+        @media (max-width: 767px) {
+          .hover-bg-light:active {
+            background-color: #f8f9fa;
+          }
+          .btn {
+            white-space: nowrap;
+          }
+          .modal-dialog {
+            margin: 0.5rem;
+          }
+        }
+        @media (max-width: 575px) {
+          .container {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+          }
+          .modal-dialog {
+            margin: 0.25rem;
+          }
+        }
+      `}</style>
     </div>
   );
 };

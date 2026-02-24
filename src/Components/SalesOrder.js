@@ -36,6 +36,8 @@ export default function QuotationModal() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [selectedItemForView, setSelectedItemForView] = useState(null);
+  const [mobileView, setMobileView] = useState(false);
+  const [expandedItem, setExpandedItem] = useState(null);
 
   // Saved quotations state
   const [savedQuotations, setSavedQuotations] = useState([]);
@@ -115,6 +117,18 @@ export default function QuotationModal() {
   const API_BASE_URL = "http://127.0.0.1:5000";
   const API_TASKS = `${API_BASE_URL}/api/tasks`;
   const API_EMPLOYEES = `${API_BASE_URL}/api/employee/all`;
+
+  // Check if mobile view on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setMobileView(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Fetch saved quotations from backend on component mount
   useEffect(() => {
@@ -408,7 +422,7 @@ export default function QuotationModal() {
   // Generate pagination items
   const getPaginationItems = () => {
     const items = [];
-    const maxVisiblePages = 5;
+    const maxVisiblePages = mobileView ? 3 : 5;
     
     if (totalPages <= maxVisiblePages) {
       for (let i = 1; i <= totalPages; i++) {
@@ -417,19 +431,19 @@ export default function QuotationModal() {
     } else {
       if (currentPage <= 3) {
         for (let i = 1; i <= 4; i++) items.push(i);
-        items.push("...");
+        if (!mobileView) items.push("...");
         items.push(totalPages);
       } else if (currentPage >= totalPages - 2) {
         items.push(1);
-        items.push("...");
+        if (!mobileView) items.push("...");
         for (let i = totalPages - 3; i <= totalPages; i++) items.push(i);
       } else {
         items.push(1);
-        items.push("...");
+        if (!mobileView) items.push("...");
         items.push(currentPage - 1);
         items.push(currentPage);
         items.push(currentPage + 1);
-        items.push("...");
+        if (!mobileView) items.push("...");
         items.push(totalPages);
       }
     }
@@ -840,12 +854,20 @@ export default function QuotationModal() {
         <title>Quotation ${quotation.quote_number || quotation.quoteNo}</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           @media print {
             body { padding: 10px; }
             .no-print { display: none; }
             .table { font-size: 11px; }
             .summary-table { font-size: 11px; }
+          }
+          @media (max-width: 768px) {
+            .invoice-header { padding: 10px; }
+            h1 { font-size: 20px; }
+            h2 { font-size: 18px; }
+            .table { font-size: 10px; }
+            .summary-table { font-size: 10px; }
           }
           .invoice-header { border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
           .total-row { font-weight: bold; }
@@ -1101,50 +1123,187 @@ export default function QuotationModal() {
     );
   };
 
+  // Mobile Card View for Items
+  const MobileItemCard = ({ item, index }) => {
+    const itemStatus = item.sales_order_item_status || "not_created";
+    const isExpanded = expandedItem === `${item.quotation_id}-${item.id}`;
+    
+    return (
+      <Card className="mb-3 border-0 shadow-sm">
+        <Card.Header className={`bg-light py-2 d-flex justify-content-between align-items-center ${itemStatus === 'rejected' ? 'border-danger' : ''}`}>
+          <div className="d-flex align-items-center gap-2">
+            <Badge bg="secondary" className="me-2">{((currentPage - 1) * itemsPerPage) + index + 1}</Badge>
+            <div>
+              <div className="fw-bold small">{item.quotation_number}</div>
+              <small className="text-muted">{item.quotation_date}</small>
+            </div>
+          </div>
+          <Badge bg={getStatusBadgeColor(itemStatus)}>
+            {getStatusDisplayText(itemStatus)}
+          </Badge>
+        </Card.Header>
+        <Card.Body className="p-3">
+          <div className="mb-2">
+            <div className="fw-bold">{item.item_name}</div>
+            <small className="text-muted">{item.description?.substring(0, 60)}...</small>
+          </div>
+          
+          <div className="row g-2 mb-2">
+            <div className="col-6">
+              <small className="text-muted d-block">Company</small>
+              <div className="small">{item.company_name}</div>
+            </div>
+            <div className="col-6">
+              <small className="text-muted d-block">Contact</small>
+              <div className="small">{item.contact_person}</div>
+            </div>
+            <div className="col-6">
+              <small className="text-muted d-block">Brand Code</small>
+              <div>
+                {item.brand_code ? (
+                  <Badge bg="primary">{item.brand_code}</Badge>
+                ) : '-'}
+              </div>
+            </div>
+            <div className="col-6">
+              <small className="text-muted d-block">Batch No</small>
+              <div>
+                {item.batch_no ? (
+                  <Badge bg="secondary">{item.batch_no}</Badge>
+                ) : '-'}
+              </div>
+            </div>
+            <div className="col-4">
+              <small className="text-muted d-block">Qty</small>
+              <div className="fw-bold">{item.quantity || 1}</div>
+            </div>
+            <div className="col-4">
+              <small className="text-muted d-block">Unit</small>
+              <div>{item.unit || 'pcs'}</div>
+            </div>
+            <div className="col-4">
+              <small className="text-muted d-block">Price</small>
+              <div className="fw-bold">₹{(item.price_per_unit || 0).toFixed(2)}</div>
+            </div>
+          </div>
+          
+          <button
+            className="btn btn-link btn-sm text-decoration-none p-0 mb-2"
+            onClick={() => setExpandedItem(isExpanded ? null : `${item.quotation_id}-${item.id}`)}
+          >
+            {isExpanded ? '▲ Show less' : '▼ Show more details'}
+          </button>
+          
+          {isExpanded && (
+            <div className="border-top pt-2 mt-1">
+              <div className="row g-2">
+                <div className="col-6">
+                  <small className="text-muted">Part No:</small>
+                  <div className="small">{item.supplier_part_no || '-'}</div>
+                </div>
+                <div className="col-6">
+                  <small className="text-muted">Amount:</small>
+                  <div className="fw-bold text-success">₹{(item.amount_after_discount || 0).toFixed(2)}</div>
+                </div>
+                <div className="col-6">
+                  <small className="text-muted">Buy Price:</small>
+                  <div className="small text-success">₹{(item.buy_price || 0).toFixed(2)}</div>
+                </div>
+                <div className="col-6">
+                  <small className="text-muted">MRP:</small>
+                  <div className="small">₹{(item.mrp || 0).toFixed(2)}</div>
+                </div>
+                {item.rejection_reason && (
+                  <div className="col-12">
+                    <small className="text-muted">Rejection:</small>
+                    <div className="small text-danger">{item.rejection_reason}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Card.Body>
+        <Card.Footer className="bg-white py-2">
+          <div className="d-flex gap-2 justify-content-end">
+            <Button
+              variant="outline-info"
+              size="sm"
+              onClick={() => viewItemDetails(item)}
+            >
+              <i className="bi bi-eye"></i> View
+            </Button>
+            <Button
+              variant="outline-success"
+              size="sm"
+              onClick={() => openSingleItemStatusModal(item)}
+            >
+              <i className="bi bi-check-circle"></i> Status
+            </Button>
+            {itemStatus !== "rejected" && (
+              <Button
+                variant={itemStatus === "ordered" ? "outline-primary" : "outline-warning"}
+                size="sm"
+                onClick={() => {
+                  const quotation = savedQuotations.find(q => q.id === item.quotation_id);
+                  if (quotation) openTaskModal(item, quotation);
+                }}
+              >
+                <i className="bi bi-clipboard-check"></i> SO
+              </Button>
+            )}
+          </div>
+        </Card.Footer>
+      </Card>
+    );
+  };
+
   // Rejection Reason Modal
   const renderRejectionModal = () => (
     <Modal show={showRejectionModal} onHide={() => {
       setShowRejectionModal(false);
       setCurrentRejectionItem(null);
       setRejectionReason("");
-    }} centered>
+    }} centered size={mobileView ? "sm" : "md"}>
       <Modal.Header closeButton className="bg-danger text-white">
-        <Modal.Title>
+        <Modal.Title className="fs-6">
           <i className="bi bi-exclamation-triangle me-2"></i>
-          Rejection Reason Required
+          Rejection Reason
         </Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        <Alert variant="warning" className="mb-3">
-          <i className="bi bi-info-circle me-2"></i>
-          You are marking an item as <strong>Rejected</strong>. Please provide a reason for rejection.
+        <Alert variant="warning" className="mb-3 py-2">
+          <small>
+            <i className="bi bi-info-circle me-2"></i>
+            You are marking an item as <strong>Rejected</strong>. Please provide a reason.
+          </small>
         </Alert>
         
         <Form.Group>
-          <Form.Label className="fw-bold">Rejection Reason *</Form.Label>
+          <Form.Label className="fw-bold small">Rejection Reason *</Form.Label>
           <Form.Control
             as="textarea"
-            rows={3}
+            rows={mobileView ? 2 : 3}
             value={rejectionReason}
             onChange={(e) => setRejectionReason(e.target.value)}
-            placeholder="Enter reason for rejection (e.g., Out of stock, Customer cancellation, Price issue, Quality concern, etc.)"
+            placeholder="Enter reason for rejection..."
             required
+            size={mobileView ? "sm" : undefined}
           />
-          <Form.Text className="text-muted">
-            This reason will be stored with the item and visible in reports.
-          </Form.Text>
         </Form.Group>
         
         {currentRejectionItem && (
-          <Alert variant="info" className="mt-3">
-            <i className="bi bi-box me-2"></i>
-            <strong>Item:</strong> {flattenedItems.find(item => item.id === currentRejectionItem.id)?.item_name}
+          <Alert variant="info" className="mt-3 py-2">
+            <small>
+              <i className="bi bi-box me-2"></i>
+              <strong>Item:</strong> {flattenedItems.find(item => item.id === currentRejectionItem.id)?.item_name}
+            </small>
           </Alert>
         )}
       </Modal.Body>
       <Modal.Footer>
         <Button 
           variant="secondary" 
+          size={mobileView ? "sm" : undefined}
           onClick={() => {
             setShowRejectionModal(false);
             setCurrentRejectionItem(null);
@@ -1155,11 +1314,12 @@ export default function QuotationModal() {
         </Button>
         <Button 
           variant="danger" 
+          size={mobileView ? "sm" : undefined}
           onClick={handleRejectionSubmit}
           disabled={!rejectionReason.trim()}
         >
           <i className="bi bi-check-circle me-1"></i>
-          Save Rejection Reason
+          Save
         </Button>
       </Modal.Footer>
     </Modal>
@@ -1195,189 +1355,144 @@ export default function QuotationModal() {
         hsn_sac: "",
         unit: "",
       });
-    }} centered size="lg">
-      <Modal.Header closeButton className="bg-warning text-dark">
-        <Modal.Title>
+    }} centered size={mobileView ? "fullscreen" : "lg"}>
+      <Modal.Header closeButton className="bg-warning text-dark py-2">
+        <Modal.Title className="fs-6">
           <i className="bi bi-clipboard-check me-2"></i>
           {isUpdatingExistingTask ? 'Update Sales Order' : 'Create Sales Order'}
         </Modal.Title>
       </Modal.Header>
-      <Modal.Body>
+      <Modal.Body className="p-2">
         {selectedItemForTask && (
           <>
-            <Alert variant={isUpdatingExistingTask ? "info" : "success"} className="mb-4">
-              <i className="bi bi-info-circle me-2"></i>
-              {isUpdatingExistingTask 
-                ? `Updating existing sales order for item: ${selectedItemForTask.item_name}`
-                : 'Creating sales order. This will update the item\'s status to "ordered".'}
+            <Alert variant={isUpdatingExistingTask ? "info" : "success"} className="mb-3 py-2">
+              <small>
+                <i className="bi bi-info-circle me-2"></i>
+                {isUpdatingExistingTask 
+                  ? `Updating sales order for: ${selectedItemForTask.item_name}`
+                  : 'Creating sales order - will mark item as "ordered"'}
+              </small>
             </Alert>
 
-            <Row className="mb-4">
-              <Col md={6}>
-                <Card className="h-100">
-                  <Card.Header className="bg-light">
-                    <h6 className="mb-0">Item Details</h6>
-                  </Card.Header>
-                  <Card.Body>
-                    <div className="mb-2">
-                      <label className="form-label text-muted small mb-0">Quotation No</label>
-                      <p className="mb-1 fw-bold">{selectedItemForTask.quotation_number}</p>
-                    </div>
-                    <div className="mb-2">
-                      <label className="form-label text-muted small mb-0">Company</label>
-                      <p className="mb-1">{selectedItemForTask.company_name}</p>
-                    </div>
-                    <div className="mb-2">
-                      <label className="form-label text-muted small mb-0">Item Name</label>
-                      <p className="mb-1 fw-bold">{selectedItemForTask.item_name}</p>
-                    </div>
-                    <div className="row">
-                      <div className="col-6 mb-2">
-                        <label className="form-label text-muted small mb-0">Quantity</label>
-                        <p className="mb-1">{selectedItemForTask.quantity || 1} {selectedItemForTask.unit || 'pcs'}</p>
-                      </div>
-                      <div className="col-6 mb-2">
-                        <label className="form-label text-muted small mb-0">Part No</label>
-                        <p className="mb-1">{selectedItemForTask.supplier_part_no || 'N/A'}</p>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="col-6 mb-2">
-                        <label className="form-label text-muted small mb-0">Brand Code</label>
-                        <p className="mb-1">
-                          {selectedItemForTask.brand_code ? (
-                            <Badge bg="primary">{selectedItemForTask.brand_code}</Badge>
-                          ) : 'N/A'}
-                        </p>
-                      </div>
-                      <div className="col-6 mb-2">
-                        <label className="form-label text-muted small mb-0">Batch No</label>
-                        <p className="mb-1">
-                          {selectedItemForTask.batch_no ? (
-                            <Badge bg="secondary">{selectedItemForTask.batch_no}</Badge>
-                          ) : 'N/A'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="col-6 mb-2">
-                        <label className="form-label text-muted small mb-0">MRP</label>
-                        <p className="mb-1">₹{selectedItemForTask.mrp || selectedItemForTask.price_per_unit || '0.00'}</p>
-                      </div>
-                      <div className="col-6 mb-2">
-                        <label className="form-label text-muted small mb-0">HSN/SAC</label>
-                        <p className="mb-1">{selectedItemForTask.hsn_sac || 'N/A'}</p>
-                      </div>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-              
-              <Col md={6}>
-                <Card className="h-100">
-                  <Card.Header className="bg-light">
-                    <h6 className="mb-0">Sales Order Details</h6>
-                  </Card.Header>
-                  <Card.Body>
-                    <Form.Group className="mb-3">
-                      <Form.Label className="fw-bold">PO NUMBER *</Form.Label>
-                      <Form.Control
-                        type="text"
-                        name="po_number"
-                        value={taskFormData.po_number}
-                        onChange={handleTaskFormChange}
-                        required
-                        placeholder="PO number"
-                      />
-                    </Form.Group>
-                    
-                    <Form.Group className="mb-3">
-                      <Form.Label className="fw-bold">Description (Optional)</Form.Label>
-                      <Form.Control
-                        as="textarea"
-                        rows={2}
-                        name="description"
-                        value={taskFormData.description}
-                        onChange={handleTaskFormChange}
-                        placeholder="Additional sales order details..."
-                      />
-                    </Form.Group>
-                    
-                    <Form.Group className="mb-3">
-                      <Form.Label className="fw-bold">Assign To *</Form.Label>
+            <Card className="mb-3">
+              <Card.Header className="bg-light py-1">
+                <h6 className="mb-0 small fw-bold">Item Details</h6>
+              </Card.Header>
+              <Card.Body className="p-2">
+                <div className="row g-2">
+                  <div className="col-12">
+                    <small className="text-muted">Item:</small>
+                    <div className="fw-bold small">{selectedItemForTask.item_name}</div>
+                  </div>
+                  <div className="col-6">
+                    <small className="text-muted">Quotation:</small>
+                    <div className="small">{selectedItemForTask.quotation_number}</div>
+                  </div>
+                  <div className="col-6">
+                    <small className="text-muted">Company:</small>
+                    <div className="small">{selectedItemForTask.company_name}</div>
+                  </div>
+                  <div className="col-4">
+                    <small className="text-muted">Qty:</small>
+                    <div className="small">{selectedItemForTask.quantity || 1}</div>
+                  </div>
+                  <div className="col-4">
+                    <small className="text-muted">Brand Code:</small>
+                    <div className="small">{selectedItemForTask.brand_code || 'N/A'}</div>
+                  </div>
+                  <div className="col-4">
+                    <small className="text-muted">Batch:</small>
+                    <div className="small">{selectedItemForTask.batch_no || 'N/A'}</div>
+                  </div>
+                </div>
+              </Card.Body>
+            </Card>
+
+            <Card className="mb-3">
+              <Card.Header className="bg-light py-1">
+                <h6 className="mb-0 small fw-bold">Sales Order Details</h6>
+              </Card.Header>
+              <Card.Body className="p-2">
+                <Form.Group className="mb-2">
+                  <Form.Label className="fw-bold small">PO NUMBER *</Form.Label>
+                  <Form.Control
+                    type="text"
+                    size="sm"
+                    name="po_number"
+                    value={taskFormData.po_number}
+                    onChange={handleTaskFormChange}
+                    required
+                    placeholder="PO number"
+                  />
+                </Form.Group>
+                
+                <Form.Group className="mb-2">
+                  <Form.Label className="fw-bold small">Assign To *</Form.Label>
+                  <Form.Select
+                    size="sm"
+                    name="assignedTo"
+                    value={taskFormData.assignedTo}
+                    onChange={handleTaskFormChange}
+                    required
+                    disabled={loadingEmployees}
+                  >
+                    <option value="">-- Select Employee --</option>
+                    {employees.map((emp) => (
+                      <option key={emp.id} value={emp.email}>
+                        {emp.name} ({emp.email})
+                      </option>
+                    ))}
+                  </Form.Select>
+                </Form.Group>
+                
+                <Row className="mb-2 g-2">
+                  <Col xs={6}>
+                    <Form.Group>
+                      <Form.Label className="fw-bold small">Priority</Form.Label>
                       <Form.Select
-                        name="assignedTo"
-                        value={taskFormData.assignedTo}
+                        size="sm"
+                        name="priority"
+                        value={taskFormData.priority}
                         onChange={handleTaskFormChange}
-                        required
-                        disabled={loadingEmployees}
                       >
-                        <option value="">-- Select Employee --</option>
-                        {employees.map((emp) => (
-                          <option key={emp.id} value={emp.email}>
-                            {emp.name} ({emp.email})
-                          </option>
-                        ))}
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
                       </Form.Select>
                     </Form.Group>
-                    
-                    <Row className="mb-3">
-                      <Col md={6}>
-                        <Form.Group>
-                          <Form.Label className="fw-bold">Priority</Form.Label>
-                          <Form.Select
-                            name="priority"
-                            value={taskFormData.priority}
-                            onChange={handleTaskFormChange}
-                          >
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
-                          </Form.Select>
-                        </Form.Group>
-                      </Col>
-                      <Col md={6}>
-                        <Form.Group>
-                          <Form.Label className="fw-bold">Due Date *</Form.Label>
-                          <Form.Control
-                            type="date"
-                            name="dueDate"
-                            value={taskFormData.dueDate}
-                            onChange={handleTaskFormChange}
-                            required
-                          />
-                        </Form.Group>
-                      </Col>
-                    </Row>
-                    
-                    <Form.Group className="mb-3">
-                      <Form.Label className="fw-bold">Notes (Optional)</Form.Label>
+                  </Col>
+                  <Col xs={6}>
+                    <Form.Group>
+                      <Form.Label className="fw-bold small">Due Date *</Form.Label>
                       <Form.Control
-                        as="textarea"
-                        rows={2}
-                        name="note"
-                        value={taskFormData.note}
+                        type="date"
+                        size="sm"
+                        name="dueDate"
+                        value={taskFormData.dueDate}
                         onChange={handleTaskFormChange}
-                        placeholder="Sales order instructions or notes..."
+                        required
                       />
                     </Form.Group>
-                  </Card.Body>
-                </Card>
-              </Col>
-            </Row>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
 
             {taskError && (
-              <Alert variant="danger" className="mb-3">
-                <i className="bi bi-exclamation-triangle me-2"></i>
-                {taskError}
+              <Alert variant="danger" className="mb-2 py-2">
+                <small>
+                  <i className="bi bi-exclamation-triangle me-2"></i>
+                  {taskError}
+                </small>
               </Alert>
             )}
           </>
         )}
       </Modal.Body>
-      <Modal.Footer>
+      <Modal.Footer className="py-2">
         <Button 
           variant="secondary" 
+          size="sm"
           onClick={() => {
             setShowTaskModal(false);
             setSelectedItemForTask(null);
@@ -1390,18 +1505,19 @@ export default function QuotationModal() {
         </Button>
         <Button 
           variant={isUpdatingExistingTask ? "primary" : "warning"} 
+          size="sm"
           onClick={createTask}
           disabled={creatingTask || !taskFormData.assignedTo || !taskFormData.dueDate || !taskFormData.po_number}
         >
           {creatingTask ? (
             <>
-              <Spinner animation="border" size="sm" className="me-2" />
+              <Spinner animation="border" size="sm" className="me-1" />
               {isUpdatingExistingTask ? 'Updating...' : 'Creating...'}
             </>
           ) : (
             <>
-              <i className="bi bi-clipboard-check me-2"></i>
-              {isUpdatingExistingTask ? 'Update Sales Order' : 'Create Sales Order'}
+              <i className="bi bi-clipboard-check me-1"></i>
+              {isUpdatingExistingTask ? 'Update' : 'Create'}
             </>
           )}
         </Button>
@@ -1410,61 +1526,59 @@ export default function QuotationModal() {
   );
 
   return (
-    <Container fluid className="py-4">
+    <Container fluid className="py-2 py-md-4">
       {/* Header */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3">
         <div>
-          <h1 className="h2 mb-1">Completed Quotations - Item Wise View</h1>
-          <p className="text-muted mb-0">View and manage individual items across all completed quotations</p>
+          <h1 className="h4 h2-md mb-1">
+            {mobileView ? "Completed Quotations" : "Completed Quotations - Item Wise View"}
+          </h1>
+          <p className="text-muted mb-0 small">
+            {mobileView ? `${flattenedItems.length} total items` : "View and manage individual items across all completed quotations"}
+          </p>
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <Row className="mb-4">
-        <Col md={4}>
-          <Card className="border-0 shadow-sm">
-            <Card.Body className="p-3">
-              <div className="d-flex align-items-center">
-                <div className="rounded-circle bg-success bg-opacity-10 p-3 me-3">
-                  <i className="bi bi-check-circle text-success fs-4"></i>
+      {/* Statistics Cards - Mobile Optimized */}
+      <Row className="mb-3 g-2">
+        <Col xs={4} md={4}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-2 p-md-3">
+              <div className="d-flex flex-column align-items-center text-center">
+                <div className="rounded-circle bg-success bg-opacity-10 p-2 p-md-3 mb-1 mb-md-2">
+                  <i className="bi bi-check-circle text-success fs-6 fs-md-4"></i>
                 </div>
-                <div>
-                  <div className="text-muted small">Total Completed Quotations</div>
-                  <div className="h3 mb-0">{quotationCounts.completed}</div>
-                </div>
+                <div className="small text-muted">Total</div>
+                <div className="h6 h5-md mb-0">{quotationCounts.completed}</div>
               </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={4}>
-          <Card className="border-0 shadow-sm">
-            <Card.Body className="p-3">
-              <div className="d-flex align-items-center">
-                <div className="rounded-circle bg-info bg-opacity-10 p-3 me-3">
-                  <i className="bi bi-box-seam text-info fs-4"></i>
+        <Col xs={4} md={4}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-2 p-md-3">
+              <div className="d-flex flex-column align-items-center text-center">
+                <div className="rounded-circle bg-info bg-opacity-10 p-2 p-md-3 mb-1 mb-md-2">
+                  <i className="bi bi-box-seam text-info fs-6 fs-md-4"></i>
                 </div>
-                <div>
-                  <div className="text-muted small">Total Items</div>
-                  <div className="h3 mb-0">{flattenedItems.length}</div>
-                </div>
+                <div className="small text-muted">Items</div>
+                <div className="h6 h5-md mb-0">{flattenedItems.length}</div>
               </div>
             </Card.Body>
           </Card>
         </Col>
-        <Col md={4}>
-          <Card className="border-0 shadow-sm">
-            <Card.Body className="p-3">
-              <div className="d-flex align-items-center">
-                <div className="rounded-circle bg-warning bg-opacity-10 p-3 me-3">
-                  <i className="bi bi-truck text-warning fs-4"></i>
+        <Col xs={4} md={4}>
+          <Card className="border-0 shadow-sm h-100">
+            <Card.Body className="p-2 p-md-3">
+              <div className="d-flex flex-column align-items-center text-center">
+                <div className="rounded-circle bg-warning bg-opacity-10 p-2 p-md-3 mb-1 mb-md-2">
+                  <i className="bi bi-truck text-warning fs-6 fs-md-4"></i>
                 </div>
-                <div>
-                  <div className="text-muted small">Pending Orders</div>
-                  <div className="h3 mb-0">
-                    {flattenedItems.filter(item => 
-                      (item.sales_order_item_status || "not_created") === "not_created"
-                    ).length}
-                  </div>
+                <div className="small text-muted">Pending</div>
+                <div className="h6 h5-md mb-0">
+                  {flattenedItems.filter(item => 
+                    (item.sales_order_item_status || "not_created") === "not_created"
+                  ).length}
                 </div>
               </div>
             </Card.Body>
@@ -1482,74 +1596,83 @@ export default function QuotationModal() {
         setCurrentItemForStatusUpdate(null);
         setItemStatusUpdates({});
         setItemRejectionReasons({});
-      }} size="lg">
-        <Modal.Header closeButton className="bg-success text-white">
-          <Modal.Title>
+      }} size={mobileView ? "fullscreen" : "lg"}>
+        <Modal.Header closeButton className="bg-success text-white py-2">
+          <Modal.Title className="fs-6">
             <i className="bi bi-check-circle me-2"></i>
             Update Item Status
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body>
+        <Modal.Body className="p-2">
           {currentItemForStatusUpdate && (
             <>
-              <Alert variant="info">
-                <i className="bi bi-info-circle me-2"></i>
-                Updating status for item: <strong>{currentItemForStatusUpdate.item_name}</strong>
-                <br/>
-                <small>Quotation: {currentItemForStatusUpdate.quotation_number}</small>
+              <Alert variant="info" className="mb-3 py-2">
+                <small>
+                  <i className="bi bi-info-circle me-2"></i>
+                  Updating status for: <strong>{currentItemForStatusUpdate.item_name}</strong>
+                  <br/>
+                  Quotation: {currentItemForStatusUpdate.quotation_number}
+                </small>
               </Alert>
 
-              <Table bordered hover responsive>
-                <thead className="table-light">
-                  <tr>
-                    <th>Item Name</th>
-                    <th>Brand Code</th>
-                    <th>Batch No</th>
-                    <th>Current Status</th>
-                    <th width="200">New Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <div className="fw-bold">{currentItemForStatusUpdate.item_name}</div>
-                      <small className="text-muted">{currentItemForStatusUpdate.description?.substring(0, 50)}...</small>
-                    </td>
-                    <td>{currentItemForStatusUpdate.brand_code || ''}</td>
-                    <td>{currentItemForStatusUpdate.batch_no || ''}</td>
-                    <td>
-                      <Badge bg={getStatusBadgeColor(currentItemForStatusUpdate.sales_order_item_status || "not_created")}>
-                        {getStatusDisplayText(currentItemForStatusUpdate.sales_order_item_status || "not_created")}
-                      </Badge>
-                    </td>
-                    <td>
-                      <Form.Select
-                        size="sm"
-                        value={itemStatusUpdates[currentItemForStatusUpdate.id] || currentItemForStatusUpdate.sales_order_item_status || "not_created"}
-                        onChange={(e) => handleItemStatusChange(currentItemForStatusUpdate.id, e.target.value)}
-                        disabled={updatingItemStatus}
-                      >
-                        <option value="not_created">⬜ Not Created</option>
-                        <option value="ordered">🟢 Ordered (Create/Update Sales Order)</option>
-                        <option value="rejected">🔴 Rejected</option>
-                      </Form.Select>
+              <Card>
+                <Card.Body className="p-2">
+                  <div className="mb-2">
+                    <div className="fw-bold small">{currentItemForStatusUpdate.item_name}</div>
+                    <small className="text-muted">{currentItemForStatusUpdate.description?.substring(0, 60)}...</small>
+                  </div>
+                  
+                  <div className="row g-2 mb-2">
+                    <div className="col-6">
+                      <small className="text-muted">Brand Code:</small>
+                      <div>{currentItemForStatusUpdate.brand_code || '-'}</div>
+                    </div>
+                    <div className="col-6">
+                      <small className="text-muted">Batch No:</small>
+                      <div>{currentItemForStatusUpdate.batch_no || '-'}</div>
+                    </div>
+                    <div className="col-6">
+                      <small className="text-muted">Current Status:</small>
+                      <div>
+                        <Badge bg={getStatusBadgeColor(currentItemForStatusUpdate.sales_order_item_status || "not_created")}>
+                          {getStatusDisplayText(currentItemForStatusUpdate.sales_order_item_status || "not_created")}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="col-12 mt-2">
+                      <Form.Group>
+                        <Form.Label className="fw-bold small">New Status</Form.Label>
+                        <Form.Select
+                          size="sm"
+                          value={itemStatusUpdates[currentItemForStatusUpdate.id] || currentItemForStatusUpdate.sales_order_item_status || "not_created"}
+                          onChange={(e) => handleItemStatusChange(currentItemForStatusUpdate.id, e.target.value)}
+                          disabled={updatingItemStatus}
+                        >
+                          <option value="not_created">⬜ Not Created</option>
+                          <option value="ordered">🟢 Ordered</option>
+                          <option value="rejected">🔴 Rejected</option>
+                        </Form.Select>
+                      </Form.Group>
                       
                       {itemStatusUpdates[currentItemForStatusUpdate.id] === "rejected" && itemRejectionReasons[currentItemForStatusUpdate.id] && (
-                        <div className="mt-2 small">
-                          <i className="bi bi-chat-left-text text-danger"></i>
-                          <span className="ms-1 text-danger">{itemRejectionReasons[currentItemForStatusUpdate.id]}</span>
+                        <div className="mt-2 p-2 bg-danger bg-opacity-10 rounded">
+                          <small className="text-danger">
+                            <i className="bi bi-chat-left-text me-1"></i>
+                            {itemRejectionReasons[currentItemForStatusUpdate.id]}
+                          </small>
                         </div>
                       )}
-                    </td>
-                  </tr>
-                </tbody>
-              </Table>
+                    </div>
+                  </div>
+                </Card.Body>
+              </Card>
             </>
           )}
         </Modal.Body>
-        <Modal.Footer>
+        <Modal.Footer className="py-2">
           <Button 
             variant="secondary" 
+            size="sm"
             onClick={() => {
               setShowItemStatusModal(false);
               setQuotationForStatusUpdate(null);
@@ -1563,17 +1686,18 @@ export default function QuotationModal() {
           </Button>
           <Button 
             variant="success" 
+            size="sm"
             onClick={updateItemStatuses}
             disabled={updatingItemStatus}
           >
             {updatingItemStatus ? (
               <>
-                <Spinner animation="border" size="sm" className="me-2" />
+                <Spinner animation="border" size="sm" className="me-1" />
                 Saving...
               </>
             ) : (
               <>
-                <i className="bi bi-save me-1"></i>Save Status
+                <i className="bi bi-save me-1"></i>Save
               </>
             )}
           </Button>
@@ -1584,144 +1708,139 @@ export default function QuotationModal() {
       {renderTaskModal()}
 
       {/* View Quotation Modal */}
-      <Modal show={showViewModal} onHide={() => setShowViewModal(false)} size="xl">
-        <Modal.Header closeButton className="bg-info text-white">
-          <Modal.Title>
-            Quotation Details - {selectedQuotation?.quote_number || selectedQuotation?.quoteNo}
+      <Modal show={showViewModal} onHide={() => setShowViewModal(false)} size={mobileView ? "fullscreen" : "xl"}>
+        <Modal.Header closeButton className="bg-info text-white py-2">
+          <Modal.Title className="fs-6">
+            Quotation - {selectedQuotation?.quote_number || selectedQuotation?.quoteNo}
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+        <Modal.Body className="p-2" style={{ maxHeight: mobileView ? 'calc(100vh - 120px)' : '70vh', overflowY: 'auto' }}>
           {selectedQuotation && (
             <Container>
-              <div className="invoice-header border-bottom pb-3 mb-3">
+              <div className="invoice-header border-bottom pb-2 mb-2">
                 <Row>
-                  <Col md={2}>
+                  <Col xs={3} md={2}>
                     <img 
                       src="E:/Lakotia/lakotia/src/Components/Name1.jpg" 
                       alt="Company Logo" 
                       className="img-fluid"
-                      style={{ maxWidth: '120px', maxHeight: '120px' }}
+                      style={{ maxWidth: mobileView ? '60px' : '120px' }}
                       onError={(e) => {
                         e.target.style.display = 'none';
                       }}
                     />
                   </Col>
-                  <Col md={5}>
-                    <h1 className="mb-1">{issuer.name}</h1>
-                    <p className="mb-1">{issuer.address}</p>
-                    <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
-                    <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                  <Col xs={9} md={5}>
+                    <h5 className="mb-0 fs-6 fw-bold">{issuer.name}</h5>
+                    <p className="mb-0 small">{issuer.address.slice(0, 30)}...</p>
+                    <p className="mb-0 small">GST: {issuer.gstin}</p>
                   </Col>
-                  <Col md={5} className="text-end">
-                    <h2 className="text-info mb-3">QUOTATION</h2>
-                    <p className="mb-1"><strong>Quote No:</strong> {selectedQuotation.quote_number || selectedQuotation.quoteNo}</p>
-                    <p className="mb-1"><strong>Date:</strong> {selectedQuotation.date || selectedQuotation.date}</p>
-                    <p className="mb-1"><strong>Time:</strong> {selectedQuotation.time || selectedQuotation.time}</p>
+                  <Col xs={12} md={5} className="text-md-end mt-2 mt-md-0">
+                    <h6 className="text-info mb-1">QUOTATION</h6>
+                    <p className="mb-0 small"><strong>No:</strong> {selectedQuotation.quote_number || selectedQuotation.quoteNo}</p>
+                    <p className="mb-0 small"><strong>Date:</strong> {selectedQuotation.date || selectedQuotation.date}</p>
                   </Col>
                 </Row>
               </div>
               
-              <Row className="mb-4">
-                <Col md={6}>
-                  <h5>Bill To:</h5>
-                  <p className="mb-1"><strong>{selectedQuotation.company_name || selectedQuotation.billTo}</strong></p>
-                  <p className="mb-1">{selectedQuotation.company_address || ''}</p>
-                  <p className="mb-1">GSTIN: {selectedQuotation.company_gstin || ''}</p>
-                </Col>
-                <Col md={6}>
-                  <h5>Contact Details:</h5>
-                  <p className="mb-1"><strong>{selectedQuotation.contact_person || selectedQuotation.contactPerson}</strong></p>
-                  <p className="mb-1">Phone: {selectedQuotation.contact_mobile || selectedQuotation.contactMob}</p>
-                  <p className="mb-1">Email: {selectedQuotation.contact_email || selectedQuotation.contactEmail}</p>
+              <Row className="mb-2">
+                <Col xs={12}>
+                  <h6 className="small fw-bold mb-1">Bill To:</h6>
+                  <p className="small mb-0"><strong>{selectedQuotation.company_name || selectedQuotation.billTo}</strong></p>
+                  <p className="small mb-0">{selectedQuotation.contact_person || selectedQuotation.contactPerson}</p>
                 </Col>
               </Row>
               
-              <Table bordered responsive size="sm">
-                <thead className="table-light">
-                  <tr>
-                    <th>#</th>
-                    <th>Item Name</th>
-                    <th>Brand Code</th>
-                    <th>Batch No</th>
-                    <th>Part No</th>
-                    <th>Qty</th>
-                    <th>Unit</th>
-                    <th>Price/Unit</th>
-                    <th>Amount</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(selectedQuotation.items || []).map((item, index) => (
-                    <tr key={index}>
-                      <td>{index + 1}</td>
-                      <td>
-                        <div className="fw-bold">{item.item_name}</div>
-                        <small className="text-muted">{item.description?.substring(0, 50)}...</small>
-                      </td>
-                      <td>
-                        {item.brand_code ? (
-                          <Badge bg="primary">{item.brand_code}</Badge>
-                        ) : ''}
-                      </td>
-                      <td>
-                        {item.batch_no ? (
-                          <Badge bg="secondary">{item.batch_no}</Badge>
-                        ) : ''}
-                      </td>
-                      <td>{item.supplier_part_no || 'N/A'}</td>
-                      <td>{item.quantity || 1}</td>
-                      <td>{item.unit || 'pcs'}</td>
-                      <td>₹{(item.price_per_unit || 0).toFixed(2)}</td>
-                      <td>₹{(item.amount_after_discount || 0).toFixed(2)}</td>
-                      <td>
-                        <Badge bg={getStatusBadgeColor(item.sales_order_item_status || "not_created")}>
-                          {getStatusDisplayText(item.sales_order_item_status || "not_created")}
-                        </Badge>
-                        {item.rejection_reason && (
-                          <div className="small text-danger mt-1">
-                            <i className="bi bi-exclamation-triangle"></i> {item.rejection_reason}
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <Button
-                          variant={item.sales_order_item_status === "ordered" ? "primary" : "warning"}
-                          size="sm"
-                          onClick={() => openTaskModal(item, selectedQuotation)}
-                          title={item.sales_order_item_status === "ordered" ? "Update Sales Order" : "Create Sales Order"}
-                        >
-                          <i className="bi bi-clipboard-check"></i> {item.sales_order_item_status === "ordered" ? "Update" : "Create"}
-                        </Button>
-                      </td>
+              {/* Mobile Card View for Items in Modal */}
+              {mobileView ? (
+                (selectedQuotation.items || []).map((item, index) => (
+                  <Card key={index} className="mb-2">
+                    <Card.Body className="p-2">
+                      <div className="fw-bold small">{item.item_name}</div>
+                      <div className="row g-1 mt-1">
+                        <div className="col-6">
+                          <small className="text-muted">Qty:</small>
+                          <div className="small">{item.quantity || 1}</div>
+                        </div>
+                        <div className="col-6">
+                          <small className="text-muted">Price:</small>
+                          <div className="small">₹{(item.price_per_unit || 0).toFixed(2)}</div>
+                        </div>
+                        <div className="col-6">
+                          <small className="text-muted">Brand:</small>
+                          <div className="small">{item.brand_code || '-'}</div>
+                        </div>
+                        <div className="col-6">
+                          <small className="text-muted">Batch:</small>
+                          <div className="small">{item.batch_no || '-'}</div>
+                        </div>
+                        <div className="col-12">
+                          <Badge bg={getStatusBadgeColor(item.sales_order_item_status || "not_created")} className="mt-1">
+                            {getStatusDisplayText(item.sales_order_item_status || "not_created")}
+                          </Badge>
+                        </div>
+                      </div>
+                    </Card.Body>
+                  </Card>
+                ))
+              ) : (
+                <Table bordered responsive size="sm">
+                  <thead className="table-light">
+                    <tr>
+                      <th>#</th>
+                      <th>Item Name</th>
+                      <th>Brand Code</th>
+                      <th>Batch No</th>
+                      <th>Part No</th>
+                      <th>Qty</th>
+                      <th>Price</th>
+                      <th>Amount</th>
+                      <th>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
+                  </thead>
+                  <tbody>
+                    {(selectedQuotation.items || []).map((item, index) => (
+                      <tr key={index}>
+                        <td>{index + 1}</td>
+                        <td>
+                          <div className="fw-bold small">{item.item_name}</div>
+                          <small className="text-muted">{item.description?.substring(0, 30)}...</small>
+                        </td>
+                        <td>{item.brand_code || '-'}</td>
+                        <td>{item.batch_no || '-'}</td>
+                        <td>{item.supplier_part_no || '-'}</td>
+                        <td>{item.quantity || 1}</td>
+                        <td>₹{(item.price_per_unit || 0).toFixed(2)}</td>
+                        <td>₹{(item.amount_after_discount || 0).toFixed(2)}</td>
+                        <td>
+                          <Badge bg={getStatusBadgeColor(item.sales_order_item_status || "not_created")}>
+                            {getStatusDisplayText(item.sales_order_item_status || "not_created")}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              )}
               
-              <Row className="mt-3">
-                <Col md={12}>
+              <Row className="mt-2">
+                <Col xs={12}>
                   <Card className="border-0 bg-light">
-                    <Card.Body>
+                    <Card.Body className="p-2">
                       <div className="d-flex justify-content-end">
-                        <div style={{ width: '300px' }}>
-                          <div className="d-flex justify-content-between mb-2">
-                            <span>Subtotal:</span>
-                            <strong>₹{(selectedQuotation.subtotal || selectedQuotation.totals?.subtotal || 0).toFixed(2)}</strong>
+                        <div style={{ width: mobileView ? '100%' : '300px' }}>
+                          <div className="d-flex justify-content-between mb-1">
+                            <span className="small">Subtotal:</span>
+                            <span className="small">₹{(selectedQuotation.subtotal || selectedQuotation.totals?.subtotal || 0).toFixed(2)}</span>
                           </div>
-                          <div className="d-flex justify-content-between mb-2">
-                            <span>Discount:</span>
-                            <strong className="text-danger">- ₹{(selectedQuotation.total_discount || selectedQuotation.totals?.totalDiscount || 0).toFixed(2)}</strong>
+                          <div className="d-flex justify-content-between mb-1">
+                            <span className="small">Tax:</span>
+                            <span className="small">₹{(selectedQuotation.total_tax || selectedQuotation.totals?.totalGST || 0).toFixed(2)}</span>
                           </div>
-                          <div className="d-flex justify-content-between mb-2">
-                            <span>Total Tax:</span>
-                            <strong>₹{(selectedQuotation.total_tax || selectedQuotation.totals?.totalGST || 0).toFixed(2)}</strong>
-                          </div>
-                          <hr className="my-2"/>
+                          <hr className="my-1"/>
                           <div className="d-flex justify-content-between">
-                            <span className="fw-bold">Grand Total:</span>
-                            <strong className="text-primary fs-5">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</strong>
+                            <span className="fw-bold small">Grand Total:</span>
+                            <span className="fw-bold text-primary small">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</span>
                           </div>
                         </div>
                       </div>
@@ -1732,186 +1851,176 @@ export default function QuotationModal() {
             </Container>
           )}
         </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowViewModal(false)}>
+        <Modal.Footer className="py-2">
+          <Button variant="secondary" size="sm" onClick={() => setShowViewModal(false)}>
             <i className="bi bi-x-circle me-1"></i>Close
           </Button>
-          <Button variant="primary" onClick={() => printQuotation(selectedQuotation)}>
+          <Button variant="primary" size="sm" onClick={() => printQuotation(selectedQuotation)}>
             <i className="bi bi-printer me-1"></i>Print
           </Button>
         </Modal.Footer>
       </Modal>
 
-      {/* Main Items Table - Flat Item Wise View */}
+      {/* Main Items View */}
       <Card>
-        <Card.Header className="bg-light">
-          <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">
+        <Card.Header className="bg-light py-2">
+          <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2">
+            <h5 className="mb-0 fs-6">
               <i className="bi bi-list-check me-2"></i>
-              All Items from Completed Quotations
-              <Badge bg="secondary" className="ms-2">{flattenedItems.length} Total Items</Badge>
+              {mobileView ? 'Items' : 'All Items from Completed Quotations'}
+              <Badge bg="secondary" className="ms-2">{flattenedItems.length}</Badge>
             </h5>
-            <div className="d-flex gap-2 align-items-center">
+            <div className="d-flex flex-wrap gap-2 w-100 w-md-auto">
               {/* Status Filter */}
               <Form.Select 
                 size="sm" 
-                style={{ width: '180px' }}
+                style={{ width: mobileView ? '100%' : '140px' }}
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
-                <option value="all">All Status</option>
+                <option value="all">All</option>
                 <option value="not_created">Not Created</option>
                 <option value="ordered">Ordered</option>
                 <option value="rejected">Rejected</option>
               </Form.Select>
 
               {/* Search */}
-              <InputGroup size="sm" style={{ width: '250px' }}>
+              <InputGroup size="sm" className="flex-grow-1">
                 <FormControl
-                  placeholder="Search items, quotations..."
+                  placeholder={mobileView ? "Search..." : "Search items..."}
                   value={searchTerm}
                   onChange={(e) => handleSearch(e.target.value)}
                 />
                 {searchTerm && (
-                  <Button variant="outline-danger" onClick={resetSearch} title="Clear search">
+                  <Button variant="outline-danger" onClick={resetSearch}>
                     <i className="bi bi-x-circle"></i>
                   </Button>
                 )}
               </InputGroup>
               
-              <Button variant="outline-primary" size="sm" onClick={fetchQuotations} disabled={loadingQuotations} title="Refresh">
+              <Button variant="outline-primary" size="sm" onClick={fetchQuotations} disabled={loadingQuotations}>
                 <i className="bi bi-arrow-clockwise"></i>
               </Button>
             </div>
           </div>
         </Card.Header>
-        <Card.Body className="p-0">
+        <Card.Body className="p-2 p-md-3">
           {loadingQuotations ? (
             <div className="text-center py-5">
               <Spinner animation="border" variant="primary" />
-              <p className="mt-2 text-muted">Loading items...</p>
+              <p className="mt-2 text-muted small">Loading items...</p>
             </div>
           ) : getFilteredItems().length > 0 ? (
             <>
-              <div className="table-responsive">
-                <Table hover responsive className="mb-0">
-                  <thead className="table-light">
-                    <tr>
-                      <th width="50">#</th>
-                      <th>Quotation No</th>
-                      <th>Date</th>
-                      <th>Company</th>
-                      <th>Item Name</th>
-                      <th>Brand Code</th>
-                      <th>Batch No</th>
-                      <th>Part No</th>
-                      <th>Qty</th>
-                      <th>Unit</th>
-                      <th>Price/Unit</th>
-                      <th>Amount</th>
-                      <th>Buy Price</th>
-                      <th>Status</th>
-                      <th width="180">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getFilteredItems().map((item, index) => {
-                      const itemStatus = item.sales_order_item_status || "not_created";
-                      
-                      return (
-                        <tr key={`${item.quotation_id}-${item.id}-${index}`}>
-                          <td>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
-                          <td>
-                            <strong className="text-primary">{item.quotation_number}</strong>
-                          </td>
-                          <td>
-                            <small>{item.quotation_date}</small>
-                          </td>
-                          <td>
-                            <div className="fw-bold small">{item.company_name}</div>
-                            <small className="text-muted">{item.contact_person}</small>
-                          </td>
-                          <td>
-                            <div className="fw-bold">{item.item_name}</div>
-                            <small className="text-muted">{item.description?.substring(0, 40)}...</small>
-                          </td>
-                          <td>
-                            {item.brand_code ? (
-                              <Badge bg="primary">{item.brand_code}</Badge>
-                            ) : '-'}
-                          </td>
-                          <td>
-                            {item.batch_no ? (
-                              <Badge bg="secondary">{item.batch_no}</Badge>
-                            ) : '-'}
-                          </td>
-                          <td>{item.supplier_part_no || '-'}</td>
-                          <td>{item.quantity || 1}</td>
-                          <td>{item.unit || 'pcs'}</td>
-                          <td>₹{(item.price_per_unit || 0).toFixed(2)}</td>
-                          <td>
-                            <strong>₹{(item.amount_after_discount || 0).toFixed(2)}</strong>
-                          </td>
-                          <td>
-                            <span className="text-success small fw-bold">
-                              ₹{(item.buy_price || 0).toFixed(2)}
-                            </span>
-                          </td>
-                          <td>
-                            <Badge bg={getStatusBadgeColor(itemStatus)}>
-                              {getStatusDisplayText(itemStatus)}
-                            </Badge>
-                            {item.rejection_reason && (
-                              <div className="small text-danger mt-1" title={item.rejection_reason}>
-                                <i className="bi bi-exclamation-triangle"></i> Rejected
-                              </div>
-                            )}
-                          </td>
-                          <td>
-                            <div className="btn-group btn-group-sm">
-                              <Button
-                                variant="outline-info"
-                                size="sm"
-                                onClick={() => viewItemDetails(item)}
-                                title="View Quotation"
-                              >
-                                <i className="bi bi-eye"></i>
-                              </Button>
-                              <Button
-                                variant="outline-success"
-                                size="sm"
-                                onClick={() => openSingleItemStatusModal(item)}
-                                title="Update Status"
-                              >
-                                <i className="bi bi-check-circle"></i>
-                              </Button>
-                              {itemStatus !== "rejected" && (
+              {mobileView ? (
+                // Mobile Card View
+                <div className="items-mobile-view">
+                  {getFilteredItems().map((item, index) => (
+                    <MobileItemCard key={`${item.quotation_id}-${item.id}-${index}`} item={item} index={index} />
+                  ))}
+                </div>
+              ) : (
+                // Desktop Table View
+                <div className="table-responsive">
+                  <Table hover responsive className="mb-0">
+                    <thead className="table-light">
+                      <tr>
+                        <th width="50">#</th>
+                        <th>Quotation No</th>
+                        <th>Date</th>
+                        <th>Company</th>
+                        <th>Item Name</th>
+                        <th>Brand Code</th>
+                        <th>Batch No</th>
+                        <th>Part No</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                        <th width="180">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getFilteredItems().map((item, index) => {
+                        const itemStatus = item.sales_order_item_status || "not_created";
+                        
+                        return (
+                          <tr key={`${item.quotation_id}-${item.id}-${index}`}>
+                            <td>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
+                            <td>
+                              <span className="text-primary small fw-bold">{item.quotation_number}</span>
+                            </td>
+                            <td>
+                              <small>{item.quotation_date}</small>
+                            </td>
+                            <td>
+                              <div className="small fw-bold">{item.company_name}</div>
+                              <small className="text-muted">{item.contact_person}</small>
+                            </td>
+                            <td>
+                              <div className="small fw-bold">{item.item_name}</div>
+                              <small className="text-muted">{item.description?.substring(0, 30)}...</small>
+                            </td>
+                            <td>{item.brand_code || '-'}</td>
+                            <td>{item.batch_no || '-'}</td>
+                            <td>{item.supplier_part_no || '-'}</td>
+                            <td>{item.quantity || 1}</td>
+                            <td>₹{(item.price_per_unit || 0).toFixed(2)}</td>
+                            <td>
+                              <span className="fw-bold">₹{(item.amount_after_discount || 0).toFixed(2)}</span>
+                            </td>
+                            <td>
+                              <Badge bg={getStatusBadgeColor(itemStatus)}>
+                                {getStatusDisplayText(itemStatus)}
+                              </Badge>
+                            </td>
+                            <td>
+                              <div className="btn-group btn-group-sm">
                                 <Button
-                                  variant={itemStatus === "ordered" ? "outline-primary" : "outline-warning"}
+                                  variant="outline-info"
                                   size="sm"
-                                  onClick={() => {
-                                    const quotation = savedQuotations.find(q => q.id === item.quotation_id);
-                                    if (quotation) openTaskModal(item, quotation);
-                                  }}
-                                  title={itemStatus === "ordered" ? "Update Sales Order" : "Create Sales Order"}
+                                  onClick={() => viewItemDetails(item)}
                                 >
-                                  <i className="bi bi-clipboard-check"></i>
+                                  <i className="bi bi-eye"></i>
                                 </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </Table>
-              </div>
+                                <Button
+                                  variant="outline-success"
+                                  size="sm"
+                                  onClick={() => openSingleItemStatusModal(item)}
+                                >
+                                  <i className="bi bi-check-circle"></i>
+                                </Button>
+                                {itemStatus !== "rejected" && (
+                                  <Button
+                                    variant={itemStatus === "ordered" ? "outline-primary" : "outline-warning"}
+                                    size="sm"
+                                    onClick={() => {
+                                      const quotation = savedQuotations.find(q => q.id === item.quotation_id);
+                                      if (quotation) openTaskModal(item, quotation);
+                                    }}
+                                  >
+                                    <i className="bi bi-clipboard-check"></i>
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </Table>
+                </div>
+              )}
               
-              {/* PAGINATION */}
+              {/* Pagination */}
               {totalPages > 1 && (
-                <div className="d-flex justify-content-between align-items-center p-3 border-top">
-                  <div className="text-muted small">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, getFilteredItems().length)} of {getFilteredItems().length} items
+                <div className="d-flex flex-column flex-md-row justify-content-between align-items-center p-2 p-md-3 border-top mt-2">
+                  <div className="text-muted small mb-2 mb-md-0">
+                    {mobileView ? (
+                      <>Page {currentPage} of {totalPages}</>
+                    ) : (
+                      <>Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, getFilteredItems().length)} of {getFilteredItems().length} items</>
+                    )}
                   </div>
                   <Pagination size="sm" className="mb-0">
                     <Pagination.Prev 
@@ -1943,14 +2052,35 @@ export default function QuotationModal() {
               <div className="mb-3">
                 <i className="bi bi-inbox display-1 text-muted"></i>
               </div>
-              <h5 className="text-muted">No items found</h5>
-              <p className="text-muted">
+              <h5 className="text-muted small">No items found</h5>
+              <p className="text-muted small">
                 {searchTerm ? 'Try a different search term' : 'No items available in completed quotations.'}
               </p>
             </div>
           )}
         </Card.Body>
       </Card>
+
+      {/* Mobile Styles */}
+      <style jsx>{`
+        @media (max-width: 768px) {
+          .modal-fullscreen-md-down {
+            margin: 0;
+          }
+          .btn {
+            white-space: nowrap;
+          }
+          .table-responsive {
+            font-size: 0.75rem;
+          }
+          .card-header {
+            padding: 0.5rem;
+          }
+          .card-body {
+            padding: 0.5rem;
+          }
+        }
+      `}</style>
     </Container>
   );
 }

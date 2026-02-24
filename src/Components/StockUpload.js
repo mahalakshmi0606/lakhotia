@@ -40,6 +40,8 @@ export default function StockUploadPage() {
   const [showSoldModal, setShowSoldModal] = useState(false);
   const [existingStockMap, setExistingStockMap] = useState({});
   const [deductionStatus, setDeductionStatus] = useState({});
+  const [mobileView, setMobileView] = useState(false);
+  const [expandedCard, setExpandedCard] = useState(null);
 
   // Loading states
   const [loadingStock, setLoadingStock] = useState(false);
@@ -52,6 +54,18 @@ export default function StockUploadPage() {
   const [rowsPerPage] = useState(10);
 
   const fileInputRef = useRef(null);
+
+  // Check if mobile view on mount and resize
+  useEffect(() => {
+    const checkMobile = () => {
+      setMobileView(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Calculate count whenever length, width, or qty changes
   const calculateCount = (length, width, qty) => {
@@ -1250,14 +1264,14 @@ export default function StockUploadPage() {
   // ----------------------------------------------------
   const renderPageNumbers = () => {
     const pageNumbers = [];
-    const maxVisiblePages = 5;
+    const maxVisiblePages = mobileView ? 3 : 5;
 
     if (totalPages <= maxVisiblePages) {
       for (let i = 1; i <= totalPages; i++) {
         pageNumbers.push(i);
       }
     } else {
-      let startPage = Math.max(1, currentPage - 2);
+      let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
       let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
       if (endPage - startPage + 1 < maxVisiblePages) {
@@ -1327,73 +1341,137 @@ export default function StockUploadPage() {
       await loadGrnItemsToStock();
     };
 
+    const modalStyle = {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000,
+      padding: mobileView ? "10px" : "0",
+    };
+
+    const modalContentStyle = {
+      backgroundColor: "white",
+      padding: mobileView ? "15px" : "20px",
+      borderRadius: "8px",
+      maxWidth: mobileView ? "100%" : "90%",
+      maxHeight: "90%",
+      overflow: "auto",
+      width: mobileView ? "100%" : "1200px",
+    };
+
     return (
-      <div style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 1000,
-      }}>
-        <div style={{
-          backgroundColor: "white",
-          padding: "20px",
-          borderRadius: "8px",
-          maxWidth: "90%",
-          maxHeight: "90%",
-          overflow: "auto",
-          width: "1200px",
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+      <div style={modalStyle}>
+        <div style={modalContentStyle}>
+          <div style={{ 
+            display: "flex", 
+            flexDirection: mobileView ? "column" : "row",
+            justifyContent: "space-between", 
+            alignItems: mobileView ? "flex-start" : "center",
+            gap: mobileView ? "12px" : "0",
+            marginBottom: "20px" 
+          }}>
             <div>
-              <h3 style={{ margin: 0 }}>Import Items from GRN (Active Items Only)</h3>
-              <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>
+              <h3 style={{ margin: 0, fontSize: mobileView ? "18px" : "24px" }}>Import Items from GRN</h3>
+              <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: mobileView ? "12px" : "14px" }}>
                 Items with matching stock entries will automatically get Length & Width values.
-                Imported items will be marked as "done" and hidden from this list.
               </p>
             </div>
             <button 
               onClick={() => setShowGrnModal(false)}
-              style={{ background: "#dc3545", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+              style={{ 
+                background: "#dc3545", 
+                color: "white", 
+                border: "none", 
+                padding: mobileView ? "6px 12px" : "8px 16px", 
+                borderRadius: "4px", 
+                cursor: "pointer",
+                width: mobileView ? "100%" : "auto",
+                fontSize: mobileView ? "14px" : "16px"
+              }}
             >
               Close
             </button>
           </div>
 
           <div style={{ marginBottom: "20px" }}>
-            <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+            <div style={{ 
+              display: "flex", 
+              flexDirection: mobileView ? "column" : "row", 
+              gap: "10px", 
+              marginBottom: "10px" 
+            }}>
               <input
                 type="text"
-                placeholder="Search GRN items by Item Name, Brand, Batch Code, etc..."
+                placeholder="Search GRN items..."
                 value={searchGrnTerm}
                 onChange={(e) => setSearchGrnTerm(e.target.value)}
-                style={{ flex: 1, padding: "8px", border: "1px solid #ddd", borderRadius: "4px" }}
+                style={{ 
+                  flex: 1, 
+                  padding: mobileView ? "10px" : "8px", 
+                  border: "1px solid #ddd", 
+                  borderRadius: "4px",
+                  fontSize: mobileView ? "16px" : "14px"
+                }}
               />
               <button
                 onClick={refreshGrnItems}
                 disabled={loadingGrn}
-                style={{ background: "#17a2b8", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                style={{ 
+                  background: "#17a2b8", 
+                  color: "white", 
+                  border: "none", 
+                  padding: mobileView ? "10px" : "8px 16px", 
+                  borderRadius: "4px", 
+                  cursor: "pointer",
+                  width: mobileView ? "100%" : "auto",
+                  fontSize: mobileView ? "16px" : "14px"
+                }}
               >
                 {loadingGrn ? "Refreshing..." : "Refresh"}
               </button>
             </div>
             
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ color: "#666" }}>
+            <div style={{ 
+              display: "flex", 
+              flexDirection: mobileView ? "column" : "row",
+              justifyContent: "space-between", 
+              alignItems: mobileView ? "flex-start" : "center",
+              gap: mobileView ? "10px" : "0",
+            }}>
+              <div style={{ 
+                color: "#666", 
+                fontSize: mobileView ? "13px" : "14px",
+                marginBottom: mobileView ? "10px" : "0"
+              }}>
                 Found {filteredGrnItems.length} active items • Selected {selectedItems.length} items • 
                 <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
-                  {filteredGrnItems.filter(item => item._hasMatch).length} items have matched dimensions
+                  {filteredGrnItems.filter(item => item._hasMatch).length} matched
                 </span>
               </div>
-              <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ 
+                display: "flex", 
+                flexDirection: mobileView ? "column" : "row",
+                gap: "10px",
+                width: mobileView ? "100%" : "auto"
+              }}>
                 <button
                   onClick={selectAll}
-                  style={{ background: "#6c757d", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                  style={{ 
+                    background: "#6c757d", 
+                    color: "white", 
+                    border: "none", 
+                    padding: mobileView ? "10px" : "8px 16px", 
+                    borderRadius: "4px", 
+                    cursor: "pointer",
+                    width: mobileView ? "100%" : "auto",
+                    fontSize: mobileView ? "14px" : "13px"
+                  }}
                 >
                   {selectedItems.length === filteredGrnItems.length ? "Deselect All" : "Select All"}
                 </button>
@@ -1404,9 +1482,11 @@ export default function StockUploadPage() {
                     background: selectedItems.length > 0 ? "#28a745" : "#ccc", 
                     color: "white", 
                     border: "none", 
-                    padding: "8px 16px", 
+                    padding: mobileView ? "10px" : "8px 16px", 
                     borderRadius: "4px", 
-                    cursor: selectedItems.length > 0 ? "pointer" : "default" 
+                    cursor: selectedItems.length > 0 ? "pointer" : "default",
+                    width: mobileView ? "100%" : "auto",
+                    fontSize: mobileView ? "14px" : "13px"
                   }}
                 >
                   Load Selected ({selectedItems.length})
@@ -1418,9 +1498,11 @@ export default function StockUploadPage() {
                     background: filteredGrnItems.length > 0 ? "#007bff" : "#ccc", 
                     color: "white", 
                     border: "none", 
-                    padding: "8px 16px", 
+                    padding: mobileView ? "10px" : "8px 16px", 
                     borderRadius: "4px", 
-                    cursor: filteredGrnItems.length > 0 ? "pointer" : "default" 
+                    cursor: filteredGrnItems.length > 0 ? "pointer" : "default",
+                    width: mobileView ? "100%" : "auto",
+                    fontSize: mobileView ? "14px" : "13px"
                   }}
                 >
                   Load All ({filteredGrnItems.length})
@@ -1436,22 +1518,18 @@ export default function StockUploadPage() {
             </div>
           ) : filteredGrnItems.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
-              No active GRN items found. All items may have been imported already.
-              <div style={{ marginTop: "10px" }}>
-                <button
-                  onClick={() => fetchGrnItems()}
-                  style={{ background: "#007bff", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
-                >
-                  Reload GRN Items
-                </button>
-              </div>
+              No active GRN items found.
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ 
+                width: "100%", 
+                borderCollapse: "collapse",
+                fontSize: mobileView ? "12px" : "14px"
+              }}>
                 <thead style={{ background: "#f3f3f3" }}>
                   <tr>
-                    <th style={{ width: "40px" }}>
+                    <th style={{ width: "40px", padding: mobileView ? "8px 4px" : "8px" }}>
                       <input
                         type="checkbox"
                         checked={selectedItems.length === filteredGrnItems.length && filteredGrnItems.length > 0}
@@ -1459,18 +1537,18 @@ export default function StockUploadPage() {
                         disabled={filteredGrnItems.length === 0}
                       />
                     </th>
-                    <th>Item Name</th>
-                    <th>Brand</th>
-                    <th>Brand Code</th>
-                    <th>Batch Code</th>
-                    <th>Quantity</th>
-                    <th>Buy Price</th>
-                    <th>Length</th>
-                    <th>Width</th>
-                    <th>Auto Calc</th>
-                    <th>Status</th>
-                    <th>Invoice</th>
-                    <th>PO</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Item</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Brand</th>
+                    {!mobileView && (
+                      <>
+                        <th style={{ padding: "8px" }}>Brand Code</th>
+                        <th style={{ padding: "8px" }}>Batch</th>
+                      </>
+                    )}
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Qty</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Price</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>L/W</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1479,67 +1557,60 @@ export default function StockUploadPage() {
                       background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
                       borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd"
                     }}>
-                      <td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>
                         <input
                           type="checkbox"
                           checked={selectedItems.includes(item._id)}
                           onChange={() => toggleSelectItem(item._id)}
                         />
                       </td>
-                      <td>{item["Item Name"]}</td>
-                      <td>{item["Brand"]}</td>
-                      <td>{item["Brand Code"]}</td>
-                      <td>{item["Batch Code"]}</td>
-                      <td>{item["Qty"]}</td>
-                      <td>{item["Buy Price"]}</td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["Length"] || "-"}
-                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                      </td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["Width"] || "-"}
-                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                      </td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["AutoCalculate Count"] || "-"}
-                      </td>
-                      <td>
-                        {item._hasMatch ? (
-                          <span style={{
-                            background: "#28a745",
-                            color: "white",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            fontWeight: "bold"
-                          }}
-                          title={item._matchReason}
-                          >
-                            Matched
-                          </span>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>
+                        {mobileView ? (
+                          <div>
+                            <div style={{ fontWeight: "bold" }}>{item["Item Name"]}</div>
+                            <div style={{ fontSize: "10px", color: "#666" }}>
+                              {item["Brand Code"]} • {item["Batch Code"]}
+                            </div>
+                          </div>
                         ) : (
-                          <span style={{
-                            background: "#6c757d",
-                            color: "white",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "12px"
-                          }}>
-                            No Match
-                          </span>
+                          item["Item Name"]
                         )}
                       </td>
-                      <td>{item._invoice}</td>
-                      <td>{item._po}</td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>{item["Brand"]}</td>
+                      {!mobileView && (
+                        <>
+                          <td style={{ padding: "8px" }}>{item["Brand Code"]}</td>
+                          <td style={{ padding: "8px" }}>{item["Batch Code"]}</td>
+                        </>
+                      )}
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>{item["Qty"]}</td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>{item["Buy Price"]}</td>
+                      <td style={{ 
+                        padding: mobileView ? "8px 4px" : "8px",
+                        background: item._hasMatch ? "#d4edda" : "transparent"
+                      }}>
+                        {mobileView ? (
+                          <div>
+                            <div>L:{item["Length"]}</div>
+                            <div>W:{item["Width"]}</div>
+                          </div>
+                        ) : (
+                          `${item["Length"]}/${item["Width"]}`
+                        )}
+                      </td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>
+                        <span style={{
+                          background: item._hasMatch ? "#28a745" : "#6c757d",
+                          color: "white",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          fontSize: mobileView ? "10px" : "12px",
+                          display: "inline-block",
+                          whiteSpace: "nowrap"
+                        }}>
+                          {item._hasMatch ? "✓" : "No"}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1597,78 +1668,137 @@ export default function StockUploadPage() {
       loadSoldItemsToStock();
     };
 
+    const modalStyle = {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000,
+      padding: mobileView ? "10px" : "0",
+    };
+
+    const modalContentStyle = {
+      backgroundColor: "white",
+      padding: mobileView ? "15px" : "20px",
+      borderRadius: "8px",
+      maxWidth: mobileView ? "100%" : "90%",
+      maxHeight: "90%",
+      overflow: "auto",
+      width: mobileView ? "100%" : "1200px",
+    };
+
     return (
-      <div style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        zIndex: 1000,
-      }}>
-        <div style={{
-          backgroundColor: "white",
-          padding: "20px",
-          borderRadius: "8box",
-          maxWidth: "90%",
-          maxHeight: "90%",
-          overflow: "auto",
-          width: "1200px",
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+      <div style={modalStyle}>
+        <div style={modalContentStyle}>
+          <div style={{ 
+            display: "flex", 
+            flexDirection: mobileView ? "column" : "row",
+            justifyContent: "space-between", 
+            alignItems: mobileView ? "flex-start" : "center",
+            gap: mobileView ? "12px" : "0",
+            marginBottom: "20px" 
+          }}>
             <div>
-              <h3 style={{ margin: 0 }}>Import Items from Stock Sold (Not Deducted)</h3>
-              <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: "14px" }}>
-                Showing only items where stock has not been deducted yet. 
-                Click "Deduct" button to subtract sold quantity from current stock.
+              <h3 style={{ margin: 0, fontSize: mobileView ? "18px" : "24px" }}>Import from Stock Sold</h3>
+              <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: mobileView ? "12px" : "14px" }}>
+                Click "Deduct" to subtract sold quantity from current stock.
               </p>
             </div>
             <button 
               onClick={() => setShowSoldModal(false)}
-              style={{ background: "#dc3545", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+              style={{ 
+                background: "#dc3545", 
+                color: "white", 
+                border: "none", 
+                padding: mobileView ? "6px 12px" : "8px 16px", 
+                borderRadius: "4px", 
+                cursor: "pointer",
+                width: mobileView ? "100%" : "auto",
+                fontSize: mobileView ? "14px" : "16px"
+              }}
             >
               Close
             </button>
           </div>
 
           <div style={{ marginBottom: "20px" }}>
-            <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
+            <div style={{ 
+              display: "flex", 
+              flexDirection: mobileView ? "column" : "row", 
+              gap: "10px", 
+              marginBottom: "10px" 
+            }}>
               <input
                 type="text"
-                placeholder="Search Stock Sold items by Item Name, Customer, Task ID, etc..."
+                placeholder="Search items..."
                 value={searchSoldTerm}
                 onChange={(e) => setSearchSoldTerm(e.target.value)}
-                style={{ flex: 1, padding: "8px", border: "1px solid #ddd", borderRadius: "4px" }}
+                style={{ 
+                  flex: 1, 
+                  padding: mobileView ? "10px" : "8px", 
+                  border: "1px solid #ddd", 
+                  borderRadius: "4px",
+                  fontSize: mobileView ? "16px" : "14px"
+                }}
               />
               <button
                 onClick={refreshSoldItems}
                 disabled={loadingSold}
-                style={{ background: "#17a2b8", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                style={{ 
+                  background: "#17a2b8", 
+                  color: "white", 
+                  border: "none", 
+                  padding: mobileView ? "10px" : "8px 16px", 
+                  borderRadius: "4px", 
+                  cursor: "pointer",
+                  width: mobileView ? "100%" : "auto",
+                  fontSize: mobileView ? "16px" : "14px"
+                }}
               >
                 {loadingSold ? "Refreshing..." : "Refresh"}
               </button>
             </div>
             
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ color: "#666" }}>
-                Found {filteredSoldItems.length} items • Selected {selectedItems.length} items • 
+            <div style={{ 
+              display: "flex", 
+              flexDirection: mobileView ? "column" : "row",
+              justifyContent: "space-between", 
+              alignItems: mobileView ? "flex-start" : "center",
+              gap: mobileView ? "10px" : "0",
+            }}>
+              <div style={{ 
+                color: "#666", 
+                fontSize: mobileView ? "13px" : "14px",
+                marginBottom: mobileView ? "10px" : "0"
+              }}>
+                Found {filteredSoldItems.length} items • Selected {selectedItems.length} • 
                 <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
-                  {filteredSoldItems.filter(item => item._hasMatch).length} items can be deducted from stock
+                  {filteredSoldItems.filter(item => item._hasMatch).length} can deduct
                 </span>
-                {Object.keys(deductionStatus).length > 0 && (
-                  <span style={{ color: "#007bff", fontWeight: "bold", marginLeft: "10px" }}>
-                    {Object.keys(deductionStatus).length} deductions pending
-                  </span>
-                )}
               </div>
-              <div style={{ display: "flex", gap: "10px" }}>
+              <div style={{ 
+                display: "flex", 
+                flexDirection: mobileView ? "column" : "row",
+                gap: "10px",
+                width: mobileView ? "100%" : "auto"
+              }}>
                 <button
                   onClick={selectAll}
-                  style={{ background: "#6c757d", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
+                  style={{ 
+                    background: "#6c757d", 
+                    color: "white", 
+                    border: "none", 
+                    padding: mobileView ? "10px" : "8px 16px", 
+                    borderRadius: "4px", 
+                    cursor: "pointer",
+                    width: mobileView ? "100%" : "auto",
+                    fontSize: mobileView ? "14px" : "13px"
+                  }}
                 >
                   {selectedItems.length === filteredSoldItems.length ? "Deselect All" : "Select All"}
                 </button>
@@ -1679,9 +1809,11 @@ export default function StockUploadPage() {
                     background: selectedItems.length > 0 ? "#28a745" : "#ccc", 
                     color: "white", 
                     border: "none", 
-                    padding: "8px 16px", 
+                    padding: mobileView ? "10px" : "8px 16px", 
                     borderRadius: "4px", 
-                    cursor: selectedItems.length > 0 ? "pointer" : "default" 
+                    cursor: selectedItems.length > 0 ? "pointer" : "default",
+                    width: mobileView ? "100%" : "auto",
+                    fontSize: mobileView ? "14px" : "13px"
                   }}
                 >
                   Load Selected ({selectedItems.length})
@@ -1693,9 +1825,11 @@ export default function StockUploadPage() {
                     background: filteredSoldItems.length > 0 ? "#007bff" : "#ccc", 
                     color: "white", 
                     border: "none", 
-                    padding: "8px 16px", 
+                    padding: mobileView ? "10px" : "8px 16px", 
                     borderRadius: "4px", 
-                    cursor: filteredSoldItems.length > 0 ? "pointer" : "default" 
+                    cursor: filteredSoldItems.length > 0 ? "pointer" : "default",
+                    width: mobileView ? "100%" : "auto",
+                    fontSize: mobileView ? "14px" : "13px"
                   }}
                 >
                   Load All ({filteredSoldItems.length})
@@ -1712,21 +1846,17 @@ export default function StockUploadPage() {
           ) : filteredSoldItems.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px", color: "#666" }}>
               No Stock Sold items found that need deduction.
-              <div style={{ marginTop: "10px" }}>
-                <button
-                  onClick={() => fetchSoldItems()}
-                  style={{ background: "#007bff", color: "white", border: "none", padding: "8px 16px", borderRadius: "4px", cursor: "pointer" }}
-                >
-                  Reload Stock Sold Items
-                </button>
-              </div>
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
-              <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
+              <table style={{ 
+                width: "100%", 
+                borderCollapse: "collapse",
+                fontSize: mobileView ? "12px" : "14px"
+              }}>
                 <thead style={{ background: "#f3f3f3" }}>
                   <tr>
-                    <th style={{ width: "40px" }}>
+                    <th style={{ width: "40px", padding: mobileView ? "8px 4px" : "8px" }}>
                       <input
                         type="checkbox"
                         checked={selectedItems.length === filteredSoldItems.length && filteredSoldItems.length > 0}
@@ -1734,19 +1864,12 @@ export default function StockUploadPage() {
                         disabled={filteredSoldItems.length === 0}
                       />
                     </th>
-                    <th>Item Name</th>
-                    <th>Brand (Company)</th>
-                    <th>HSN/SAC</th>
-                    <th>Quantity</th>
-                    <th>MRP</th>
-                    <th>Length</th>
-                    <th>Width</th>
-                    <th>Auto Calc</th>
-                    <th>Status</th>
-                    <th style={{ width: "120px" }}>Action</th>
-                    <th>Customer</th>
-                    <th>Sold Date</th>
-                    <th>Task ID</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Item</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Brand</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Qty</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>L/W</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Status</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1755,65 +1878,54 @@ export default function StockUploadPage() {
                       background: selectedItems.includes(item._id) ? "#e3f2fd" : "white",
                       borderLeft: item._hasMatch ? "4px solid #28a745" : "1px solid #ddd"
                     }}>
-                      <td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>
                         <input
                           type="checkbox"
                           checked={selectedItems.includes(item._id)}
                           onChange={() => toggleSelectItem(item._id)}
                         />
                       </td>
-                      <td>{item["Item Name"]}</td>
-                      <td>{item["Brand"]}</td>
-                      <td>{item["HSN"] || "-"}</td>
-                      <td style={{ fontWeight: "bold" }}>{item["Qty"]}</td>
-                      <td>{item["MRP"] || "-"}</td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["Length"] || "-"}
-                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                      </td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["Width"] || "-"}
-                        {item._hasMatch && <span style={{ fontSize: "10px", color: "#28a745", marginLeft: "5px" }}>✓</span>}
-                      </td>
-                      <td style={{ 
-                        background: item._hasMatch ? "#d4edda" : "transparent",
-                        fontWeight: item._hasMatch ? "bold" : "normal"
-                      }}>
-                        {item["AutoCalculate Count"] || "-"}
-                      </td>
-                      <td>
-                        {item._hasMatch ? (
-                          <span style={{
-                            background: "#28a745",
-                            color: "white",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "12px",
-                            fontWeight: "bold"
-                          }}
-                          title={item._matchReason}
-                          >
-                            Can Deduct
-                          </span>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>
+                        {mobileView ? (
+                          <div>
+                            <div style={{ fontWeight: "bold" }}>{item["Item Name"]}</div>
+                            <div style={{ fontSize: "10px", color: "#666" }}>
+                              {item._customer || ""}
+                            </div>
+                          </div>
                         ) : (
-                          <span style={{
-                            background: "#6c757d",
-                            color: "white",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            fontSize: "12px"
-                          }}>
-                            No Match
-                          </span>
+                          item["Item Name"]
                         )}
                       </td>
-                      <td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>{item["Brand"]}</td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px", fontWeight: "bold" }}>{item["Qty"]}</td>
+                      <td style={{ 
+                        padding: mobileView ? "8px 4px" : "8px",
+                        background: item._hasMatch ? "#d4edda" : "transparent"
+                      }}>
+                        {mobileView ? (
+                          <div>
+                            <div>L:{item["Length"]}</div>
+                            <div>W:{item["Width"]}</div>
+                          </div>
+                        ) : (
+                          `${item["Length"]}/${item["Width"]}`
+                        )}
+                      </td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>
+                        <span style={{
+                          background: item._hasMatch ? "#28a745" : "#6c757d",
+                          color: "white",
+                          padding: "2px 6px",
+                          borderRadius: "12px",
+                          fontSize: mobileView ? "10px" : "12px",
+                          display: "inline-block",
+                          whiteSpace: "nowrap"
+                        }}>
+                          {item._hasMatch ? "✓" : "No"}
+                        </span>
+                      </td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>
                         {item._hasMatch ? (
                           <button
                             onClick={() => deductFromStock(item)}
@@ -1821,29 +1933,21 @@ export default function StockUploadPage() {
                               background: "#ff9800",
                               color: "white",
                               border: "none",
-                              padding: "6px 12px",
+                              padding: mobileView ? "6px 10px" : "6px 12px",
                               borderRadius: "4px",
                               cursor: "pointer",
-                              fontSize: "12px",
+                              fontSize: mobileView ? "11px" : "12px",
                               fontWeight: "bold",
-                              width: "100%"
+                              width: mobileView ? "100%" : "auto",
+                              whiteSpace: "nowrap"
                             }}
-                            title={`Deduct ${item["Qty"]} from current stock`}
                           >
-                            Deduct from Stock
+                            {mobileView ? "Deduct" : "Deduct from Stock"}
                           </button>
                         ) : (
-                          <span style={{
-                            color: "#999",
-                            fontSize: "12px"
-                          }}>
-                            -
-                          </span>
+                          <span style={{ color: "#999", fontSize: "12px" }}>-</span>
                         )}
                       </td>
-                      <td>{item._customer || "-"}</td>
-                      <td>{item._soldDate || "-"}</td>
-                      <td>{item._taskId || "-"}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1854,7 +1958,7 @@ export default function StockUploadPage() {
           {Object.keys(deductionStatus).length > 0 && (
             <div style={{
               marginTop: "20px",
-              padding: "15px",
+              padding: mobileView ? "12px" : "15px",
               backgroundColor: "#e8f4fd",
               border: "1px solid #b6d4fe",
               borderRadius: "6px"
@@ -1862,29 +1966,27 @@ export default function StockUploadPage() {
               <div style={{ fontWeight: "bold", marginBottom: "10px", color: "#0c63e4" }}>
                 ⚠️ Pending Deductions ({Object.keys(deductionStatus).length})
               </div>
-              <div style={{ fontSize: "14px", marginBottom: "10px" }}>
-                The following sold quantities have been deducted from stock in this table. 
-                Click "Save All Items" to permanently update the database with the new quantities.
-                <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
-                  ✓ Deducted items are automatically hidden from this list.
-                </span>
+              <div style={{ fontSize: mobileView ? "12px" : "14px", marginBottom: "10px" }}>
+                {mobileView ? "Save to update database." : "Click 'Save All Items' to permanently update database."}
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+              <div style={{ 
+                display: "flex", 
+                flexWrap: "wrap", 
+                gap: mobileView ? "5px" : "10px" 
+              }}>
                 {Object.entries(deductionStatus).map(([itemId, status]) => (
                   <div key={itemId} style={{
                     background: "white",
-                    padding: "8px 12px",
+                    padding: mobileView ? "6px 8px" : "8px 12px",
                     borderRadius: "4px",
                     border: "1px solid #86b7fe",
-                    fontSize: "13px"
+                    fontSize: mobileView ? "11px" : "13px"
                   }}>
-                    <strong>Deducted:</strong> 
-                    <span style={{ color: "#dc3545", marginLeft: "5px" }}>
-                      {status.originalQty} → {status.newQty}
-                    </span>
-                    <span style={{ color: "#28a745", marginLeft: "5px" }}>
-                      (-{status.soldQty})
-                    </span>
+                    {mobileView ? (
+                      <span>{status.originalQty}→{status.newQty} (-{status.soldQty})</span>
+                    ) : (
+                      <><strong>Deducted:</strong> {status.originalQty} → {status.newQty} (-{status.soldQty})</>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1896,10 +1998,226 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
+  // Mobile Card View Component
+  // ----------------------------------------------------
+  const MobileCardView = () => {
+    return (
+      <div style={{ marginTop: "16px" }}>
+        {currentRows.map((row, idx) => {
+          const hasDeduction = Object.values(deductionStatus).some(
+            status => status.stockItemId === row._id
+          );
+          const isExpanded = expandedCard === row._id;
+          
+          return (
+            <div
+              key={row._id || idx}
+              style={{
+                backgroundColor: hasDeduction ? "#f8f9e6" : "white",
+                border: hasDeduction ? "2px solid #ff9800" : "1px solid #ddd",
+                borderRadius: "8px",
+                marginBottom: "12px",
+                padding: "12px",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)"
+              }}
+            >
+              {/* Card Header */}
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "8px",
+                paddingBottom: "8px",
+                borderBottom: "1px solid #eee"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{
+                    backgroundColor: "#f3f3f3",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}>
+                    #{indexOfFirstRow + idx + 1}
+                  </span>
+                  <span style={{
+                    backgroundColor: hasDeduction ? "#ff9800" : "#007bff",
+                    color: "white",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    fontSize: "11px"
+                  }}>
+                    ID: {row["ID"] || "New"}
+                  </span>
+                </div>
+                <button
+                  onClick={() => deleteRow(row._id, row)}
+                  style={{
+                    background: "#e74c3c",
+                    color: "white",
+                    border: "none",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    cursor: "pointer"
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+
+              {/* Main Info */}
+              <div style={{ marginBottom: "12px" }}>
+                <div style={{ fontWeight: "bold", fontSize: "16px", marginBottom: "4px" }}>
+                  {row["Item Name"] || "No Item Name"}
+                </div>
+                <div style={{ fontSize: "14px", color: "#666", marginBottom: "4px" }}>
+                  {row["Brand"] || "No Brand"}
+                </div>
+                {row["Brand Code"] && (
+                  <div style={{ fontSize: "12px", color: "#888" }}>
+                    Code: {row["Brand Code"]}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Stats */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "8px",
+                marginBottom: "12px"
+              }}>
+                <div style={{
+                  backgroundColor: "#f5f5f5",
+                  padding: "6px",
+                  borderRadius: "4px",
+                  textAlign: "center"
+                }}>
+                  <div style={{ fontSize: "10px", color: "#666" }}>Qty</div>
+                  <div style={{ fontWeight: "bold", fontSize: "14px" }}>{row["Qty"] || "0"}</div>
+                </div>
+                <div style={{
+                  backgroundColor: "#f5f5f5",
+                  padding: "6px",
+                  borderRadius: "4px",
+                  textAlign: "center"
+                }}>
+                  <div style={{ fontSize: "10px", color: "#666" }}>L×W</div>
+                  <div style={{ fontWeight: "bold", fontSize: "14px" }}>
+                    {row["Length"] || "0"}×{row["Width"] || "0"}
+                  </div>
+                </div>
+                <div style={{
+                  backgroundColor: "#f5f5f5",
+                  padding: "6px",
+                  borderRadius: "4px",
+                  textAlign: "center"
+                }}>
+                  <div style={{ fontSize: "10px", color: "#666" }}>Price</div>
+                  <div style={{ fontWeight: "bold", fontSize: "14px" }}>
+                    ₹{row["Buy Price"] || "0"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Expand/Collapse Button */}
+              <button
+                onClick={() => setExpandedCard(isExpanded ? null : row._id)}
+                style={{
+                  width: "100%",
+                  padding: "8px",
+                  backgroundColor: "#f8f9fa",
+                  border: "1px solid #dee2e6",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                  marginBottom: isExpanded ? "12px" : "0"
+                }}
+              >
+                {isExpanded ? "▲ Show Less" : "▼ Show All Fields"}
+              </button>
+
+              {/* Expanded Fields */}
+              {isExpanded && (
+                <div style={{
+                  marginTop: "12px",
+                  borderTop: "1px dashed #dee2e6",
+                  paddingTop: "12px"
+                }}>
+                  {fixedHeaders.filter(h => 
+                    !["ID", "Item Name", "Brand", "Qty", "Length", "Width", "Buy Price"].includes(h)
+                  ).map(header => (
+                    <div key={header} style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "6px 0",
+                      borderBottom: "1px solid #f0f0f0"
+                    }}>
+                      <span style={{ fontSize: "12px", color: "#666" }}>
+                        {header === "AutoCalculate Count" ? "Count" : header}:
+                      </span>
+                      {header === "AutoCalculate Count" ? (
+                        <span style={{
+                          backgroundColor: "#e8f4fd",
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          fontSize: "12px",
+                          fontWeight: "bold"
+                        }}>
+                          {row[header] || "0"}
+                        </span>
+                      ) : (
+                        <input
+                          value={row[header] ?? ""}
+                          onChange={(e) => updateCell(row._id, header, e.target.value)}
+                          style={{
+                            width: "60%",
+                            padding: "4px",
+                            border: "1px solid #ddd",
+                            borderRadius: "4px",
+                            fontSize: "12px"
+                          }}
+                          placeholder="—"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {hasDeduction && (
+                <div style={{
+                  marginTop: "8px",
+                  padding: "6px",
+                  backgroundColor: "#fff3cd",
+                  border: "1px solid #ffeeba",
+                  borderRadius: "4px",
+                  fontSize: "11px",
+                  color: "#856404",
+                  textAlign: "center"
+                }}>
+                  ⚠️ Pending deduction - Save to update
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // ----------------------------------------------------
   // Render UI
   // ----------------------------------------------------
   return (
-    <div style={{ width: "100%", padding: 20, fontFamily: "Segoe UI, Arial" }}>
+    <div style={{ 
+      width: "100%", 
+      padding: mobileView ? "10px" : "20px", 
+      fontFamily: "Segoe UI, Arial",
+      maxWidth: "100%",
+      overflowX: "hidden"
+    }}>
       <Keyframes />
 
       {/* Issues box */}
@@ -1907,61 +2225,101 @@ export default function StockUploadPage() {
         <div
           style={{
             background: "#fff8e1",
-            padding: 12,
-            marginBottom: 18,
-            borderRadius: 6,
+            padding: mobileView ? "10px" : "12px",
+            marginBottom: "18px",
+            borderRadius: "6px",
             border: "1px solid #ffcc80",
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: mobileView ? "14px" : "16px", marginBottom: "8px" }}>
             Issues Found ({unmatched.length})
           </div>
 
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ minWidth: 180, fontWeight: 600 }}>Item</div>
-            <div style={{ minWidth: 120, fontWeight: 600 }}>Brand</div>
-            <div style={{ minWidth: 120, fontWeight: 600 }}>Batch</div>
-            <div style={{ minWidth: 80, fontWeight: 600 }}>HSN</div>
-            <div style={{ minWidth: 80, fontWeight: 600 }}>MRP</div>
-            <div style={{ minWidth: 120, fontWeight: 600 }}>Status</div>
-          </div>
-
-          <div style={{ marginTop: 8, maxHeight: 200, overflowY: 'auto' }}>
-            {unmatched.map((u, i) => (
-              <div key={i} style={{ display: "flex", gap: 12, padding: "4px 0" }}>
-                <div style={{ minWidth: 180, color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1" }}>
-                  {u.Item || "(No Item)"}
-                </div>
-                <div style={{ minWidth: 120, color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1" }}>
-                  {u.Brand || "(No Brand)"}
-                </div>
-                <div style={{ minWidth: 120 }}>{u.Batch}</div>
-                <div style={{ minWidth: 80 }}>{u.HSN}</div>
-                <div style={{ minWidth: 80 }}>{u.MRP}</div>
-                <div style={{ 
-                  minWidth: 120, 
-                  color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1",
-                  fontWeight: 600 
-                }}>
-                  {u.Status}
-                </div>
+          {!mobileView ? (
+            <>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                <div style={{ minWidth: 180, fontWeight: 600 }}>Item</div>
+                <div style={{ minWidth: 120, fontWeight: 600 }}>Brand</div>
+                <div style={{ minWidth: 120, fontWeight: 600 }}>Batch</div>
+                <div style={{ minWidth: 80, fontWeight: 600 }}>HSN</div>
+                <div style={{ minWidth: 80, fontWeight: 600 }}>MRP</div>
+                <div style={{ minWidth: 120, fontWeight: 600 }}>Status</div>
               </div>
-            ))}
-          </div>
 
-          <div style={{ marginTop: 10, display: 'flex', gap: 8 }}>
+              <div style={{ marginTop: 8, maxHeight: 200, overflowY: 'auto' }}>
+                {unmatched.map((u, i) => (
+                  <div key={i} style={{ display: "flex", gap: 12, padding: "4px 0" }}>
+                    <div style={{ minWidth: 180, color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1" }}>
+                      {u.Item || "(No Item)"}
+                    </div>
+                    <div style={{ minWidth: 120, color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1" }}>
+                      {u.Brand || "(No Brand)"}
+                    </div>
+                    <div style={{ minWidth: 120 }}>{u.Batch}</div>
+                    <div style={{ minWidth: 80 }}>{u.HSN}</div>
+                    <div style={{ minWidth: 80 }}>{u.MRP}</div>
+                    <div style={{ 
+                      minWidth: 120, 
+                      color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1",
+                      fontWeight: 600 
+                    }}>
+                      {u.Status}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            // Mobile view for unmatched items
+            <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+              {unmatched.map((u, i) => (
+                <div key={i} style={{
+                  padding: "8px",
+                  marginBottom: "6px",
+                  backgroundColor: "white",
+                  borderRadius: "4px",
+                  border: "1px solid #ffcc80"
+                }}>
+                  <div style={{ fontWeight: "bold", fontSize: "13px" }}>{u.Item || "(No Item)"}</div>
+                  <div style={{ fontSize: "12px", marginTop: "4px" }}>
+                    <span style={{ color: "#666" }}>Brand:</span> {u.Brand || "(No Brand)"}
+                  </div>
+                  <div style={{ fontSize: "12px" }}>
+                    <span style={{ color: "#666" }}>Batch:</span> {u.Batch}
+                  </div>
+                  <div style={{ 
+                    fontSize: "12px", 
+                    fontWeight: "bold",
+                    color: u.Status?.includes('Duplicate') ? "#d84315" : "#0288d1",
+                    marginTop: "4px"
+                  }}>
+                    Status: {u.Status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ 
+            marginTop: 10, 
+            display: 'flex', 
+            flexDirection: mobileView ? "column" : "row",
+            gap: mobileView ? "8px" : "8px" 
+          }}>
             <button
               onClick={handleDownloadUnmatched}
               style={{
                 background: "#ff5722",
                 color: "#fff",
                 border: "none",
-                padding: "8px 12px",
+                padding: mobileView ? "10px" : "8px 12px",
                 borderRadius: 5,
                 cursor: "pointer",
+                width: mobileView ? "100%" : "auto",
+                fontSize: mobileView ? "14px" : "13px"
               }}
             >
-              Download Issues (Excel)
+              Download Issues
             </button>
             
             <button
@@ -1970,9 +2328,11 @@ export default function StockUploadPage() {
                 background: "#78909c",
                 color: "#fff",
                 border: "none",
-                padding: "8px 12px",
+                padding: mobileView ? "10px" : "8px 12px",
                 borderRadius: 5,
                 cursor: "pointer",
+                width: mobileView ? "100%" : "auto",
+                fontSize: mobileView ? "14px" : "13px"
               }}
             >
               Clear Issues
@@ -1986,49 +2346,49 @@ export default function StockUploadPage() {
         <div
           style={{
             background: "#d1ecf1",
-            padding: 12,
-            marginBottom: 18,
-            borderRadius: 6,
+            padding: mobileView ? "10px" : "12px",
+            marginBottom: "18px",
+            borderRadius: "6px",
             border: "1px solid #bee5eb",
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, color: "#0c5460" }}>
+          <div style={{ fontWeight: 700, fontSize: mobileView ? "14px" : "16px", marginBottom: "8px", color: "#0c5460" }}>
             📊 Stock Deductions Pending ({Object.keys(deductionStatus).length})
           </div>
-          <div style={{ marginBottom: 10, color: "#0c5460" }}>
-            You have deducted quantities from {Object.keys(deductionStatus).length} sold items.
-            Click "Save All Items" to permanently update stock quantities in the database.
-            <span style={{ color: "#28a745", fontWeight: "bold", marginLeft: "10px" }}>
-              ✓ Deducted items are automatically hidden from the list.
-            </span>
+          <div style={{ marginBottom: "10px", color: "#0c5460", fontSize: mobileView ? "12px" : "14px" }}>
+            {mobileView ? "Save to update database." : "Click 'Save All Items' to permanently update stock quantities."}
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: mobileView ? "column" : "row", gap: mobileView ? "8px" : "8px" }}>
             <button
               onClick={saveToBackend}
               style={{
                 background: "green",
                 color: "#fff",
                 border: "none",
-                padding: "8px 16px",
+                padding: mobileView ? "10px" : "8px 16px",
                 borderRadius: 5,
                 cursor: "pointer",
-                fontWeight: "bold"
+                fontWeight: "bold",
+                width: mobileView ? "100%" : "auto",
+                fontSize: mobileView ? "14px" : "13px"
               }}
             >
-              💾 Save All Items (Including Deductions)
+              💾 Save All Items
             </button>
             <button
               onClick={() => {
                 setDeductionStatus({});
-                fetchSoldItems(); // Refresh to show all items again
+                fetchSoldItems();
               }}
               style={{
                 background: "#6c757d",
                 color: "#fff",
                 border: "none",
-                padding: "8px 16px",
+                padding: mobileView ? "10px" : "8px 16px",
                 borderRadius: 5,
                 cursor: "pointer",
+                width: mobileView ? "100%" : "auto",
+                fontSize: mobileView ? "14px" : "13px"
               }}
             >
               Clear Deductions
@@ -2038,13 +2398,35 @@ export default function StockUploadPage() {
       )}
 
       {/* Header + actions */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>Stock Bulk Upload</h2>
+      <div style={{ 
+        display: "flex", 
+        flexDirection: mobileView ? "column" : "row",
+        justifyContent: "space-between", 
+        alignItems: mobileView ? "stretch" : "center", 
+        gap: mobileView ? "12px" : "12px", 
+        marginBottom: "16px" 
+      }}>
+        <h2 style={{ margin: 0, fontSize: mobileView ? "20px" : "24px" }}>Stock Bulk Upload</h2>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ 
+          display: "flex", 
+          flexDirection: mobileView ? "column" : "row",
+          gap: mobileView ? "8px" : "8px",
+          alignItems: mobileView ? "stretch" : "center",
+          width: mobileView ? "100%" : "auto"
+        }}>
           <button
             onClick={handleAddRows}
-            style={{ background: "#009688", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            style={{ 
+              background: "#009688", 
+              color: "#fff", 
+              padding: mobileView ? "10px" : "8px 12px", 
+              borderRadius: 6, 
+              border: "none", 
+              cursor: "pointer",
+              fontSize: mobileView ? "14px" : "13px",
+              width: mobileView ? "100%" : "auto"
+            }}
             disabled={loadingStock || saving}
             title="Add empty rows"
           >
@@ -2053,7 +2435,16 @@ export default function StockUploadPage() {
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            style={{ background: "#1e73e8", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            style={{ 
+              background: "#1e73e8", 
+              color: "#fff", 
+              padding: mobileView ? "10px" : "8px 12px", 
+              borderRadius: 6, 
+              border: "none", 
+              cursor: "pointer",
+              fontSize: mobileView ? "14px" : "13px",
+              width: mobileView ? "100%" : "auto"
+            }}
             disabled={loadingStock || saving}
           >
             Bulk Upload
@@ -2062,25 +2453,41 @@ export default function StockUploadPage() {
 
           <button
             onClick={() => setShowGrnModal(true)}
-            style={{ background: "#ff9800", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            style={{ 
+              background: "#ff9800", 
+              color: "#fff", 
+              padding: mobileView ? "10px" : "8px 12px", 
+              borderRadius: 6, 
+              border: "none", 
+              cursor: "pointer",
+              fontSize: mobileView ? "14px" : "13px",
+              width: mobileView ? "100%" : "auto"
+            }}
             disabled={loadingGrn}
-            title="Import from GRN (items will get Length & Width from matching stock)"
           >
-            Import from GRN
+            {mobileView ? "GRN" : "Import from GRN"}
             {loadingGrn && <span style={spinnerStyle} />}
           </button>
 
-          {/* Import from Stock Sold button */}
           <button
             onClick={() => {
               setShowSoldModal(true);
               fetchSoldItems();
             }}
-            style={{ background: "#9c27b0", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            style={{ 
+              background: "#9c27b0", 
+              color: "#fff", 
+              padding: mobileView ? "10px" : "8px 12px", 
+              borderRadius: 6, 
+              border: "none", 
+              cursor: "pointer",
+              fontSize: mobileView ? "14px" : "13px",
+              width: mobileView ? "100%" : "auto",
+              position: "relative"
+            }}
             disabled={loadingSold}
-            title="Import from Stock Sold (deduct sold quantities from current stock)"
           >
-            Import from Stock Sold
+            {mobileView ? "Sold" : "Import from Sold"}
             {loadingSold && <span style={spinnerStyle} />}
             {Object.keys(deductionStatus).length > 0 && (
               <span style={{
@@ -2106,61 +2513,72 @@ export default function StockUploadPage() {
             style={{ 
               background: Object.keys(deductionStatus).length > 0 ? "#28a745" : "green", 
               color: "#fff", 
-              padding: "8px 16px", 
+              padding: mobileView ? "10px" : "8px 16px", 
               borderRadius: 6, 
               border: "none", 
               cursor: "pointer",
-              fontWeight: Object.keys(deductionStatus).length > 0 ? "bold" : "normal"
+              fontWeight: Object.keys(deductionStatus).length > 0 ? "bold" : "normal",
+              fontSize: mobileView ? "14px" : "13px",
+              width: mobileView ? "100%" : "auto"
             }}
             disabled={saving}
-            title={Object.keys(deductionStatus).length > 0 ? "Save all items including stock deductions" : "Save all items"}
           >
-            {saving ? "Processing..." : Object.keys(deductionStatus).length > 0 ? `💾 Save (${Object.keys(deductionStatus).length} deductions)` : "Save All Items"}
+            {saving ? "Processing..." : mobileView ? "Save" : Object.keys(deductionStatus).length > 0 ? `Save (${Object.keys(deductionStatus).length})` : "Save All"}
             {saving && <span style={spinnerStyle} />}
           </button>
 
           <button
             onClick={exportToExcel}
-            style={{ background: "#673ab7", color: "#fff", padding: "8px 12px", borderRadius: 6, border: "none", cursor: "pointer" }}
+            style={{ 
+              background: "#673ab7", 
+              color: "#fff", 
+              padding: mobileView ? "10px" : "8px 12px", 
+              borderRadius: 6, 
+              border: "none", 
+              cursor: "pointer",
+              fontSize: mobileView ? "14px" : "13px",
+              width: mobileView ? "100%" : "auto"
+            }}
             disabled={rows.length === 0 || saving}
           >
-            Export Excel
+            {mobileView ? "Export" : "Export Excel"}
           </button>
         </div>
       </div>
 
       {/* Search Bar */}
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: "16px" }}>
         <div style={{ 
           display: "flex", 
-          alignItems: "center", 
-          gap: 8,
+          flexDirection: mobileView ? "column" : "row",
+          alignItems: mobileView ? "stretch" : "center", 
+          gap: mobileView ? "8px" : "8px",
           backgroundColor: "#f8f9fa",
-          padding: "12px 16px",
+          padding: mobileView ? "12px" : "12px 16px",
           borderRadius: "6px",
           border: "1px solid #dee2e6"
         }}>
-          <div style={{ fontWeight: 600, minWidth: 100 }}>Search:</div>
+          {!mobileView && <div style={{ fontWeight: 600, minWidth: 100 }}>Search:</div>}
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => handleSearch(e.target.value)}
-            placeholder="Search in all columns..."
+            placeholder={mobileView ? "Search items..." : "Search in all columns..."}
             style={{
               flex: 1,
-              padding: "8px 12px",
+              padding: mobileView ? "10px" : "8px 12px",
               border: "1px solid #ced4da",
               borderRadius: "4px",
-              fontSize: "14px"
+              fontSize: mobileView ? "16px" : "14px"
             }}
           />
           <div style={{ 
             color: "#6c757d", 
-            fontSize: "14px",
-            minWidth: 120,
-            textAlign: "right"
+            fontSize: mobileView ? "13px" : "14px",
+            textAlign: mobileView ? "left" : "right",
+            padding: mobileView ? "0 4px" : "0"
           }}>
-            {searchTerm ? `Found: ${filteredRows.length} items` : `Total: ${rows.length} items`}
+            {searchTerm ? `Found: ${filteredRows.length}` : `Total: ${rows.length}`}
           </div>
           {searchTerm && (
             <button
@@ -2169,13 +2587,14 @@ export default function StockUploadPage() {
                 background: "#6c757d",
                 color: "#fff",
                 border: "none",
-                padding: "8px 12px",
+                padding: mobileView ? "10px" : "8px 12px",
                 borderRadius: "4px",
                 cursor: "pointer",
-                fontSize: "14px"
+                fontSize: mobileView ? "14px" : "14px",
+                width: mobileView ? "100%" : "auto"
               }}
             >
-              Clear Search
+              Clear
             </button>
           )}
         </div>
@@ -2184,18 +2603,18 @@ export default function StockUploadPage() {
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleFile} />
 
       {/* Status messages */}
-      <div style={{ marginTop: 12 }}>
+      <div style={{ marginTop: "12px" }}>
         {loadingStock && (
-          <div style={{ color: "#333", marginBottom: 6 }}>
+          <div style={{ color: "#333", marginBottom: 6, fontSize: mobileView ? "14px" : "16px" }}>
             Loading stock...
             <span style={spinnerStyle} />
           </div>
         )}
         {error && (
-          <div style={{ color: "red", fontWeight: 700, marginBottom: 6 }}>{error}</div>
+          <div style={{ color: "red", fontWeight: 700, marginBottom: 6, fontSize: mobileView ? "14px" : "16px" }}>{error}</div>
         )}
         {success && (
-          <div style={{ color: "green", fontWeight: 700, marginBottom: 6 }}>{success}</div>
+          <div style={{ color: "green", fontWeight: 700, marginBottom: 6, fontSize: mobileView ? "14px" : "16px" }}>{success}</div>
         )}
       </div>
 
@@ -2203,295 +2622,201 @@ export default function StockUploadPage() {
       {displayRows.length > 0 && (
         <div style={{ 
           display: "flex", 
+          flexDirection: mobileView ? "column" : "row",
           justifyContent: "space-between", 
-          alignItems: "center", 
+          alignItems: mobileView ? "flex-start" : "center", 
+          gap: mobileView ? "12px" : "0",
           margin: "16px 0", 
-          padding: "12px 16px",
+          padding: mobileView ? "12px" : "12px 16px",
           backgroundColor: "#f8f9fa",
           borderRadius: "6px",
           border: "1px solid #dee2e6"
         }}>
-          <div style={{ fontWeight: 600 }}>
-            Showing {indexOfFirstRow + 1} to {Math.min(indexOfLastRow, displayRows.length)} of {displayRows.length} entries
+          <div style={{ fontWeight: 600, fontSize: mobileView ? "13px" : "14px" }}>
+            {mobileView ? (
+              <>Page {currentPage} of {totalPages} ({displayRows.length} items)</>
+            ) : (
+              <>Showing {indexOfFirstRow + 1} to {Math.min(indexOfLastRow, displayRows.length)} of {displayRows.length} entries</>
+            )}
             {searchTerm && <span style={{ color: "#007bff", marginLeft: 8 }}>(Filtered)</span>}
             {Object.keys(deductionStatus).length > 0 && (
-              <span style={{ color: "#28a745", marginLeft: 8 }}>
-                • {Object.keys(deductionStatus).length} deductions pending
-              </span>
+              <span style={{ color: "#28a745", marginLeft: 8 }}>• {Object.keys(deductionStatus).length} pending</span>
             )}
           </div>
           
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <button
-              onClick={handleFirstPage}
-              disabled={currentPage === 1}
-              style={{
-                padding: "6px 12px",
-                border: "1px solid #ddd",
-                background: currentPage === 1 ? "#f5f5f5" : "#fff",
-                color: currentPage === 1 ? "#999" : "#333",
-                cursor: currentPage === 1 ? "default" : "pointer",
-                borderRadius: "4px"
-              }}
-              title="First Page"
-            >
-              «
-            </button>
-            
-            <button
-              onClick={handlePrevPage}
-              disabled={currentPage === 1}
-              style={{
-                padding: "6px 12px",
-                border: "1px solid #ddd",
-                background: currentPage === 1 ? "#f5f5f5" : "#fff",
-                color: currentPage === 1 ? "#999" : "#333",
-                cursor: currentPage === 1 ? "default" : "pointer",
-                borderRadius: "4px"
-              }}
-              title="Previous Page"
-            >
-              ‹
-            </button>
-            
-            {renderPageNumbers().map((page, index) => (
-              page === "..." ? (
-                <span key={`ellipsis-${index}`} style={{ padding: "0 8px" }}>...</span>
-              ) : (
-                <button
-                  key={page}
-                  onClick={() => goToPage(page)}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid #ddd",
-                    background: currentPage === page ? "#007bff" : "#fff",
-                    color: currentPage === page ? "#fff" : "#333",
-                    cursor: "pointer",
-                    borderRadius: "4px",
-                    fontWeight: currentPage === page ? "bold" : "normal"
-                  }}
-                >
-                  {page}
-                </button>
-              )
-            ))}
-            
-            <button
-              onClick={handleNextPage}
-              disabled={currentPage === totalPages}
-              style={{
-                padding: "6px 12px",
-                border: "1px solid #ddd",
-                background: currentPage === totalPages ? "#f5f5f5" : "#fff",
-                color: currentPage === totalPages ? "#999" : "#333",
-                cursor: currentPage === totalPages ? "default" : "pointer",
-                borderRadius: "4px"
-              }}
-              title="Next Page"
-            >
-              ›
-            </button>
-            
-            <button
-              onClick={handleLastPage}
-              disabled={currentPage === totalPages}
-              style={{
-                padding: "6px 12px",
-                border: "1px solid #ddd",
-                background: currentPage === totalPages ? "#f5f5f5" : "#fff",
-                color: currentPage === totalPages ? "#999" : "#333",
-                cursor: currentPage === totalPages ? "default" : "pointer",
-                borderRadius: "4px"
-              }}
-              title="Last Page"
-            >
-              »
-            </button>
-          </div>
+          {!mobileView && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <button onClick={handleFirstPage} disabled={currentPage === 1} style={pageButtonStyle(currentPage === 1)}>«</button>
+              <button onClick={handlePrevPage} disabled={currentPage === 1} style={pageButtonStyle(currentPage === 1)}>‹</button>
+              {renderPageNumbers().map((page, index) => (
+                page === "..." ? (
+                  <span key={`ellipsis-${index}`} style={{ padding: "0 8px" }}>...</span>
+                ) : (
+                  <button
+                    key={page}
+                    onClick={() => goToPage(page)}
+                    style={{
+                      ...pageButtonStyle(false),
+                      background: currentPage === page ? "#007bff" : "#fff",
+                      color: currentPage === page ? "#fff" : "#333",
+                      fontWeight: currentPage === page ? "bold" : "normal"
+                    }}
+                  >
+                    {page}
+                  </button>
+                )
+              ))}
+              <button onClick={handleNextPage} disabled={currentPage === totalPages} style={pageButtonStyle(currentPage === totalPages)}>›</button>
+              <button onClick={handleLastPage} disabled={currentPage === totalPages} style={pageButtonStyle(currentPage === totalPages)}>»</button>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Table */}
-      <div style={{ overflowX: "auto", marginTop: displayRows.length > 0 ? 0 : 16 }}>
-        <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead style={{ background: "#f3f3f3", position: "sticky", top: 0 }}>
-            <tr>
-              <th style={{ minWidth: 36 }}>#</th>
-              {fixedHeaders.map((h) => (
-                <th key={h} style={{ minWidth: 120 }}>
-                  {h === "AutoCalculate Count" ? "Count (Length×Width×Qty)" : h}
-                </th>
-              ))}
-              <th style={{ minWidth: 120 }}>Action</th>
-            </tr>
-          </thead>
+      {/* Table or Mobile Card View */}
+      {mobileView ? (
+        <MobileCardView />
+      ) : (
+        <div style={{ overflowX: "auto", marginTop: displayRows.length > 0 ? 0 : 16 }}>
+          <table border="1" cellPadding="6" style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead style={{ background: "#f3f3f3", position: "sticky", top: 0 }}>
+              <tr>
+                <th style={{ minWidth: 36 }}>#</th>
+                {fixedHeaders.map((h) => (
+                  <th key={h} style={{ minWidth: 120 }}>
+                    {h === "AutoCalculate Count" ? "Count" : h}
+                  </th>
+                ))}
+                <th style={{ minWidth: 120 }}>Action</th>
+              </tr>
+            </thead>
 
-          <tbody>
-            {currentRows.length > 0 ? (
-              currentRows.map((row, idx) => {
-                const hasDeduction = Object.values(deductionStatus).some(
-                  status => status.stockItemId === row._id
-                );
-                
-                return (
-                  <tr key={row._id || idx} style={{
-                    background: hasDeduction ? "#f8f9e6" : "transparent",
-                    borderLeft: hasDeduction ? "4px solid #ff9800" : "1px solid #ddd"
-                  }}>
-                    <td style={{ width: 36 }}>{indexOfFirstRow + idx + 1}</td>
+            <tbody>
+              {currentRows.length > 0 ? (
+                currentRows.map((row, idx) => {
+                  const hasDeduction = Object.values(deductionStatus).some(
+                    status => status.stockItemId === row._id
+                  );
+                  
+                  return (
+                    <tr key={row._id || idx} style={{
+                      background: hasDeduction ? "#f8f9e6" : "transparent",
+                      borderLeft: hasDeduction ? "4px solid #ff9800" : "1px solid #ddd"
+                    }}>
+                      <td style={{ width: 36 }}>{indexOfFirstRow + idx + 1}</td>
 
-                    {fixedHeaders.map((h) => (
-                      <td key={h}>
-                        {h === "AutoCalculate Count" ? (
-                          <div style={{ 
-                            width: "100%", 
-                            boxSizing: "border-box", 
-                            padding: 6,
-                            backgroundColor: "#f5f5f5",
-                            border: "1px solid #ddd",
-                            borderRadius: "3px",
-                            textAlign: "center",
-                            fontWeight: "bold"
-                          }}>
-                            {row[h] || "0"}
-                          </div>
-                        ) : (
-                          <input
-                            value={row[h] ?? ""}
-                            onChange={(e) => updateCell(row._id, h, e.target.value)}
-                            style={{ 
+                      {fixedHeaders.map((h) => (
+                        <td key={h}>
+                          {h === "AutoCalculate Count" ? (
+                            <div style={{ 
                               width: "100%", 
                               boxSizing: "border-box", 
                               padding: 6,
+                              backgroundColor: "#f5f5f5",
                               border: "1px solid #ddd",
-                              borderRadius: "3px"
-                            }}
-                            placeholder={h === "ID" ? "Auto-generated" : ""}
-                            readOnly={h === "ID" && typeof row[h] === "string" && row[h].startsWith("ID")}
-                          />
+                              borderRadius: "3px",
+                              textAlign: "center",
+                              fontWeight: "bold"
+                            }}>
+                              {row[h] || "0"}
+                            </div>
+                          ) : (
+                            <input
+                              value={row[h] ?? ""}
+                              onChange={(e) => updateCell(row._id, h, e.target.value)}
+                              style={{ 
+                                width: "100%", 
+                                boxSizing: "border-box", 
+                                padding: 6,
+                                border: "1px solid #ddd",
+                                borderRadius: "3px"
+                              }}
+                              placeholder={h === "ID" ? "Auto" : ""}
+                              readOnly={h === "ID" && typeof row[h] === "string" && row[h].startsWith("ID")}
+                            />
+                          )}
+                        </td>
+                      ))}
+
+                      <td>
+                        <button
+                          onClick={() => deleteRow(row._id, row)}
+                          style={{ 
+                            background: "#e74c3c", 
+                            color: "#fff", 
+                            border: "none", 
+                            padding: "6px 10px", 
+                            borderRadius: 6, 
+                            cursor: "pointer" 
+                          }}
+                        >
+                          Delete
+                        </button>
+                        {hasDeduction && (
+                          <div style={{
+                            fontSize: "11px",
+                            color: "#ff9800",
+                            marginTop: "4px",
+                            fontWeight: "bold"
+                          }}>
+                            ⚠️ Pending
+                          </div>
                         )}
                       </td>
-                    ))}
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={fixedHeaders.length + 2} style={{ textAlign: "center", padding: 12 }}>
+                    {loadingStock 
+                      ? "Loading stock..." 
+                      : searchTerm 
+                      ? `No results found for "${searchTerm}"` 
+                      : "No data uploaded."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-                    <td>
-                      <button
-                        onClick={() => deleteRow(row._id, row)}
-                        style={{ 
-                          background: "#e74c3c", 
-                          color: "#fff", 
-                          border: "none", 
-                          padding: "6px 10px", 
-                          borderRadius: 6, 
-                          cursor: "pointer" 
-                        }}
-                      >
-                        Delete
-                      </button>
-                      {hasDeduction && (
-                        <div style={{
-                          fontSize: "11px",
-                          color: "#ff9800",
-                          marginTop: "4px",
-                          fontWeight: "bold"
-                        }}>
-                          ⚠️ Pending deduction
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            ) : (
-              <tr>
-                <td colSpan={fixedHeaders.length + 2} style={{ textAlign: "center", padding: 12 }}>
-                  {loadingStock 
-                    ? "Loading stock..." 
-                    : searchTerm 
-                    ? `No results found for "${searchTerm}"` 
-                    : "No data uploaded. Click Bulk Upload or Import from GRN."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination controls - BOTTOM */}
-      {displayRows.length > 0 && totalPages > 1 && (
+      {/* Mobile Pagination */}
+      {mobileView && displayRows.length > 0 && totalPages > 1 && (
         <div style={{ 
           display: "flex", 
           justifyContent: "center", 
           alignItems: "center", 
           marginTop: "20px", 
-          gap: "8px"
+          gap: "8px",
+          flexWrap: "wrap"
         }}>
-          <button
-            onClick={handleFirstPage}
-            disabled={currentPage === 1}
-            style={{
-              padding: "8px 12px",
-              border: "1px solid #ddd",
-              background: currentPage === 1 ? "#f5f5f5" : "#fff",
-              color: currentPage === 1 ? "#999" : "#333",
-              cursor: currentPage === 1 ? "default" : "pointer",
-              borderRadius: "4px"
-            }}
-            title="First Page"
-          >
-            « First
-          </button>
+          <button onClick={handleFirstPage} disabled={currentPage === 1} style={mobilePageButtonStyle(currentPage === 1)}>«</button>
+          <button onClick={handlePrevPage} disabled={currentPage === 1} style={mobilePageButtonStyle(currentPage === 1)}>‹</button>
           
-          <button
-            onClick={handlePrevPage}
-            disabled={currentPage === 1}
-            style={{
-              padding: "8px 12px",
-              border: "1px solid #ddd",
-              background: currentPage === 1 ? "#f5f5f5" : "#fff",
-              color: currentPage === 1 ? "#999" : "#333",
-              cursor: currentPage === 1 ? "default" : "pointer",
-              borderRadius: "4px"
-            }}
-            title="Previous Page"
-          >
-            Previous
-          </button>
+          {renderPageNumbers().map((page, index) => (
+            page === "..." ? (
+              <span key={`ellipsis-${index}`} style={{ padding: "0 4px", fontSize: "14px" }}>...</span>
+            ) : (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                style={{
+                  ...mobilePageButtonStyle(false),
+                  background: currentPage === page ? "#007bff" : "#f8f9fa",
+                  color: currentPage === page ? "#fff" : "#333",
+                  fontWeight: currentPage === page ? "bold" : "normal",
+                  minWidth: "36px"
+                }}
+              >
+                {page}
+              </button>
+            )
+          ))}
           
-          <div style={{ padding: "0 12px", fontWeight: 600 }}>
-            Page {currentPage} of {totalPages}
-          </div>
-          
-          <button
-            onClick={handleNextPage}
-            disabled={currentPage === totalPages}
-            style={{
-              padding: "8px 12px",
-              border: "1px solid #ddd",
-              background: currentPage === totalPages ? "#f5f5f5" : "#fff",
-              color: currentPage === totalPages ? "#999" : "#333",
-              cursor: currentPage === totalPages ? "default" : "pointer",
-              borderRadius: "4px"
-            }}
-            title="Next Page"
-          >
-            Next
-          </button>
-          
-          <button
-            onClick={handleLastPage}
-            disabled={currentPage === totalPages}
-            style={{
-              padding: "8px 12px",
-              border: "1px solid #ddd",
-              background: currentPage === totalPages ? "#f5f5f5" : "#fff",
-              color: currentPage === totalPages ? "#999" : "#333",
-              cursor: currentPage === totalPages ? "default" : "pointer",
-              borderRadius: "4px"
-            }}
-            title="Last Page"
-            >
-            Last »
-          </button>
+          <button onClick={handleNextPage} disabled={currentPage === totalPages} style={mobilePageButtonStyle(currentPage === totalPages)}>›</button>
+          <button onClick={handleLastPage} disabled={currentPage === totalPages} style={mobilePageButtonStyle(currentPage === totalPages)}>»</button>
         </div>
       )}
 
@@ -2503,3 +2828,24 @@ export default function StockUploadPage() {
     </div>
   );
 }
+
+// Helper styles
+const pageButtonStyle = (disabled) => ({
+  padding: "6px 12px",
+  border: "1px solid #ddd",
+  background: disabled ? "#f5f5f5" : "#fff",
+  color: disabled ? "#999" : "#333",
+  cursor: disabled ? "default" : "pointer",
+  borderRadius: "4px"
+});
+
+const mobilePageButtonStyle = (disabled) => ({
+  padding: "8px 12px",
+  border: "1px solid #ddd",
+  background: disabled ? "#f5f5f5" : "#fff",
+  color: disabled ? "#999" : "#333",
+  cursor: disabled ? "default" : "pointer",
+  borderRadius: "4px",
+  fontSize: "14px",
+  minWidth: "40px"
+});

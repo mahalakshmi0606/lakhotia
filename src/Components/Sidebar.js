@@ -178,7 +178,7 @@ export const menuItems = [
 
 const USER_TYPE_PERMISSION_API = "http://localhost:5000/api/user-type";
 
-const Sidebar = ({ isOpen }) => {
+const Sidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   const [allowedModules, setAllowedModules] = useState([]);
   const [expandedCategories, setExpandedCategories] = useState({});
@@ -224,6 +224,20 @@ const Sidebar = ({ isOpen }) => {
     }));
   };
 
+  // ⭐ Handle link click - close sidebar
+  const handleLinkClick = () => {
+    if (setIsOpen) {
+      setIsOpen(false);
+    }
+  };
+
+  // ⭐ Handle overlay click - close sidebar
+  const handleOverlayClick = () => {
+    if (setIsOpen) {
+      setIsOpen(false);
+    }
+  };
+
   // ⭐ Filter menu items based on permissions
   const getFilteredMenu = () => {
     // Show all modules if:
@@ -255,72 +269,128 @@ const Sidebar = ({ isOpen }) => {
   const filteredMenu = getFilteredMenu();
 
   return (
-    <div
-      style={{
-        ...styles.sidebar,
-        left: isOpen ? "0" : "-220px",
-      }}
-    >
-      {/* Header UserType Display */}
-      <div style={styles.header}>
-        <FaUserShield style={{ marginRight: "8px" }} />
-        <span style={{ textTransform: "capitalize" }}>
-          {userTypeName || "All Access"}
-        </span>
-      </div>
+    <>
+      {/* Overlay for mobile when sidebar is open */}
+      {isOpen && <div style={styles.overlay} onClick={handleOverlayClick} />}
+      
+      <div
+        style={{
+          ...styles.sidebar,
+          left: isOpen ? "0" : "-100%",
+        }}
+      >
+        {/* Header UserType Display */}
+        <div style={styles.header}>
+          <FaUserShield style={{ marginRight: "8px" }} />
+          <span style={{ textTransform: "capitalize" }}>
+            {userTypeName || "All Access"}
+          </span>
+        </div>
 
-      <div style={styles.menuContainer}>
-        {filteredMenu.map((category) => {
-          const isExpanded = expandedCategories[category.category] !== false;
-          
-          return (
-            <div key={category.category} style={styles.categoryContainer}>
-              {/* Category Header */}
-              <div 
-                style={styles.categoryHeader}
-                onClick={() => toggleCategory(category.category)}
-              >
-                <span style={styles.categoryIcon}>
-                  {getCategoryIcon(category.category)}
-                </span>
-                <span style={styles.categoryText}>
-                  {category.category}
-                </span>
-                <span style={styles.chevron}>
-                  {isExpanded ? <FaChevronDown /> : <FaChevronRight />}
-                </span>
+        <div style={styles.menuContainer}>
+          {filteredMenu.map((category) => {
+            const isExpanded = expandedCategories[category.category] !== false;
+            
+            return (
+              <div key={category.category} style={styles.categoryContainer}>
+                {/* Category Header */}
+                <div 
+                  style={styles.categoryHeader}
+                  onClick={() => toggleCategory(category.category)}
+                >
+                  <span style={styles.categoryIcon}>
+                    {getCategoryIcon(category.category)}
+                  </span>
+                  <span style={styles.categoryText}>
+                    {category.category}
+                  </span>
+                  <span style={styles.chevron}>
+                    {isExpanded ? <FaChevronDown /> : <FaChevronRight />}
+                  </span>
+                </div>
+
+                {/* Category Items */}
+                {isExpanded && (
+                  <ul style={styles.menu}>
+                    {category.items.map((item) => {
+                      const isActive = location.pathname === item.path;
+                      return (
+                        <li
+                          key={item.name}
+                          style={{
+                            ...styles.menuItem,
+                            backgroundColor: isActive ? "#f5c518" : "transparent",
+                            color: isActive ? "#000" : "#333",
+                            fontWeight: isActive ? "600" : "500",
+                            borderLeft: isActive ? "3px solid #f5c518" : "3px solid transparent",
+                          }}
+                        >
+                          <Link to={item.path} style={styles.link} onClick={handleLinkClick}>
+                            <span style={styles.icon}>{item.icon}</span>
+                            <span style={styles.menuText}>{item.name}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
-
-              {/* Category Items */}
-              {isExpanded && (
-                <ul style={styles.menu}>
-                  {category.items.map((item) => {
-                    const isActive = location.pathname === item.path;
-                    return (
-                      <li
-                        key={item.name}
-                        style={{
-                          ...styles.menuItem,
-                          backgroundColor: isActive ? "#f5c518" : "transparent",
-                          color: isActive ? "#000" : "#333",
-                          fontWeight: isActive ? "600" : "500",
-                          borderLeft: isActive ? "3px solid #f5c518" : "3px solid transparent",
-                        }}
-                      >
-                        <Link to={item.path} style={styles.link}>
-                          <span style={styles.icon}>{item.icon}</span>
-                          <span style={styles.menuText}>{item.name}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Add CSS styles for better mobile view */}
+      <style jsx="true">{`
+        @media (max-width: 767px) {
+          body {
+            overflow: ${isOpen ? 'hidden' : 'auto'};
+          }
+          
+          /* Improved scrollbar for mobile */
+          div[style*="position: fixed"][style*="top: 45px"] {
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; /* Hide scrollbar for Firefox */
+          }
+          
+          div[style*="position: fixed"][style*="top: 45px"]::-webkit-scrollbar {
+            display: none; /* Hide scrollbar for Chrome/Safari */
+          }
+          
+          /* Make category headers more compact */
+          div[style*="background-color: #ffeaa7"] {
+            padding: 8px 12px !important;
+            min-height: 40px !important;
+            font-size: 13px !important;
+          }
+          
+          /* Make menu items more compact */
+          li[style*="minHeight: 44px"] {
+            min-height: 36px !important;
+            padding: 6px 12px 6px 25px !important;
+            margin: 2px 0 !important;
+          }
+          
+          /* Reduce icon size slightly */
+          span[style*="fontSize: 16px"] {
+            font-size: 14px !important;
+            min-width: 20px !important;
+            margin-right: 8px !important;
+          }
+          
+          /* Reduce text size */
+          span[style*="fontSize: 14px"] {
+            font-size: 12px !important;
+          }
+          
+          /* Make header more compact */
+          div[style*="background-color: #f5c518"] {
+            padding: 10px 8px !important;
+            font-size: 13px !important;
+          }
+        }
+      `}</style>
+    </>
   );
 };
 
@@ -328,7 +398,7 @@ const Sidebar = ({ isOpen }) => {
 const getCategoryIcon = (category) => {
   switch(category) {
     case "Dashboard": return <FaChartArea />;
-    case "Company Master": return <FaBriefcase />;
+    case "Partner Masters": return <FaBriefcase />;
     case "User & System": return <FaUsers />;
     case "Attendance & Reports": return <FaRegCalendarCheck />;
     case "Task Management": return <FaRegClipboard />;
@@ -339,95 +409,119 @@ const getCategoryIcon = (category) => {
   }
 };
 
-// ⭐ Styling
+// ⭐ Responsive Styling
 const styles = {
+  overlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    zIndex: 8,
+    display: "block",
+    "@media (min-width: 768px)": {
+      display: "none",
+    },
+  },
   sidebar: {
     backgroundColor: "#fff8dc",
     height: "calc(100vh - 45px)",
     position: "fixed",
     top: "45px",
     left: "0",
-    width: "220px",
+    width: "280px",
     boxShadow: "2px 0 8px rgba(0,0,0,0.15)",
     fontFamily: "Poppins, sans-serif",
     transition: "left 0.3s ease-in-out",
     overflowY: "auto",
     zIndex: 9,
     scrollbarWidth: "thin",
+    // Mobile first approach - full width on mobile
+    "@media (max-width: 767px)": {
+      width: "85%",
+      maxWidth: "280px",
+    },
   },
   header: {
     backgroundColor: "#f5c518",
     color: "#000",
     fontWeight: "600",
-    padding: "12px",
+    padding: "15px 12px",
     textAlign: "center",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
     borderBottom: "1px solid #e0e0e0",
-    fontSize: "14px",
+    fontSize: "15px",
     textTransform: "capitalize",
     position: "sticky",
     top: 0,
     zIndex: 10,
   },
   menuContainer: {
-    padding: "10px 0",
+    padding: "15px 0",
   },
   categoryContainer: {
-    marginBottom: "5px",
+    marginBottom: "8px",
   },
   categoryHeader: {
     display: "flex",
     alignItems: "center",
-    padding: "10px 15px",
+    padding: "12px 15px",
     backgroundColor: "#ffeaa7",
     color: "#2d3436",
     fontWeight: "600",
-    fontSize: "13px",
+    fontSize: "14px",
     cursor: "pointer",
     userSelect: "none",
     transition: "background-color 0.2s",
     borderBottom: "1px solid #fdcb6e",
+    minHeight: "44px",
   },
   categoryIcon: {
-    marginRight: "10px",
-    fontSize: "12px",
+    marginRight: "12px",
+    fontSize: "14px",
+    minWidth: "20px",
   },
   categoryText: {
     flexGrow: 1,
-    fontSize: "13px",
+    fontSize: "14px",
+    fontWeight: "600",
+    letterSpacing: "0.3px",
   },
   chevron: {
-    fontSize: "10px",
+    fontSize: "12px",
     opacity: 0.7,
   },
   menu: {
     listStyle: "none",
-    padding: "5px 0",
+    padding: "8px 0",
     margin: 0,
     backgroundColor: "#fffef5",
   },
   menuItem: {
     display: "flex",
     alignItems: "center",
-    padding: "8px 15px 8px 30px",
-    margin: "2px 0",
+    padding: "10px 15px 10px 30px",
+    margin: "4px 0",
     cursor: "pointer",
     transition: "all 0.2s ease",
-    fontSize: "13px",
+    fontSize: "14px",
     borderLeft: "3px solid transparent",
+    minHeight: "44px",
   },
   icon: {
-    marginRight: "10px",
-    fontSize: "14px",
-    minWidth: "20px",
+    marginRight: "12px",
+    fontSize: "16px",
+    minWidth: "24px",
     opacity: 0.8,
   },
   menuText: {
     flexGrow: 1,
-    lineHeight: "1.2",
-    fontSize: "13px",
+    lineHeight: "1.3",
+    fontSize: "14px",
+    fontWeight: "500",
   },
   link: {
     textDecoration: "none",

@@ -143,10 +143,11 @@ export default function QuotationModal() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState(null);
 
-  // Edit quotation modal state
+  // Edit quotation modal state - STEP FLOW
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingQuotation, setEditingQuotation] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [editStep, setEditStep] = useState(1); // 1: Company Details, 2: Items, 3: Preview
 
   // Modal states for multi-step flow
   const [showCompanyModal, setShowCompanyModal] = useState(false);
@@ -519,7 +520,7 @@ export default function QuotationModal() {
 
   // Fetch companies when company modal opens
   useEffect(() => {
-    if (!showCompanyModal) return;
+    if (!showCompanyModal && !showEditModal) return;
     
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
@@ -579,11 +580,11 @@ export default function QuotationModal() {
     };
     
     fetchCompanies();
-  }, [showCompanyModal]);
+  }, [showCompanyModal, showEditModal]);
 
   // Fetch stock items when items modal opens
   useEffect(() => {
-    if (!showItemsModal) return;
+    if (!showItemsModal && !showEditModal) return;
     
     const fetchStockItems = async () => {
       setLoadingStock(true);
@@ -661,7 +662,7 @@ export default function QuotationModal() {
     };
     
     fetchStockItems();
-  }, [showItemsModal]);
+  }, [showItemsModal, showEditModal]);
 
   // Handle bill to search (company name search)
   const handleBillToSearch = (searchTerm) => {
@@ -1156,7 +1157,7 @@ export default function QuotationModal() {
     }
   }
 
-  // Edit quotation - open edit modal for requote status only
+  // Edit quotation - open edit modal with step-by-step flow
   const editQuotation = async (quotation) => {
     if (quotation.status !== 'requote') {
       alert("Only quotations with 'requote' status can be edited.");
@@ -1204,13 +1205,8 @@ export default function QuotationModal() {
           };
         });
         
-        setEditingQuotation({
-          ...quoteData,
-          items: parsedItems
-        });
-        
+        // Set all form data
         setSelectedCompanyId(quoteData.company_id || "");
-        setSelectedCompany(null);
         setBillTo(quoteData.company_name || "");
         setCompanyAddress(quoteData.company_address || "");
         setCompanyPincode(quoteData.company_pincode || "");
@@ -1221,17 +1217,20 @@ export default function QuotationModal() {
         setCcEmail(quoteData.cc_email || "");
         setQuoteNo(quoteData.quote_number || "");
         setItems(parsedItems);
+        setProfitPercentage(quoteData.profit_percentage || 20);
         
+        // Set editing state
+        setEditingQuotation(quoteData);
         setIsEditing(true);
+        setEditStep(1); // Start from step 1
         setShowEditModal(true);
       } else {
         throw new Error(response.data.message || "Failed to load quotation");
       }
     } catch (err) {
       console.error("Error loading quotation for edit:", err);
-      alert("Failed to load quotation for editing. Using local data.");
       
-      setEditingQuotation(quotation);
+      // Fallback to local data
       setSelectedCompanyId("");
       setBillTo(quotation.company_name || quotation.billTo || "");
       setCompanyAddress(quotation.company_address || "");
@@ -1243,15 +1242,57 @@ export default function QuotationModal() {
       setCcEmail(quotation.cc_email || quotation.ccEmail || "");
       setQuoteNo(quotation.quote_number || quotation.quoteNo || "");
       setItems(quotation.items || []);
+      setProfitPercentage(quotation.profit_percentage || 20);
       
+      setEditingQuotation(quotation);
       setIsEditing(true);
+      setEditStep(1);
       setShowEditModal(true);
     }
+  };
+
+  // Edit step navigation functions
+  const goToEditItems = () => {
+    if (!billTo.trim()) {
+      alert("Please enter Bill To information!");
+      return;
+    }
+    setEditStep(2);
+  };
+
+  const goToEditPreview = () => {
+    if (items.length === 0) {
+      alert("Please add at least one item!");
+      return;
+    }
+    if (items.some(item => !item.item_name.trim())) {
+      alert("Please add item name for all items!");
+      return;
+    }
+    setEditStep(3);
+  };
+
+  const goBackToEditCompany = () => {
+    setEditStep(1);
+  };
+
+  const goBackToEditItems = () => {
+    setEditStep(2);
   };
 
   // Update quotation after editing
   const updateQuotation = async () => {
     if (!editingQuotation) return;
+    
+    if (!selectedCompanyId) {
+      alert("Please select a company first!");
+      return;
+    }
+    
+    if (!billTo.trim()) {
+      alert("Please enter Bill To information!");
+      return;
+    }
     
     if (items.length === 0) {
       alert("Please add at least one item!");
@@ -1349,6 +1390,7 @@ export default function QuotationModal() {
         setShowEditModal(false);
         setEditingQuotation(null);
         setIsEditing(false);
+        setEditStep(1);
         
         setItems([]);
         setSelectedCompanyId("");
@@ -1421,6 +1463,7 @@ export default function QuotationModal() {
           setShowEditModal(false);
           setEditingQuotation(null);
           setIsEditing(false);
+          setEditStep(1);
           
           setItems([]);
           setSelectedCompanyId("");
@@ -1669,9 +1712,6 @@ export default function QuotationModal() {
                   const discount = discountAmount(item);
                   const amountAfterDiscount = amountBeforeDiscount - discount;
                   
-                  // Calculate count: Length × Width × Quantity
-                  const count = (item.length || 0) * (item.cut_width || 0) * (item.quantity || 1);
-                  
                   return `
                     <tr>
                       <td>${index + 1}</td>
@@ -1679,7 +1719,7 @@ export default function QuotationModal() {
                       <td>${brand_code || item.brand_code || ''}</td>
                       <td>${item.cut_width || ''}</td>
                       <td>${item.length || ''}</td>
-                      <td>${item.supplier_part_no || ''}</td>
+                      <td>${item.supplier_part_no}</td>
                       <td>${customer_description || item.customer_description || ''}</td>
                       <td>${item.quantity || ''}</td>
                       <td>${item.unit || ''}</td>
@@ -1849,6 +1889,7 @@ export default function QuotationModal() {
       setIsEditing(false);
       setEditingQuotation(null);
       setSelectedEnquiry(null);
+      setEditStep(1);
     }
   };
 
@@ -2230,7 +2271,7 @@ export default function QuotationModal() {
         </div>
       </div>
 
-      {/* Enquiries Modal - UPDATED WITH PAGINATION */}
+      {/* Enquiries Modal */}
       {showEnquiriesModal && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-xl">
@@ -2702,24 +2743,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                {/* CC Email Field */}
-                <div className="mb-3">
-                  <label className="form-label">
-                    <i className="bi bi-person-badge me-1"></i>
-                    CC Email (Carbon Copy)
-                    <span className="text-muted ms-1 small">- Optional, for additional recipients</span>
-                  </label>
-                  <input
-                    type="email"
-                    className="form-control"
-                    value={ccEmail}
-                    onChange={(e) => setCcEmail(e.target.value)}
-                    placeholder="cc@example.com (comma-separated for multiple)"
-                  />
-                  <div className="form-text">
-                    Enter email addresses to send a carbon copy of this quotation. Separate multiple emails with commas.
-                  </div>
-                </div>
+                {/* CC Email Field - Commented out as per original */}
 
                 {/* Profit Percentage Input */}
                 <div className="mb-3">
@@ -2962,6 +2986,694 @@ export default function QuotationModal() {
         </div>
       )}
 
+      {/* Edit Quotation Modal - Step 1: Company Details */}
+      {showEditModal && editStep === 1 && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header bg-warning text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-pencil me-2"></i>
+                  Edit Quotation - Step 1: Company Details
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <div className={`d-flex align-items-center ${billTo.trim() ? 'text-success' : ''}`}>
+                    <div className={`rounded-circle ${billTo.trim() ? 'bg-success' : 'bg-primary'} text-white d-flex align-items-center justify-content-center`} style={{ width: '30px', height: '30px' }}>
+                      1
+                    </div>
+                    <span className="ms-2">Company Details</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-muted">
+                    <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
+                    <span className="ms-2">Edit Items</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-muted">
+                    <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
+                    <span className="ms-2">Preview</span>
+                  </div>
+                </div>
+
+                <div className="alert alert-info">
+                  <i className="bi bi-info-circle me-2"></i>
+                  You are editing a quotation with "requote" status. After saving, it will be changed to "draft" status.
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Search Company</label>
+                  <div className="position-relative">
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Type company name or contact..."
+                      value={billTo}
+                      onChange={(e) => handleBillToSearch(e.target.value)}
+                      onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                    />
+                    
+                    {showCompanyDropdown && filteredCompanies.length > 0 && (
+                      <div className="position-absolute w-100 bg-white border rounded shadow-sm" style={{ zIndex: 1000, maxHeight: '200px', overflowY: 'auto' }}>
+                        {filteredCompanies.map((company, index) => (
+                          <div
+                            key={company.id || index}
+                            className={`p-2 border-bottom ${selectedCompanyId === (company.id || company.ID)?.toString() ? 'bg-light' : ''}`}
+                            style={{ cursor: 'pointer' }}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              selectCompanyFromSearch(company);
+                            }}
+                          >
+                            <div className="fw-bold">{company.companyName || company.company_name}</div>
+                            <div className="text-muted small">
+                              {company.customerName || company.customer_name} • {company.customerMobile || company.customer_mobile}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Contact Person</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={contactPerson}
+                        onChange={(e) => setContactPerson(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Contact Mobile</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={contactMob}
+                        onChange={(e) => handleContactMobChange(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Company Address</label>
+                      <textarea
+                        className="form-control"
+                        rows="3"
+                        value={companyAddress}
+                        onChange={(e) => setCompanyAddress(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Pincode</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={companyPincode}
+                        onChange={(e) => setCompanyPincode(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Company GSTIN</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={companyGstin}
+                        onChange={(e) => setCompanyGstin(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Contact Email</label>
+                      <div className="input-group">
+                        <input
+                          type="email"
+                          className="form-control"
+                          value={contactEmail}
+                          onChange={(e) => {
+                            setContactEmail(e.target.value);
+                            if (e.target.value !== issuer.email) {
+                              setContactEmailSame(false);
+                            }
+                          }}
+                        />
+                        <div className="input-group-text">
+                          <input
+                            className="form-check-input me-1"
+                            type="checkbox"
+                            id="sameEmail"
+                            checked={contactEmailSame}
+                            onChange={(e) => setContactEmailSame(e.target.checked)}
+                          />
+                          <label className="form-check-label small" htmlFor="sameEmail">
+                            Use issuer email
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* CC Email Field */}
+                <div className="mb-3">
+                  <label className="form-label">
+                    <i className="bi bi-person-badge me-1"></i>
+                    CC Email (Carbon Copy)
+                  </label>
+                  <input
+                    type="email"
+                    className="form-control"
+                    value={ccEmail}
+                    onChange={(e) => setCcEmail(e.target.value)}
+                    placeholder="cc@example.com"
+                  />
+                </div>
+
+                {/* Profit Percentage Input */}
+                <div className="mb-3">
+                  <label className="form-label">
+                    <i className="bi bi-percent me-1"></i>
+                    Profit Percentage
+                  </label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={profitPercentage}
+                    onChange={(e) => setProfitPercentage(parseFloat(e.target.value) || 20)}
+                    placeholder="Enter profit percentage"
+                  />
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={cancelQuotation}>
+                    <i className="bi bi-x-circle me-1"></i>Cancel
+                  </button>
+                  <button type="button" className="btn btn-warning" onClick={goToEditItems} disabled={!billTo.trim()}>
+                    Next: Edit Items <i className="bi bi-arrow-right ms-1"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Quotation Modal - Step 2: Items */}
+      {showEditModal && editStep === 2 && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-warning text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-pencil me-2"></i>
+                  Edit Quotation - Step 2: Edit Items
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+              </div>
+              
+              <div className="modal-body">
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <div className="d-flex align-items-center text-success">
+                    <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
+                      <i className="bi bi-check"></i>
+                    </div>
+                    <span className="ms-2">Company Details</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-primary">
+                    <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
+                    <span className="ms-2">Edit Items</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-muted">
+                    <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
+                    <span className="ms-2">Preview</span>
+                  </div>
+                </div>
+
+                <div className="card mb-4">
+                  <div className="card-header bg-light">
+                    <div className="d-flex justify-content-between align-items-center">
+                      <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
+                      <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
+                        <i className="bi bi-plus-circle me-1"></i>Add Item
+                      </button>
+                    </div>
+                  </div>
+                  <div className="card-body p-0">
+                    {items.length === 0 ? (
+                      <div className="text-center py-5">
+                        <i className="bi bi-box display-1 text-muted mb-3"></i>
+                        <h5 className="text-muted">No items added</h5>
+                        <p className="text-muted">Click "Add Item" to start adding items to your quotation</p>
+                      </div>
+                    ) : (
+                      <div className="table-responsive">
+                        <table className="table table-hover mb-0">
+                          <thead className="table-light">
+                            <tr>
+                              <th width="50">#</th>
+                              <th>Item Name</th>
+                              <th width="120">Brand Code</th>
+                              <th width="120">Part No</th>
+                              <th width="80">Width</th>
+                              <th width="80">Length</th>
+                              <th width="80">Count</th>
+                              <th width="80">Qty</th>
+                              <th width="80">Unit</th>
+                              <th width="100">Price/Unit</th>
+                              <th width="120">Discount</th>
+                              <th width="100">Total</th>
+                              <th width="80">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((item, index) => (
+                              <tr key={item.id}>
+                                <td>{index + 1}</td>
+                                <td>
+                                  <div className="fw-bold">{item.item_name}</div>
+                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
+                                </td>
+                                <td>{item.brand_code || ''}</td>
+                                <td>
+                                  <input
+                                    type="text"
+                                    className="form-control form-control-sm"
+                                    value={item.supplier_part_no}
+                                    onChange={(e) => handleItemChange(index, "supplier_part_no", e.target.value)}
+                                    placeholder="Part No"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.cut_width}
+                                    onChange={(e) => handleItemChange(index, "cut_width", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    step="0.1"
+                                    value={item.length}
+                                    onChange={(e) => handleItemChange(index, "length", e.target.value)}
+                                  />
+                                </td>
+                                <td>
+                                  <div className="form-control form-control-sm bg-light">
+                                    {calculateCount(item).toFixed(2)}
+                                  </div>
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                                    placeholder="Enter quantity"
+                                  />
+                                </td>
+                                <td>{item.unit}</td>
+                                <td className="text-end">₹{pricePerUnit(item).toFixed(2)}</td>
+                                <td>
+                                  <div className="input-group input-group-sm">
+                                    <input
+                                      type="number"
+                                      className="form-control"
+                                      min="0"
+                                      step="0.01"
+                                      value={item.discount}
+                                      onChange={(e) => handleItemChange(index, "discount", e.target.value)}
+                                    />
+                                    <select
+                                      className="form-select"
+                                      style={{ width: '80px' }}
+                                      value={item.discount_type}
+                                      onChange={(e) => handleItemChange(index, "discount_type", e.target.value)}
+                                    >
+                                      <option value="amount">₹</option>
+                                      <option value="percentage">%</option>
+                                    </select>
+                                  </div>
+                                </td>
+                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
+                                <td>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => removeItem(index)}
+                                    title="Delete"
+                                  >
+                                    <i className="bi bi-trash"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">Quick Summary</h6>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Items:</span>
+                          <strong>{items.length}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Subtotal:</span>
+                          <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Discount:</span>
+                          <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between">
+                          <span>Tax:</span>
+                          <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                        </div>
+                        <hr />
+                        <div className="d-flex justify-content-between fw-bold">
+                          <span>Grand Total:</span>
+                          <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-secondary" onClick={goBackToEditCompany}>
+                    <i className="bi bi-arrow-left me-1"></i>Back to Company
+                  </button>
+                  <button type="button" className="btn btn-warning" onClick={goToEditPreview} disabled={items.length === 0 || items.some(item => !item.item_name.trim())}>
+                    Next: Preview <i className="bi bi-arrow-right ms-1"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Quotation Modal - Step 3: Preview */}
+      {showEditModal && editStep === 3 && (
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header bg-warning text-white">
+                <h5 className="modal-title">
+                  <i className="bi bi-pencil me-2"></i>
+                  Edit Quotation - Step 3: Preview & Save
+                </h5>
+                <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
+              </div>
+              <div className="modal-body">
+                <div className="d-flex justify-content-between align-items-center mb-4">
+                  <div className="d-flex align-items-center text-success">
+                    <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
+                      <i className="bi bi-check"></i>
+                    </div>
+                    <span className="ms-2">Company Details</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-success">
+                    <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
+                      <i className="bi bi-check"></i>
+                    </div>
+                    <span className="ms-2">Items</span>
+                  </div>
+                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="d-flex align-items-center text-primary">
+                    <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
+                    <span className="ms-2">Preview</span>
+                  </div>
+                </div>
+
+                <div ref={quotationRef}>
+                  <div className="container">
+                    <div className="invoice-header border-bottom pb-3 mb-3">
+                      <div className="row">
+                        <div className="col-2">
+                          <img 
+                            src={companyLogo} 
+                            alt="Company Logo" 
+                            className="img-fluid"
+                            style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                        <div className="col-5">
+                          <h1 className="mb-1">{issuer.name}</h1>
+                          <p className="mb-1">{issuer.address}</p>
+                          <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                          <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                        </div>
+                        <div className="col-5 text-end">
+                          <h2 className="text-warning mb-2">QUOTATION (EDIT)</h2>
+                          <p className="mb-1"><strong>Quote No:</strong> {quoteNo}</p>
+                          <p className="mb-1"><strong>Date:</strong> {date}</p>
+                          <p className="mb-1"><strong>Time:</strong> {time}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="row mb-4">
+                      <div className="col-6">
+                        <h5>Bill To:</h5>
+                        <p className="mb-1"><strong>{billTo}</strong></p>
+                        <p className="mb-1">{companyAddress}</p>
+                        {companyPincode && (
+                          <p className="mb-1">Pincode: {companyPincode}</p>
+                        )}
+                        <p className="mb-1">GSTIN: {companyGstin}</p>
+                      </div>
+                      <div className="col-6">
+                        <h5>Contact Details:</h5>
+                        <p className="mb-1"><strong>{contactPerson}</strong></p>
+                        <p className="mb-1">Phone: {contactMob}</p>
+                        <p className="mb-1">Email: {contactEmail}</p>
+                        {ccEmail && (
+                          <p className="mb-1">CC: {ccEmail}</p>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="table-responsive">
+                      <table className="table table-bordered">
+                        <thead className="table-light">
+                          <tr>
+                            <th>#</th>
+                            <th>Item Name</th>
+                            <th>Brand Code</th>
+                            <th>Cut Width</th>
+                            <th>Cut Length</th>
+                            <th>Part No</th>
+                            <th>Customer Description</th>
+                            <th>Qty</th>
+                            <th>UoM</th>
+                            <th>Price/Unit</th>
+                            <th>GST %</th>
+                            <th>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, index) => (
+                            <tr key={item.id}>
+                              <td>{index + 1}</td>
+                              <td><strong>{item.item_name}</strong></td>
+                              <td>{item.brand_code || ''}</td>
+                              <td>{item.cut_width}</td>
+                              <td>{item.length}</td>
+                              <td>{item.supplier_part_no}</td>
+                              <td>{item.customer_description || ''}</td>
+                              <td>{item.quantity}</td>
+                              <td>{item.unit}</td>
+                              <td>₹{pricePerUnit(item).toFixed(2)}</td>
+                              <td>{item.tax_rate}%</td>
+                              <td><strong>₹{amountAfterDiscount(item).toFixed(2)}</strong></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <div className="row mt-4">
+                      <div className="col-7">
+                        <h5 className="mb-2">Tax Summary:</h5>
+                        <table className="table table-bordered table-sm">
+                          <thead className="table-light">
+                            <tr>
+                              <th>GST %</th>
+                              <th>Taxable Amount</th>
+                              <th>Tax Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const taxSummary = {};
+                              items.forEach(item => {
+                                const taxRate = item.tax_rate || 18;
+                                const taxAmount = gstAmount(item);
+                                if (!taxSummary[taxRate]) {
+                                  taxSummary[taxRate] = 0;
+                                }
+                                taxSummary[taxRate] += taxAmount;
+                              });
+                              
+                              return Object.entries(taxSummary).map(([rate, amount]) => (
+                                <tr key={rate}>
+                                  <td>{rate}%</td>
+                                  <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                                  <td>₹{amount.toFixed(2)}</td>
+                                </tr>
+                              ));
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="col-5">
+                        <div className="card border-0">
+                          <div className="card-body">
+                            <h5 className="card-title">Total Summary</h5>
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Subtotal:</span>
+                              <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                            </div>
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Discount:</span>
+                              <strong className="text-danger">- ₹{totals.totalDiscount.toFixed(2)}</strong>
+                            </div>
+                            {totals.totalPacking > 0 && (
+                              <div className="d-flex justify-content-between mb-2">
+                                <span>Packing:</span>
+                                <strong>₹{totals.totalPacking.toFixed(2)}</strong>
+                              </div>
+                            )}
+                            {totals.totalFreight > 0 && (
+                              <div className="d-flex justify-content-between mb-2">
+                                <span>Freight:</span>
+                                <strong>₹{totals.totalFreight.toFixed(2)}</strong>
+                              </div>
+                            )}
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Taxable Amount:</span>
+                              <strong>₹{totals.totalBeforeGST.toFixed(2)}</strong>
+                            </div>
+                            <div className="d-flex justify-content-between mb-2">
+                              <span>Total Tax:</span>
+                              <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                            </div>
+                            <hr/>
+                            <div className="d-flex justify-content-between total-row">
+                              <span>Grand Total:</span>
+                              <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Bank Details with QR Code */}
+                    <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '5px' }}>
+                      <div className="d-flex justify-content-between align-items-center">
+                        <div style={{ flex: 1 }}>
+                          <h5 className="mb-2">Bank Details:</h5>
+                          <div className="row">
+                            <div className="col-md-6">
+                              <p className="mb-1"><strong>Account No:</strong> {bankDetails.accountNo}</p>
+                              <p className="mb-1"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
+                            </div>
+                            <div className="col-md-6">
+                              <p className="mb-1"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
+                              <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-end">
+                          <h5 className="mb-2">QR Code:</h5>
+                          <img 
+                            src={qrCodeImage} 
+                            alt="QR Code" 
+                            className="img-fluid"
+                            style={{ maxWidth: '80px', maxHeight: '80px', objectFit: 'contain' }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 p-2 bg-light rounded">
+                      <h5>Notes:</h5>
+                      <p className="mb-0">Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.</p>
+                      <p className="mb-0 mt-2"><strong>Valid for 30 days from the date of issue.</strong></p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="modal-footer mt-3">
+                  <button type="button" className="btn btn-secondary" onClick={goBackToEditItems}>
+                    <i className="bi bi-arrow-left me-1"></i>Back to Items
+                  </button>
+                  <button type="button" className="btn btn-info" onClick={exportPdf}>
+                    <i className="bi bi-file-pdf me-1"></i>Export PDF
+                  </button>
+                  <button type="button" className="btn btn-warning" onClick={updateQuotation} disabled={saving}>
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-save me-1"></i>Update Quotation (Change to Draft)
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Item Selection Popup Modal */}
       {showItemPopup && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -3057,7 +3769,7 @@ export default function QuotationModal() {
                           
                           {item["Brand Description"] && (
                             <div className="small text-muted" style={{ fontSize: '0.8rem', lineHeight: '1.3' }}>
-                              <span className="badge bg-light text-dark me-1"> Brand Description</span>
+                              <span className="badge bg-light text-dark me-1">Brand Description</span>
                               {item["Brand Description"]}
                             </div>
                           )}
@@ -3361,7 +4073,7 @@ export default function QuotationModal() {
         </div>
       )}
 
-      {/* Preview Modal */}
+      {/* Preview Modal (for new quotations) */}
       {showPreviewModal && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-xl">
@@ -3563,7 +4275,7 @@ export default function QuotationModal() {
                             src={qrCodeImage} 
                             alt="QR Code" 
                             className="img-fluid"
-                            style={{ maxWidth: '80px', maxHeight: '80px', objectFit: 'contain' }}
+                            style={{ maxWidth: '400px', maxHeight: '400px', objectFit: 'contain' }}
                             onError={(e) => {
                               e.target.style.display = 'none';
                             }}
@@ -3596,358 +4308,6 @@ export default function QuotationModal() {
                     ) : (
                       <>
                         <i className="bi bi-save me-1"></i>Save Quotation
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Quotation Modal */}
-      {showEditModal && editingQuotation && (
-        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-xl">
-            <div className="modal-content">
-              <div className="modal-header bg-warning text-white">
-                <h5 className="modal-title">
-                  <i className="bi bi-pencil me-2"></i>
-                  Edit Quotation - {editingQuotation.quote_number || editingQuotation.quoteNo}
-                  <span className="badge bg-info ms-2">Re-quote → Draft</span>
-                </h5>
-                <button type="button" className="btn-close btn-close-white" onClick={() => {
-                  setShowEditModal(false);
-                  setEditingQuotation(null);
-                  setIsEditing(false);
-                  setItems([]);
-                }}></button>
-              </div>
-              <div className="modal-body">
-                <div className="alert alert-info">
-                  <i className="bi bi-info-circle me-2"></i>
-                  You are editing a quotation with "requote" status. After saving, it will be changed to "draft" status.
-                </div>
-
-                <div className="card mb-4">
-                  <div className="card-header bg-light">
-                    <div className="d-flex justify-content-between align-items-center">
-                      <h6 className="mb-0">Company Details</h6>
-                      <span className="badge bg-warning">Editing</span>
-                    </div>
-                  </div>
-                  <div className="card-body">
-                    <div className="row">
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Company Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={billTo}
-                            onChange={(e) => setBillTo(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Contact Person</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={contactPerson}
-                            onChange={(e) => setContactPerson(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Contact Mobile</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={contactMob}
-                            onChange={(e) => setContactMob(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Contact Email</label>
-                          <input
-                            type="email"
-                            className="form-control"
-                            value={contactEmail}
-                            onChange={(e) => setContactEmail(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Company Address</label>
-                          <textarea
-                            className="form-control"
-                            rows="2"
-                            value={companyAddress}
-                            onChange={(e) => setCompanyAddress(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Pincode</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={companyPincode}
-                            onChange={(e) => setCompanyPincode(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="row">
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Company GSTIN</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={companyGstin}
-                            onChange={(e) => setCompanyGstin(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Quote Number</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={quoteNo}
-                            onChange={(e) => setQuoteNo(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    {/* CC Field in Edit Modal */}
-                    <div className="mb-3">
-                      <label className="form-label">
-                        <i className="bi bi-person-badge me-1"></i>
-                        CC Email (Carbon Copy)
-                      </label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        value={ccEmail}
-                        onChange={(e) => setCcEmail(e.target.value)}
-                        placeholder="cc@example.com"
-                      />
-                    </div>
-                    {/* Profit Percentage Input */}
-                    <div className="mb-3">
-                      <label className="form-label">
-                        <i className="bi bi-percent me-1"></i>
-                        Profit Percentage
-                      </label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={profitPercentage}
-                        onChange={(e) => setProfitPercentage(parseFloat(e.target.value) || 20)}
-                        placeholder="Enter profit percentage"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card mb-4">
-                  <div className="card-header bg-light">
-                    <div className="d-flex justify-content-between align-items-center">
-                      <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
-                      <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
-                        <i className="bi bi-plus-circle me-1"></i>Add Item
-                      </button>
-                    </div>
-                  </div>
-                  <div className="card-body p-0">
-                    {items.length === 0 ? (
-                      <div className="text-center py-5">
-                        <i className="bi bi-box display-1 text-muted mb-3"></i>
-                        <h5 className="text-muted">No items added</h5>
-                        <p className="text-muted">Click "Add Item" to start adding items to your quotation</p>
-                      </div>
-                    ) : (
-                      <div className="table-responsive">
-                        <table className="table table-hover mb-0">
-                          <thead className="table-light">
-                            <tr>
-                              <th width="50">#</th>
-                              <th>Item Name</th>
-                              <th width="120">Brand Code</th>
-                              <th width="120">Part No</th>
-                              <th width="80">Width</th>
-                              <th width="80">Length</th>
-                              <th width="80">Count</th>
-                              <th width="80">Qty</th>
-                              <th width="80">Unit</th>
-                              <th width="100">Price/Unit</th>
-                              <th width="120">Discount</th>
-                              <th width="100">Total</th>
-                              <th width="80">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {items.map((item, index) => (
-                              <tr key={item.id}>
-                                <td>{index + 1}</td>
-                                <td>
-                                  <div className="fw-bold">{item.item_name}</div>
-                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
-                                </td>
-                                <td>{item.brand_code || ''}</td>
-                                <td>
-                                  <input
-                                    type="text"
-                                    className="form-control form-control-sm"
-                                    value={item.supplier_part_no}
-                                    onChange={(e) => handleItemChange(index, "supplier_part_no", e.target.value)}
-                                    placeholder="Part No"
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    min="1"
-                                    step="0.1"
-                                    value={item.cut_width}
-                                    onChange={(e) => handleItemChange(index, "cut_width", e.target.value)}
-                                  />
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    min="1"
-                                    step="0.1"
-                                    value={item.length}
-                                    onChange={(e) => handleItemChange(index, "length", e.target.value)}
-                                  />
-                                </td>
-                                <td>
-                                  <div className="form-control form-control-sm bg-light">
-                                    {calculateCount(item).toFixed(2)}
-                                  </div>
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    className="form-control form-control-sm"
-                                    min="1"
-                                    value={item.quantity}
-                                    onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                                    placeholder="Enter quantity"
-                                  />
-                                </td>
-                                <td>{item.unit}</td>
-                                <td className="text-end">₹{pricePerUnit(item).toFixed(2)}</td>
-                                <td>
-                                  <div className="input-group input-group-sm">
-                                    <input
-                                      type="number"
-                                      className="form-control"
-                                      min="0"
-                                      step="0.01"
-                                      value={item.discount}
-                                      onChange={(e) => handleItemChange(index, "discount", e.target.value)}
-                                    />
-                                    <select
-                                      className="form-select"
-                                      style={{ width: '80px' }}
-                                      value={item.discount_type}
-                                      onChange={(e) => handleItemChange(index, "discount_type", e.target.value)}
-                                    >
-                                      <option value="amount">₹</option>
-                                      <option value="percentage">%</option>
-                                    </select>
-                                  </div>
-                                </td>
-                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
-                                <td>
-                                  <button
-                                    className="btn btn-sm btn-danger"
-                                    onClick={() => removeItem(index)}
-                                    title="Delete"
-                                  >
-                                    <i className="bi bi-trash"></i>
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="row">
-                  <div className="col-md-4">
-                    <div className="card">
-                      <div className="card-body">
-                        <h6 className="card-title">Quick Summary</h6>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Items:</span>
-                          <strong>{items.length}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Subtotal:</span>
-                          <strong>₹{totals.subtotal.toFixed(2)}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between mb-2">
-                          <span>Discount:</span>
-                          <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
-                        </div>
-                        <div className="d-flex justify-content-between">
-                          <span>Tax (18%):</span>
-                          <strong>₹{totals.totalGST.toFixed(2)}</strong>
-                        </div>
-                        <hr />
-                        <div className="d-flex justify-content-between fw-bold">
-                          <span>Grand Total:</span>
-                          <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="modal-footer mt-3">
-                  <button type="button" className="btn btn-secondary" onClick={() => {
-                    setShowEditModal(false);
-                    setEditingQuotation(null);
-                    setIsEditing(false);
-                    setItems([]);
-                  }}>
-                    <i className="bi bi-x-circle me-1"></i>Cancel
-                  </button>
-                  <button type="button" className="btn btn-warning" onClick={updateQuotation} disabled={saving}>
-                    {saving ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2"></span>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-save me-1"></i>Update Quotation (Change to Draft)
                       </>
                     )}
                   </button>

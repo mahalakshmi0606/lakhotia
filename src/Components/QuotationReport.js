@@ -1574,7 +1574,7 @@ export default function QuotationModal() {
 
   const totals = calculateTotals();
 
-  // Item Selection Popup Modal - UPDATED WITH CORRECT CALCULATIONS
+  // Item Selection Popup Modal - FIXED VERSION
   const renderItemPopup = () => {
     if (!showItemPopup) return null;
     
@@ -1650,6 +1650,31 @@ export default function QuotationModal() {
                             <div className="fw-bold text-info">Buy: ₹{parseFloat(item["Buy Price"] || 0).toFixed(2)}</div>
                           </div>
                         </div>
+                        <div className="row mb-2">
+                          <div className="col-6">
+                            {item["Width"] && item["Length"] && (
+                              <div className="mb-1">
+                                <span className="badge bg-light text-dark me-1">Dimensions</span>
+                                {item["Width"]} × {item["Length"]} {item["Unit"] || "pcs"}
+                              </div>
+                            )}
+                          </div>
+                          <div className="col-6">
+                            {item["Batch Code"] && (
+                              <div className="mb-1">
+                                <span className="badge bg-light text-dark me-1">Batch</span>
+                                {item["Batch Code"]}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {item["Brand Description"] && (
+                          <div className="small text-muted" style={{ fontSize: '0.8rem', lineHeight: '1.3' }}>
+                            <span className="badge bg-light text-dark me-1">Brand Description</span>
+                            {item["Brand Description"]}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -2462,7 +2487,7 @@ export default function QuotationModal() {
                       src={qrCodeImage} 
                       alt="QR Code" 
                       className="img-fluid"
-                      style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
+                      style={{ maxWidth: '400px', maxHeight: '400px', objectFit: 'contain' }}
                       onError={(e) => {
                         e.target.style.display = 'none';
                       }}
