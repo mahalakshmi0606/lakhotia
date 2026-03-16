@@ -1510,21 +1510,187 @@ export default function EnquiryModal() {
 
   return (
     <div className="container-fluid py-4">
+      {/* Mobile Responsive Styles */}
+      <style>{`
+        @media (max-width: 768px) {
+          .container-fluid {
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+          }
+          
+          .mobile-stack {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 12px !important;
+          }
+          
+          .mobile-full-width {
+            width: 100% !important;
+          }
+          
+          .mobile-btn-group {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 8px;
+          }
+          
+          .mobile-btn-group .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .mobile-table {
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+          }
+          
+          .mobile-hide {
+            display: none !important;
+          }
+          
+          .mobile-card {
+            margin-bottom: 12px;
+            border-radius: 8px;
+          }
+          
+          .mobile-pagination {
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+          }
+          
+          .modal-dialog {
+            margin: 10px !important;
+            max-width: calc(100% - 20px) !important;
+          }
+          
+          .modal-body {
+            padding: 16px !important;
+          }
+          
+          .mobile-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          }
+          
+          .mobile-text-small {
+            font-size: 12px !important;
+          }
+          
+          .mobile-badge-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+          }
+          
+          .mobile-stat-card {
+            margin-bottom: 8px;
+          }
+          
+          .mobile-row {
+            flex-direction: column;
+          }
+          
+          .mobile-row > [class*="col-"] {
+            width: 100%;
+            margin-bottom: 8px;
+          }
+          
+          .mobile-search-container {
+            width: 100%;
+            margin-top: 8px;
+          }
+          
+          .mobile-search-input {
+            width: 100% !important;
+          }
+          
+          .mobile-export-buttons {
+            flex-direction: column;
+            width: 100%;
+          }
+          
+          .mobile-export-buttons .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .mobile-invoice-header {
+            flex-direction: column;
+            text-align: center;
+          }
+          
+          .mobile-invoice-header .col-2,
+          .mobile-invoice-header .col-5,
+          .mobile-invoice-header .col-5 {
+            width: 100%;
+            text-align: center !important;
+          }
+          
+          .mobile-invoice-header img {
+            margin: 0 auto 12px;
+          }
+          
+          .mobile-quick-summary {
+            flex-direction: column;
+          }
+          
+          .mobile-quick-summary > div {
+            width: 100%;
+            margin-bottom: 8px;
+          }
+          
+          .mobile-filter-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          }
+          
+          .mobile-filter-buttons .btn {
+            width: 100%;
+          }
+        }
+        
+        @media (max-width: 576px) {
+          h1.h2 {
+            font-size: 1.5rem !important;
+          }
+          
+          .mobile-grid-2 {
+            grid-template-columns: 1fr;
+          }
+          
+          .mobile-filter-buttons {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+
       {/* Header with New Enquiry Button */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
+      <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
+        <div className="mobile-full-width">
           <h1 className="h2 mb-1">Enquiry Management</h1>
-          <p className="text-muted mb-0">
+          <p className="text-muted mb-0 mobile-text-small">
             {isCompanyUser ? "Create enquiries for your company" : "Create, manage, and track your customer enquiries"}
           </p>
         </div>
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2 mobile-full-width mobile-btn-group">
           {/* NEW: Export Button */}
           <button
-            className="btn btn-warning"
+            className="btn btn-warning mobile-full-width"
             onClick={() => setShowExportModal(true)}
           >
             <i className="bi bi-download me-2"></i>Export
+          </button>
+          <button
+            className="btn btn-primary mobile-full-width"
+            onClick={startNewEnquiry}
+          >
+            <i className="bi bi-plus-circle me-2"></i>New Enquiry
           </button>
         </div>
       </div>
@@ -1532,10 +1698,10 @@ export default function EnquiryModal() {
       {/* Statistics Cards */}
       <div className="row mb-4">
         <div className="col-12 mb-3">
-          <div className="card">
+          <div className="card mobile-card">
             <div className="card-body p-3">
               <h6 className="card-title mb-3">Enquiry Overview</h6>
-              <div className="row">
+              <div className="row mobile-grid-2">
                 <div className="col-md mb-2">
                   <div className="d-flex align-items-center">
                     <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
@@ -1560,6 +1726,24 @@ export default function EnquiryModal() {
                 </div>
                 <div className="col-md mb-2">
                   <div className="d-flex align-items-center">
+                    <div className="rounded-circle bg-success d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
+                      <i className="bi bi-check-circle"></i>
+                    </div>
+                    <div>
+                      <div className="text-muted small">Converted</div>
+                      <div className="h4 mb-0">{enquiryCounts.converted}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-md mb-2">
+                  <div className="d-flex align-items-center">
+                    <div className="rounded-circle bg-danger d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
+                      <i className="bi bi-x-circle"></i>
+                    </div>
+                    <div>
+                      <div className="text-muted small">Lost</div>
+                      <div className="h4 mb-0">{enquiryCounts.lost}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1581,12 +1765,12 @@ export default function EnquiryModal() {
               </div>
               
               <div className="modal-body">
-                <div className="alert alert-info mb-3">
+                <div className="alert alert-info mb-3 mobile-text-small">
                   <i className="bi bi-info-circle me-2"></i>
                   Select date range and status to export enquiries. Data will be exported in CSV or PDF format.
                 </div>
                 
-                <div className="row mb-3">
+                <div className="row mb-3 mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Start Date</label>
@@ -1617,7 +1801,7 @@ export default function EnquiryModal() {
                 <div className="row mb-4">
                   <div className="col-md-12">
                     <label className="form-label">Status Filter</label>
-                    <div className="d-flex flex-wrap gap-2">
+                    <div className="mobile-filter-buttons">
                       {['all', 'draft', 'converted', 'lost'].map((status) => (
                         <button
                           key={status}
@@ -1639,17 +1823,17 @@ export default function EnquiryModal() {
                     <div className="card">
                       <div className="card-body">
                         <h6 className="card-title">Export Summary</h6>
-                        <div className="row">
+                        <div className="row mobile-row">
                           <div className="col-md-4">
                             <div className="mb-2">
                               <strong>Date Range:</strong>
-                              <div className="text-muted">{exportStartDate} to {exportEndDate}</div>
+                              <div className="text-muted mobile-text-small">{exportStartDate} to {exportEndDate}</div>
                             </div>
                           </div>
                           <div className="col-md-4">
                             <div className="mb-2">
                               <strong>Status:</strong>
-                              <div className="text-muted">
+                              <div className="text-muted mobile-text-small">
                                 {exportStatus === 'all' ? 'All Statuses' : 
                                  exportStatus === 'draft' ? 'Draft' :
                                  exportStatus === 'converted' ? 'Converted' : 'Lost'}
@@ -1659,7 +1843,7 @@ export default function EnquiryModal() {
                           <div className="col-md-4">
                             <div className="mb-2">
                               <strong>Days:</strong>
-                              <div className="text-muted">
+                              <div className="text-muted mobile-text-small">
                                 {dayjs(exportEndDate).diff(dayjs(exportStartDate), 'day') + 1} days
                               </div>
                             </div>
@@ -1671,7 +1855,7 @@ export default function EnquiryModal() {
                 </div>
               </div>
               
-              <div className="modal-footer">
+              <div className="modal-footer mobile-btn-group">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowExportModal(false)}>
                   <i className="bi bi-x-circle me-1"></i>Cancel
                 </button>
@@ -1729,38 +1913,38 @@ export default function EnquiryModal() {
               </div>
               
               <div className="modal-body">
-                {/* Progress Steps */}
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                {/* Progress Steps - Mobile Optimized */}
+                <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
                   <div className={`d-flex align-items-center ${billTo.trim() ? 'text-success' : ''}`}>
                     <div className={`rounded-circle ${billTo.trim() ? 'bg-success' : 'bg-primary'} text-white d-flex align-items-center justify-content-center`} style={{ width: '30px', height: '30px' }}>
                       {billTo.trim() ? <i className="bi bi-check"></i> : '1'}
                     </div>
-                    <span className="ms-2">Company Details</span>
+                    <span className="ms-2 mobile-text-small">Company</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
-                    <span className="ms-2">Add Items</span>
+                    <span className="ms-2 mobile-text-small">Items</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
-                    <span className="ms-2">Preview</span>
+                    <span className="ms-2 mobile-text-small">Preview</span>
                   </div>
                 </div>
 
                 {/* Company User Notice */}
                 {isCompanyUser && companyUserDetails && (
-                  <div className="alert alert-info mb-3">
+                  <div className="alert alert-info mb-3 mobile-text-small">
                     <i className="bi bi-info-circle me-2"></i>
-                    Your company details have been auto-filled from your account. You can create enquiries for your company only.
+                    Your company details have been auto-filled from your account.
                   </div>
                 )}
 
                 <div className="mb-3">
                   <label className="form-label">
                     Company Name
-                    {isCompanyUser && <span className="text-muted"> (Auto-filled for your company)</span>}
+                    {isCompanyUser && <span className="text-muted mobile-text-small"> (Auto-filled)</span>}
                   </label>
                   <div className="position-relative">
                     <input
@@ -1787,12 +1971,12 @@ export default function EnquiryModal() {
                               selectCompanyFromSearch(company);
                             }}
                           >
-                            <div className="fw-bold">{company.companyName || company.company_name}</div>
-                            <div className="text-muted small">
+                            <div className="fw-bold mobile-text-small">{company.companyName || company.company_name}</div>
+                            <div className="text-muted small mobile-text-small">
                               {company.customerName || company.customer_name} • {company.customerMobile || company.customer_mobile}
                             </div>
                             {(company.pinCode || company.pin_code) && (
-                              <div className="text-muted small mt-1">
+                              <div className="text-muted small mt-1 mobile-badge-stack">
                                 <span className="badge bg-info text-white me-1">Pincode: {company.pinCode || company.pin_code}</span>
                                 {company.gstNumber || company.gst_number ? (
                                   <span className="badge bg-secondary">GST: {company.gstNumber || company.gst_number}</span>
@@ -1805,11 +1989,11 @@ export default function EnquiryModal() {
                     )}
                   </div>
                   
-                  {loadingCompanies && <div className="alert alert-info mt-2 py-2">Loading companies...</div>}
-                  {companyError && <div className="alert alert-warning mt-2 py-2">{companyError}</div>}
+                  {loadingCompanies && <div className="alert alert-info mt-2 py-2 mobile-text-small">Loading companies...</div>}
+                  {companyError && <div className="alert alert-warning mt-2 py-2 mobile-text-small">{companyError}</div>}
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Contact Person</label>
@@ -1839,7 +2023,7 @@ export default function EnquiryModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Company Address</label>
@@ -1866,9 +2050,9 @@ export default function EnquiryModal() {
                         style={isCompanyUser && companyUserDetails ? { backgroundColor: '#f8f9fa' } : {}}
                       />
                       {!isCompanyUser && extractPincode(companyAddress) && companyPincode !== extractPincode(companyAddress) && (
-                        <div className="form-text text-info">
+                        <div className="form-text text-info mobile-text-small">
                           <i className="bi bi-info-circle me-1"></i>
-                          Found pincode in address: {extractPincode(companyAddress)}. Click to copy:
+                          Found pincode: {extractPincode(companyAddress)}. 
                           <button 
                             type="button" 
                             className="btn btn-sm btn-outline-info ms-2"
@@ -1882,7 +2066,7 @@ export default function EnquiryModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Company GSTIN</label>
@@ -1932,7 +2116,7 @@ export default function EnquiryModal() {
                   </div>
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={cancelEnquiry}>
                     <i className="bi bi-x-circle me-1"></i>Cancel
                   </button>
@@ -1957,63 +2141,63 @@ export default function EnquiryModal() {
               </div>
               
               <div className="modal-body">
-                {/* Progress Steps */}
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                {/* Progress Steps - Mobile Optimized */}
+                <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
                   <div className="d-flex align-items-center text-success">
                     <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
                       <i className="bi bi-check"></i>
                     </div>
-                    <span className="ms-2">Company Details</span>
+                    <span className="ms-2 mobile-text-small">Company</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-primary">
                     <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
-                    <span className="ms-2">Add Items</span>
+                    <span className="ms-2 mobile-text-small">Items</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
-                    <span className="ms-2">Preview</span>
+                    <span className="ms-2 mobile-text-small">Preview</span>
                   </div>
                 </div>
 
                 {/* Company Info Summary Card */}
-                <div className="card mb-4 border-info">
+                <div className="card mb-4 border-info mobile-card">
                   <div className="card-header bg-info text-white py-2">
                     <h6 className="mb-0"><i className="bi bi-building me-2"></i>Company Information</h6>
                   </div>
                   <div className="card-body py-3">
-                    <div className="row">
+                    <div className="row mobile-row">
                       <div className="col-md-4">
                         <div className="mb-2">
                           <strong>Company:</strong>
-                          <div className="text-muted">{billTo || 'Not specified'}</div>
+                          <div className="text-muted mobile-text-small">{billTo || 'Not specified'}</div>
                         </div>
                       </div>
                       <div className="col-md-4">
                         <div className="mb-2">
                           <strong>Contact:</strong>
-                          <div className="text-muted">{contactPerson || 'Not specified'}</div>
+                          <div className="text-muted mobile-text-small">{contactPerson || 'Not specified'}</div>
                         </div>
                       </div>
                       <div className="col-md-4">
                         <div className="mb-2">
                           <strong>Mobile:</strong>
-                          <div className="text-muted">{contactMob || 'Not specified'}</div>
+                          <div className="text-muted mobile-text-small">{contactMob || 'Not specified'}</div>
                         </div>
                       </div>
                     </div>
-                    <div className="row">
+                    <div className="row mobile-row">
                       <div className="col-md-8">
                         <div className="mb-2">
                           <strong>Address:</strong>
-                          <div className="text-muted">{companyAddress || 'Not specified'}</div>
+                          <div className="text-muted mobile-text-small">{companyAddress || 'Not specified'}</div>
                         </div>
                       </div>
                       <div className="col-md-4">
                         <div className="mb-2">
                           <strong>Pincode:</strong>
-                          <div className="text-muted">{companyPincode || 'Not specified'}</div>
+                          <div className="text-muted mobile-text-small">{companyPincode || 'Not specified'}</div>
                         </div>
                       </div>
                     </div>
@@ -2021,11 +2205,11 @@ export default function EnquiryModal() {
                 </div>
 
                 {/* Items Section */}
-                <div className="card mb-4">
+                <div className="card mb-4 mobile-card">
                   <div className="card-header bg-light">
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex justify-content-between align-items-center mobile-stack">
                       <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
-                      <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
+                      <button className="btn btn-sm btn-success mobile-full-width mt-2" onClick={addItemViaPopup}>
                         <i className="bi bi-plus-circle me-1"></i>Add Item
                       </button>
                     </div>
@@ -2035,10 +2219,10 @@ export default function EnquiryModal() {
                       <div className="text-center py-5">
                         <i className="bi bi-box display-1 text-muted mb-3"></i>
                         <h5 className="text-muted">No items added</h5>
-                        <p className="text-muted">Click "Add Item" to start adding items to your enquiry</p>
+                        <p className="text-muted mobile-text-small">Click "Add Item" to start adding items to your enquiry</p>
                       </div>
                     ) : (
-                      <div className="table-responsive">
+                      <div className="mobile-table">
                         <table className="table table-hover mb-0">
                           <thead className="table-light">
                             <tr>
@@ -2050,7 +2234,7 @@ export default function EnquiryModal() {
                               <th width="80">Width</th>
                               <th width="80">Length</th>
                               <th width="80">Quantity</th>
-                              <th width="100">Count (L×W×Q)</th>
+                              <th width="100">Count</th>
                               <th width="80">Unit</th>
                               <th width="80">Actions</th>
                             </tr>
@@ -2060,8 +2244,8 @@ export default function EnquiryModal() {
                               <tr key={item.id}>
                                 <td>{index + 1}</td>
                                 <td>
-                                  <div className="fw-bold">{item.item_name}</div>
-                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
+                                  <div className="fw-bold mobile-text-small">{item.item_name}</div>
+                                  <div className="text-muted small">{item.customer_description?.substring(0, 20) || item.description?.substring(0, 20)}...</div>
                                 </td>
                                 <td>
                                   <input
@@ -2109,12 +2293,12 @@ export default function EnquiryModal() {
                                     min="1"
                                     value={item.quantity}
                                     onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                                    placeholder="Enter quantity"
+                                    placeholder="Qty"
                                   />
                                 </td>
                                 <td className="text-center">
                                   <strong>{calculateCount(item)}</strong>
-                                  <div className="text-muted small">
+                                  <div className="text-muted small mobile-text-small">
                                     {item.cut_width}×{item.length}×{item.quantity}
                                   </div>
                                 </td>
@@ -2137,29 +2321,29 @@ export default function EnquiryModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-4">
-                    <div className="card">
+                    <div className="card mobile-card">
                       <div className="card-body">
                         <h6 className="card-title">Quick Summary</h6>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Items:</span>
-                          <strong>{totals.totalItems}</strong>
+                          <span className="mobile-text-small">Items:</span>
+                          <strong className="mobile-text-small">{totals.totalItems}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Total Quantity:</span>
-                          <strong>{totals.totalQuantity}</strong>
+                          <span className="mobile-text-small">Total Quantity:</span>
+                          <strong className="mobile-text-small">{totals.totalQuantity}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Total Count:</span>
-                          <strong>{totals.totalCount}</strong>
+                          <span className="mobile-text-small">Total Count:</span>
+                          <strong className="mobile-text-small">{totals.totalCount}</strong>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={goBackToCompany}>
                     <i className="bi bi-arrow-left me-1"></i>Back to Company
                   </button>
@@ -2230,22 +2414,22 @@ export default function EnquiryModal() {
                             setNewItemSupplierPartNo(item["Brand Code"] || "");
                           }}
                         >
-                          <div className="d-flex justify-content-between align-items-start mb-2">
+                          <div className="d-flex justify-content-between align-items-start mb-2 mobile-stack">
                             <div>
-                              <div className="fw-bold mb-1">{item["Item Name"]}</div>
+                              <div className="fw-bold mb-1 mobile-text-small">{item["Item Name"]}</div>
                               <div className="mb-1">
                                 <span className="badge bg-primary me-1">Brand</span>
-                                <strong>{item["Brand"] || "N/A"}</strong>
+                                <strong className="mobile-text-small">{item["Brand"] || "N/A"}</strong>
                               </div>
                               <div className="mb-1">
                                 <span className="badge bg-secondary me-1">Code</span>
-                                <strong className="text-dark">{item["Brand Code"]}</strong>
+                                <strong className="text-dark mobile-text-small">{item["Brand Code"]}</strong>
                               </div>
                             </div>
                           </div>
                           
                           {item["Brand Description"] && (
-                            <div className="small text-muted" style={{ fontSize: '0.8rem', lineHeight: '1.3' }}>
+                            <div className="small text-muted mobile-text-small" style={{ fontSize: '0.8rem', lineHeight: '1.3' }}>
                               <span className="badge bg-light text-dark me-1"> Brand Description</span>
                               {item["Brand Description"]}
                             </div>
@@ -2257,12 +2441,12 @@ export default function EnquiryModal() {
                 </div>
 
                 {selectedStockItem && (
-                  <div className="card mt-3">
+                  <div className="card mt-3 mobile-card">
                     <div className="card-header bg-light">
                       <h6 className="mb-0">Item Details</h6>
                     </div>
                     <div className="card-body">
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-6">
                           <div className="mb-3">
                             <label className="form-label">Item Name</label>
@@ -2289,7 +2473,7 @@ export default function EnquiryModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-6">
                           <div className="mb-3">
                             <label className="form-label">HSN/SAC Code</label>
@@ -2314,7 +2498,7 @@ export default function EnquiryModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-4">
                           <div className="mb-3">
                             <label className="form-label">Customer Part No</label>
@@ -2335,7 +2519,7 @@ export default function EnquiryModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-4">
                           <div className="mb-3">
                             <label className="form-label">Cut Width</label>
@@ -2377,7 +2561,7 @@ export default function EnquiryModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-12">
                           <div className="mb-3">
                             <label className="form-label">Customer Description</label>
@@ -2392,7 +2576,7 @@ export default function EnquiryModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-12">
                           <div className="mb-3">
                             <label className="form-label">Customer Requirements</label>
@@ -2408,7 +2592,7 @@ export default function EnquiryModal() {
                       </div>
                     </div>
                     <div className="card-footer">
-                      <div className="d-flex justify-content-end gap-2">
+                      <div className="d-flex justify-content-end gap-2 mobile-btn-group">
                         <button type="button" className="btn btn-secondary" onClick={() => setShowItemPopup(false)}>
                           <i className="bi bi-x-circle me-1"></i>Cancel
                         </button>
@@ -2481,29 +2665,29 @@ export default function EnquiryModal() {
               <div className="modal-body">
                 <div ref={enquiryRef}>
                   <div className="container">
-                    <div className="invoice-header border-bottom pb-3 mb-3">
+                    <div className="invoice-header border-bottom pb-3 mb-3 mobile-invoice-header">
                       <div className="row align-items-center">
-                        <div className="col-2 d-flex align-items-center">
+                        <div className="col-2 d-flex align-items-center justify-content-center">
                           <img 
                             src={companyLogo} 
                             alt="Company Logo" 
                             className="img-fluid"
-                            style={{ maxWidth: '100%', maxHeight: '100px', objectFit: 'contain' }}
+                            style={{ maxWidth: '100%', maxHeight: '80px', objectFit: 'contain' }}
                             onError={(e) => {
                               e.target.style.display = 'none';
                             }}
                           />
                         </div>
                         <div className="col-5">
-                          <h1 className="mb-1">{issuer.name}</h1>
-                          <p className="mb-1">{issuer.address}</p>
-                          <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
-                          <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                          <h1 className="mb-1 mobile-text-small">{issuer.name}</h1>
+                          <p className="mb-1 mobile-text-small">{issuer.address}</p>
+                          <p className="mb-1 mobile-text-small">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                          <p className="mb-1 mobile-text-small">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                         </div>
                         <div className="col-5 text-end">
                           <h2 className="text-primary mb-3">ENQUIRY</h2>
-                          <p className="mb-1"><strong>Date:</strong> {dayjs().format("YYYY-MM-DD")}</p>
-                          <p className="mb-1"><strong>Time:</strong> {dayjs().format("HH:mm:ss")}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Date:</strong> {dayjs().format("YYYY-MM-DD")}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Time:</strong> {dayjs().format("HH:mm:ss")}</p>
                           <p className="mb-0">
                             <span className="badge bg-secondary">draft</span>
                           </p>
@@ -2511,27 +2695,27 @@ export default function EnquiryModal() {
                       </div>
                     </div>
                     
-                    <div className="row mb-4">
+                    <div className="row mb-4 mobile-row">
                       <div className="col-6">
                         <h5>Company Details:</h5>
-                        <p className="mb-1"><strong>{billTo}</strong></p>
-                        <p className="mb-1">{companyAddress}</p>
+                        <p className="mb-1 mobile-text-small"><strong>{billTo}</strong></p>
+                        <p className="mb-1 mobile-text-small">{companyAddress}</p>
                         {companyPincode && (
                           <p className="mb-1">
                             Pincode: <span className="badge bg-info text-white">{companyPincode}</span>
                           </p>
                         )}
-                        <p className="mb-1">GSTIN: {companyGstin}</p>
+                        <p className="mb-1 mobile-text-small">GSTIN: {companyGstin}</p>
                       </div>
                       <div className="col-6">
                         <h5>Contact Details:</h5>
-                        <p className="mb-1"><strong>{contactPerson}</strong></p>
-                        <p className="mb-1">Phone: {contactMob}</p>
-                        <p className="mb-1">Email: {contactEmail}</p>
+                        <p className="mb-1 mobile-text-small"><strong>{contactPerson}</strong></p>
+                        <p className="mb-1 mobile-text-small">Phone: {contactMob}</p>
+                        <p className="mb-1 mobile-text-small">Email: {contactEmail}</p>
                       </div>
                     </div>
                     
-                    <div className="table-responsive">
+                    <div className="mobile-table">
                       <table className="table table-bordered">
                         <thead className="table-light">
                           <tr>
@@ -2539,14 +2723,12 @@ export default function EnquiryModal() {
                             <th>Item Name</th>
                             <th>Brand</th>
                             <th>Brand Code</th>
-                            <th>Cut Width</th>
-                            <th>Cut Length</th>
+                            <th>Width</th>
+                            <th>Length</th>
                             <th>Quantity</th>
-                            <th>Customer Part No</th>
-                            <th>Customer Description</th>
-                            <th>Customer Requirements</th>
+                            <th>Part No</th>
                             <th>Batch No</th>
-                            <th>Count (L×W×Q)</th>
+                            <th>Count</th>
                             <th>UoM</th>
                           </tr>
                         </thead>
@@ -2556,15 +2738,13 @@ export default function EnquiryModal() {
                             return (
                               <tr key={item.id}>
                                 <td>{index + 1}</td>
-                                <td><strong>{item.item_name}</strong></td>
+                                <td><strong className="mobile-text-small">{item.item_name}</strong></td>
                                 <td>{item.brand || ''}</td>
                                 <td>{item.brand_code || ''}</td>
                                 <td>{item.cut_width}</td>
                                 <td>{item.length}</td>
                                 <td>{item.quantity}</td>
                                 <td>{item.supplier_part_no}</td>
-                                <td>{item.customer_description || ''}</td>
-                                <td>{item.customer_requirements || ''}</td>
                                 <td>{item.batch_no}</td>
                                 <td><strong>{count}</strong><br/><small className="text-muted">{item.cut_width}×{item.length}×{item.quantity}</small></td>
                                 <td>{item.unit}</td>
@@ -2575,18 +2755,18 @@ export default function EnquiryModal() {
                       </table>
                     </div>
                     
-                    <div className="row mt-4">
+                    <div className="row mt-4 mobile-row">
                       <div className="col-8">
-                        <div className="card border-0">
+                        <div className="card border-0 mobile-card">
                           <div className="card-body">
                             <h5 className="card-title">Summary</h5>
                             <div className="row">
                               <div className="col-6">
-                                <p className="mb-1"><strong>Total Items:</strong> {totals.totalItems}</p>
-                                <p className="mb-1"><strong>Total Quantity:</strong> {totals.totalQuantity}</p>
+                                <p className="mb-1 mobile-text-small"><strong>Total Items:</strong> {totals.totalItems}</p>
+                                <p className="mb-1 mobile-text-small"><strong>Total Quantity:</strong> {totals.totalQuantity}</p>
                               </div>
                               <div className="col-6">
-                                <p className="mb-1"><strong>Total Count:</strong> {totals.totalCount}</p>
+                                <p className="mb-1 mobile-text-small"><strong>Total Count:</strong> {totals.totalCount}</p>
                               </div>
                             </div>
                           </div>
@@ -2596,7 +2776,7 @@ export default function EnquiryModal() {
                   </div>
                 </div>
                 
-                <div className="modal-footer mt-3">
+                <div className="modal-footer mt-3 mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={goBackToItems}>
                     <i className="bi bi-arrow-left me-1"></i>Back to Items
                   </button>
@@ -2636,11 +2816,11 @@ export default function EnquiryModal() {
                   <i className="bi bi-exclamation-triangle text-danger display-4"></i>
                 </div>
                 <h5 className="text-center mb-3">Are you sure you want to delete this enquiry?</h5>
-                <p className="text-center text-muted">
+                <p className="text-center text-muted mobile-text-small">
                   This action cannot be undone. All items associated with this enquiry will also be deleted.
                 </p>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer mobile-btn-group">
                 <button 
                   type="button" 
                   className="btn btn-secondary" 
@@ -2684,32 +2864,32 @@ export default function EnquiryModal() {
               </div>
               <div className="modal-body">
                 <div className="container">
-                  <div className="invoice-header border-bottom pb-3 mb-3">
+                  <div className="invoice-header border-bottom pb-3 mb-3 mobile-invoice-header">
                     <div className="row align-items-center">
-                      <div className="col-2 d-flex align-items-center">
+                      <div className="col-2 d-flex align-items-center justify-content-center">
                         <img 
                           src={companyLogo} 
                           alt="Company Logo" 
                           className="img-fluid"
-                          style={{ maxWidth: '100%', maxHeight: '100px', objectFit: 'contain' }}
+                          style={{ maxWidth: '100%', maxHeight: '80px', objectFit: 'contain' }}
                           onError={(e) => {
                             e.target.style.display = 'none';
                           }}
                         />
                       </div>
                       <div className="col-5">
-                        <h1 className="mb-1">{issuer.name}</h1>
-                        <p className="mb-1">{issuer.address}</p>
-                        <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
-                        <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                        <h1 className="mb-1 mobile-text-small">{issuer.name}</h1>
+                        <p className="mb-1 mobile-text-small">{issuer.address}</p>
+                        <p className="mb-1 mobile-text-small">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                        <p className="mb-1 mobile-text-small">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                       </div>
                       <div className="col-5 text-end">
                         <h2 className="text-info mb-3">ENQUIRY</h2>
                         {selectedEnquiry.enquiry_number && (
-                          <p className="mb-1"><strong>Enquiry No:</strong> {selectedEnquiry.enquiry_number}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Enquiry No:</strong> {selectedEnquiry.enquiry_number}</p>
                         )}
-                        <p className="mb-1"><strong>Date:</strong> {selectedEnquiry.date || 'N/A'}</p>
-                        <p className="mb-1"><strong>Time:</strong> {selectedEnquiry.time || 'N/A'}</p>
+                        <p className="mb-1 mobile-text-small"><strong>Date:</strong> {selectedEnquiry.date || 'N/A'}</p>
+                        <p className="mb-1 mobile-text-small"><strong>Time:</strong> {selectedEnquiry.time || 'N/A'}</p>
                         <p className="mb-0">
                           <span className={`badge ${
                             selectedEnquiry.status === 'draft' ? 'bg-secondary' : 
@@ -2723,27 +2903,27 @@ export default function EnquiryModal() {
                     </div>
                   </div>
                   
-                  <div className="row mb-4">
+                  <div className="row mb-4 mobile-row">
                     <div className="col-6">
                       <h5>Company Details:</h5>
-                      <p className="mb-1"><strong>{selectedEnquiry.company_name || selectedEnquiry.billTo || 'N/A'}</strong></p>
-                      <p className="mb-1">{selectedEnquiry.company_address || ''}</p>
+                      <p className="mb-1 mobile-text-small"><strong>{selectedEnquiry.company_name || selectedEnquiry.billTo || 'N/A'}</strong></p>
+                      <p className="mb-1 mobile-text-small">{selectedEnquiry.company_address || ''}</p>
                       {(selectedEnquiry.company_pincode || extractPincode(selectedEnquiry.company_address || '')) && (
                         <p className="mb-1">
                           Pincode: <span className="badge bg-info text-white">{selectedEnquiry.company_pincode || extractPincode(selectedEnquiry.company_address || '')}</span>
                         </p>
                       )}
-                      <p className="mb-1">GSTIN: {selectedEnquiry.company_gstin || ''}</p>
+                      <p className="mb-1 mobile-text-small">GSTIN: {selectedEnquiry.company_gstin || ''}</p>
                     </div>
                     <div className="col-6">
                       <h5>Contact Details:</h5>
-                      <p className="mb-1"><strong>{selectedEnquiry.contact_person || selectedEnquiry.contactPerson || 'N/A'}</strong></p>
-                      <p className="mb-1">Phone: {selectedEnquiry.contact_mobile || selectedEnquiry.contactMob || ''}</p>
-                      <p className="mb-1">Email: {selectedEnquiry.contact_email || selectedEnquiry.contactEmail || ''}</p>
+                      <p className="mb-1 mobile-text-small"><strong>{selectedEnquiry.contact_person || selectedEnquiry.contactPerson || 'N/A'}</strong></p>
+                      <p className="mb-1 mobile-text-small">Phone: {selectedEnquiry.contact_mobile || selectedEnquiry.contactMob || ''}</p>
+                      <p className="mb-1 mobile-text-small">Email: {selectedEnquiry.contact_email || selectedEnquiry.contactEmail || ''}</p>
                     </div>
                   </div>
                   
-                  <div className="table-responsive">
+                  <div className="mobile-table">
                     <table className="table table-bordered">
                       <thead className="table-light">
                         <tr>
@@ -2751,14 +2931,12 @@ export default function EnquiryModal() {
                           <th>Item Name</th>
                           <th>Brand</th>
                           <th>Brand Code</th>
-                          <th>Cut Width</th>
-                          <th>Cut Length</th>
+                          <th>Width</th>
+                          <th>Length</th>
                           <th>Quantity</th>
-                          <th>Customer Part No</th>
-                          <th>Customer Description</th>
-                          <th>Customer Requirements</th>
+                          <th>Part No</th>
                           <th>Batch No</th>
-                          <th>Count (L×W×Q)</th>
+                          <th>Count</th>
                           <th>UoM</th>
                         </tr>
                       </thead>
@@ -2772,15 +2950,13 @@ export default function EnquiryModal() {
                           return (
                             <tr key={index}>
                               <td>{index + 1}</td>
-                              <td><strong>{item.item_name || 'N/A'}</strong></td>
+                              <td><strong className="mobile-text-small">{item.item_name || 'N/A'}</strong></td>
                               <td>{item.brand || ''}</td>
                               <td>{item.brand_code || ''}</td>
                               <td>{width}</td>
                               <td>{length}</td>
                               <td>{quantity}</td>
                               <td>{item.supplier_part_no}</td>
-                              <td>{item.customer_description || ''}</td>
-                              <td>{item.customer_requirements || ''}</td>
                               <td>{item.batch_no}</td>
                               <td><strong>{count}</strong><br/><small className="text-muted">{width}×{length}×{quantity}</small></td>
                               <td>{item.unit || 'pcs'}</td>
@@ -2791,18 +2967,18 @@ export default function EnquiryModal() {
                     </table>
                   </div>
                   
-                  <div className="row mt-4">
+                  <div className="row mt-4 mobile-row">
                     <div className="col-8">
-                      <div className="card border-0">
+                      <div className="card border-0 mobile-card">
                         <div className="card-body">
                           <h5 className="card-title">Summary</h5>
                           <div className="row">
                             <div className="col-6">
-                              <p className="mb-1"><strong>Total Items:</strong> {(selectedEnquiry.items || []).length}</p>
-                              <p className="mb-1"><strong>Total Quantity:</strong> {(selectedEnquiry.items || []).reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0).toFixed(2)}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Total Items:</strong> {(selectedEnquiry.items || []).length}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Total Quantity:</strong> {(selectedEnquiry.items || []).reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0).toFixed(2)}</p>
                             </div>
                             <div className="col-6">
-                              <p className="mb-1"><strong>Total Count:</strong> {(selectedEnquiry.items || []).reduce((sum, item) => {
+                              <p className="mb-1 mobile-text-small"><strong>Total Count:</strong> {(selectedEnquiry.items || []).reduce((sum, item) => {
                                 const width = parseFloat(item.cut_width) || 0;
                                 const length = parseFloat(item.length) || 0;
                                 const quantity = parseFloat(item.quantity) || 0;
@@ -2816,7 +2992,7 @@ export default function EnquiryModal() {
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer mobile-btn-group">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowViewModal(false)}>
                   <i className="bi bi-x-circle me-1"></i>Close
                 </button>
@@ -2841,19 +3017,19 @@ export default function EnquiryModal() {
       )}
 
       {/* Saved Enquiries Section */}
-      <div className="card">
+      <div className="card mobile-card">
         <div className="card-header bg-light">
-          <div className="d-flex justify-content-between align-items-center">
+          <div className="d-flex justify-content-between align-items-center mobile-stack">
             <h5 className="mb-0">
               Saved Enquiries 
               <span className="ms-2">
                 <span className="badge bg-primary">Total: {totalItems}</span>
               </span>
             </h5>
-            <div className="d-flex gap-2">
+            <div className="d-flex gap-2 mobile-full-width mobile-stack">
               <input
                 type="text"
-                className="form-control form-control-sm"
+                className="form-control form-control-sm mobile-full-width"
                 style={{ width: '250px' }}
                 placeholder="Search enquiries..."
                 value={searchTerm}
@@ -2876,11 +3052,11 @@ export default function EnquiryModal() {
               <div className="spinner-border text-primary" role="status">
                 <span className="visually-hidden">Loading...</span>
               </div>
-              <p className="mt-2 text-muted">Loading enquiries...</p>
+              <p className="mt-2 text-muted mobile-text-small">Loading enquiries...</p>
             </div>
           ) : savedEnquiries.length > 0 ? (
             <>
-              <div className="table-responsive">
+              <div className="mobile-table">
                 <table className="table table-hover mb-0">
                   <thead className="table-light">
                     <tr>
@@ -2888,7 +3064,7 @@ export default function EnquiryModal() {
                       <th>Enquiry No</th>
                       <th>Date</th>
                       <th>Company</th>
-                      <th>Contact Person</th>
+                      <th>Contact</th>
                       <th>Items</th>
                       <th>Status</th>
                       <th width="180">Actions</th>
@@ -2950,9 +3126,9 @@ export default function EnquiryModal() {
               
               {/* PAGINATION */}
               {totalPages > 1 && (
-                <div className="d-flex justify-content-between align-items-center p-3 border-top">
-                  <div className="text-muted">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+                <div className="d-flex justify-content-between align-items-center p-3 border-top mobile-pagination">
+                  <div className="text-muted mobile-text-small">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}
                   </div>
                   <nav aria-label="Page navigation">
                     <ul className="pagination pagination-sm mb-0">
@@ -3001,7 +3177,7 @@ export default function EnquiryModal() {
                 <i className="bi bi-question-circle display-1 text-muted"></i>
               </div>
               <h5 className="text-muted">No enquiries found</h5>
-              <p className="text-muted">
+              <p className="text-muted mobile-text-small">
                 {searchTerm ? 'Try a different search term or ' : ''}
                 Create your first enquiry to get started
               </p>

@@ -65,7 +65,7 @@ const AttendancePage = () => {
   };
 
   // ---------------------------
-  // ⭐ EXPORT TO PDF (NO CUTTING)
+  // ⭐ EXPORT TO PDF
   // ---------------------------
   const exportToPDF = () => {
     const doc = new jsPDF("landscape");
@@ -117,6 +117,7 @@ const AttendancePage = () => {
         9: { cellWidth: 35 },
         10: { cellWidth: 35 },
       },
+
       margin: { left: 5, right: 5 },
     });
 
@@ -137,13 +138,16 @@ const AttendancePage = () => {
   };
 
   return (
-    <div className="container mt-4">
+    <div className="container-fluid mt-3 attendance-container">
 
-      <h2 className="text-center fw-bold mb-4">Attendance Records</h2>
+      <h2 className="text-center fw-bold mb-3 page-title">
+        Attendance Records
+      </h2>
 
       {/* FILTERS */}
-      <div className="row g-3 mb-4">
-        <div className="col-md-4">
+      <div className="row g-2 mb-3">
+
+        <div className="col-12 col-md-4">
           <input
             type="text"
             className="form-control"
@@ -153,7 +157,7 @@ const AttendancePage = () => {
           />
         </div>
 
-        <div className="col-md-4">
+        <div className="col-6 col-md-4">
           <input
             type="date"
             className="form-control"
@@ -162,7 +166,7 @@ const AttendancePage = () => {
           />
         </div>
 
-        <div className="col-md-4">
+        <div className="col-6 col-md-4">
           <select
             className="form-select"
             value={statusFilter}
@@ -173,21 +177,33 @@ const AttendancePage = () => {
             <option value="checked-out">Checked-Out</option>
           </select>
         </div>
+
       </div>
 
       {/* EXPORT BUTTONS */}
-      <div className="mb-3 d-flex gap-3">
-        <button className="btn btn-success" onClick={exportToExcel}>
+      <div className="d-flex flex-column flex-md-row gap-2 mb-3">
+
+        <button
+          className="btn btn-success w-100 w-md-auto"
+          onClick={exportToExcel}
+        >
           Export Excel
         </button>
-        <button className="btn btn-danger" onClick={exportToPDF}>
+
+        <button
+          className="btn btn-danger w-100 w-md-auto"
+          onClick={exportToPDF}
+        >
           Export PDF
         </button>
+
       </div>
 
       {/* TABLE */}
-      <div className="table-responsive shadow p-3 bg-white rounded">
-        <table className="table table-hover table-bordered">
+      <div className="table-responsive shadow bg-white rounded p-2">
+
+        <table className="table table-hover table-bordered table-sm attendance-table">
+
           <thead className="table-dark">
             <tr>
               <th>ID</th>
@@ -205,6 +221,7 @@ const AttendancePage = () => {
           </thead>
 
           <tbody>
+
             {filteredRecords.map((r) => (
               <tr key={r.id}>
                 <td>{r.id}</td>
@@ -220,9 +237,55 @@ const AttendancePage = () => {
                 <td>{JSON.stringify(r.location_out)}</td>
               </tr>
             ))}
+
           </tbody>
+
         </table>
+
       </div>
+
+      {/* MOBILE RESPONSIVE CSS */}
+      <style>{`
+
+      .attendance-table{
+        font-size:14px;
+      }
+
+      @media (max-width:768px){
+
+        .page-title{
+          font-size:18px;
+        }
+
+        .attendance-table{
+          font-size:11px;
+        }
+
+        .attendance-table th,
+        .attendance-table td{
+          padding:6px;
+          white-space:nowrap;
+        }
+
+        .badge{
+          font-size:10px;
+        }
+
+        input.form-control,
+        select.form-select{
+          font-size:13px;
+          padding:6px;
+        }
+
+        .btn{
+          font-size:13px;
+          padding:6px 10px;
+        }
+
+      }
+
+      `}</style>
+
     </div>
   );
 };

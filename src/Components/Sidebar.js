@@ -234,7 +234,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   // ⭐ Handle overlay click - close sidebar
   const handleOverlayClick = () => {
     if (setIsOpen) {
-      setIsOpen(false);
+      setIsOpen(true);
     }
   };
 

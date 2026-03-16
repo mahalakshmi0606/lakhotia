@@ -2150,26 +2150,248 @@ export default function QuotationModal() {
 
   return (
     <div className="container-fluid py-4">
+      {/* Mobile Responsive Styles */}
+      <style>{`
+        @media (max-width: 768px) {
+          .container-fluid {
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+          }
+          
+          .mobile-stack {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 12px !important;
+          }
+          
+          .mobile-full-width {
+            width: 100% !important;
+          }
+          
+          .mobile-btn-group {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 8px;
+          }
+          
+          .mobile-btn-group .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .mobile-table {
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+          }
+          
+          .mobile-hide {
+            display: none !important;
+          }
+          
+          .mobile-card {
+            margin-bottom: 12px;
+            border-radius: 8px;
+          }
+          
+          .mobile-pagination {
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+          }
+          
+          .modal-dialog {
+            margin: 10px !important;
+            max-width: calc(100% - 20px) !important;
+          }
+          
+          .modal-body {
+            padding: 16px !important;
+          }
+          
+          .modal-body .row {
+            margin-left: -8px;
+            margin-right: -8px;
+          }
+          
+          .modal-body .row > [class*="col-"] {
+            padding-left: 8px;
+            padding-right: 8px;
+          }
+          
+          .mobile-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          }
+          
+          .mobile-text-small {
+            font-size: 12px !important;
+          }
+          
+          .mobile-badge-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+          }
+          
+          .mobile-stat-card {
+            margin-bottom: 8px;
+          }
+          
+          .mobile-row {
+            flex-direction: column;
+          }
+          
+          .mobile-row > [class*="col-"] {
+            width: 100%;
+            margin-bottom: 8px;
+          }
+          
+          .mobile-search-container {
+            width: 100%;
+            margin-top: 8px;
+          }
+          
+          .mobile-search-input {
+            width: 100% !important;
+          }
+          
+          .mobile-export-buttons {
+            flex-direction: column;
+            width: 100%;
+          }
+          
+          .mobile-export-buttons .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .mobile-invoice-header {
+            flex-direction: column;
+            text-align: center;
+          }
+          
+          .mobile-invoice-header .col-2,
+          .mobile-invoice-header .col-5,
+          .mobile-invoice-header .col-5 {
+            width: 100%;
+            text-align: center !important;
+          }
+          
+          .mobile-invoice-header img {
+            margin: 0 auto 12px;
+          }
+          
+          .mobile-quick-summary {
+            flex-direction: column;
+          }
+          
+          .mobile-quick-summary > div {
+            width: 100%;
+            margin-bottom: 8px;
+          }
+          
+          .mobile-filter-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          }
+          
+          .mobile-filter-buttons .btn {
+            width: 100%;
+          }
+          
+          .table th, .table td {
+            font-size: 11px;
+            padding: 4px !important;
+          }
+          
+          .btn-sm {
+            padding: 0.25rem 0.4rem;
+            font-size: 0.7rem;
+          }
+          
+          .btn-group-sm > .btn {
+            padding: 0.25rem 0.4rem;
+            font-size: 0.7rem;
+          }
+          
+          .badge {
+            font-size: 0.65rem;
+          }
+          
+          h1.h2 {
+            font-size: 1.5rem !important;
+          }
+          
+          .card-title {
+            font-size: 0.9rem;
+          }
+        }
+        
+        @media (max-width: 576px) {
+          h1.h2 {
+            font-size: 1.3rem !important;
+          }
+          
+          .mobile-grid-2 {
+            grid-template-columns: 1fr;
+          }
+          
+          .mobile-filter-buttons {
+            grid-template-columns: 1fr;
+          }
+          
+          .modal-footer {
+            flex-direction: column;
+            gap: 8px;
+          }
+          
+          .modal-footer .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .d-flex.gap-2 {
+            gap: 8px !important;
+          }
+          
+          .input-group {
+            flex-direction: column;
+          }
+          
+          .input-group > .form-control,
+          .input-group > .input-group-text {
+            width: 100%;
+            border-radius: 4px !important;
+            margin-bottom: 4px;
+          }
+        }
+      `}</style>
+
       {/* Header with User Info */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
+      <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
+        <div className="mobile-full-width">
           <h1 className="h2 mb-1">Quotation Management</h1>
-          <p className="text-muted mb-0">
+          <p className="text-muted mb-0 mobile-text-small">
             Welcome, <span className="text-primary fw-bold">{currentUser.username || 'User'}</span>
             {currentUser.email && (
               <span className="ms-2 text-muted">({currentUser.email})</span>
             )}
           </p>
         </div>
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2 mobile-full-width mobile-btn-group">
           <button
-            className="btn btn-info"
+            className="btn btn-info mobile-full-width"
             onClick={openEnquiriesModal}
           >
             <i className="bi bi-question-circle me-2"></i>View Enquiries
           </button>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary mobile-full-width"
             onClick={startNewQuotation}
           >
             <i className="bi bi-file-earmark-plus me-2"></i>New Quotation
@@ -2180,17 +2402,17 @@ export default function QuotationModal() {
       {/* Statistics Cards */}
       <div className="row mb-4">
         <div className="col-12 mb-3">
-          <div className="card">
+          <div className="card mobile-card">
             <div className="card-body p-3">
               <h6 className="card-title mb-3">Quotation Overview</h6>
-              <div className="row">
+              <div className="row mobile-grid-2">
                 <div className="col-md mb-2">
                   <div className="d-flex align-items-center">
                     <div className="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white me-3" style={{ width: '40px', height: '40px' }}>
                       <i className="bi bi-files"></i>
                     </div>
                     <div>
-                      <div className="text-muted small">Total Quotations</div>
+                      <div className="text-muted small">Total</div>
                       <div className="h4 mb-0">{quotationCounts.all}</div>
                     </div>
                   </div>
@@ -2237,10 +2459,10 @@ export default function QuotationModal() {
       {/* Status Filter Buttons */}
       <div className="row mb-4">
         <div className="col-12">
-          <div className="card">
+          <div className="card mobile-card">
             <div className="card-body p-3">
               <h6 className="card-title mb-3">Filter by Status</h6>
-              <div className="d-flex flex-wrap gap-2">
+              <div className="mobile-filter-buttons">
                 <button 
                   className={`btn btn-sm ${statusFilter === 'all' ? 'btn-primary' : 'btn-outline-primary'}`}
                   onClick={() => handleStatusFilter('all')}
@@ -2286,12 +2508,12 @@ export default function QuotationModal() {
               </div>
               <div className="modal-body">
                 <div className="mb-4">
-                  <div className="d-flex justify-content-between align-items-center">
-                    <h6>Select an enquiry to convert to quotation</h6>
-                    <div className="d-flex gap-2">
+                  <div className="d-flex justify-content-between align-items-center mobile-stack">
+                    <h6 className="mobile-full-width">Select an enquiry to convert to quotation</h6>
+                    <div className="d-flex gap-2 mobile-full-width mobile-stack">
                       <input
                         type="text"
-                        className="form-control form-control-sm"
+                        className="form-control form-control-sm mobile-full-width"
                         style={{ width: '250px' }}
                         placeholder="Search enquiries..."
                         value={enquirySearchTerm}
@@ -2314,18 +2536,18 @@ export default function QuotationModal() {
                     <div className="spinner-border text-info" role="status">
                       <span className="visually-hidden">Loading...</span>
                     </div>
-                    <p className="mt-2 text-muted">Loading enquiries...</p>
+                    <p className="mt-2 text-muted mobile-text-small">Loading enquiries...</p>
                   </div>
                 ) : enquiries.length > 0 ? (
                   <>
-                    <div className="table-responsive">
+                    <div className="mobile-table">
                       <table className="table table-hover">
                         <thead className="table-light">
                           <tr>
                             <th>#</th>
                             <th>Enquiry No</th>
                             <th>Company</th>
-                            <th>Contact Person</th>
+                            <th>Contact</th>
                             <th>Items</th>
                             <th>Status</th>
                             <th>Date</th>
@@ -2337,15 +2559,15 @@ export default function QuotationModal() {
                             <tr key={enquiry.id}>
                               <td>{((enquiryCurrentPage - 1) * enquiryItemsPerPage) + index + 1}</td>
                               <td>
-                                <strong>{enquiry.enquiry_number}</strong>
+                                <strong className="mobile-text-small">{enquiry.enquiry_number}</strong>
                               </td>
-                              <td>{enquiry.company_name}</td>
+                              <td className="mobile-text-small">{enquiry.company_name}</td>
                               <td>
-                                {enquiry.contact_person}<br/>
+                                <span className="mobile-text-small">{enquiry.contact_person}</span><br/>
                                 <small className="text-muted">{enquiry.contact_mobile}</small>
                               </td>
                               <td>
-                                <span className="badge bg-primary">{enquiry.total_items || 0} items</span><br/>
+                                <span className="badge bg-primary">{enquiry.total_items || 0}</span><br/>
                                 <small className="text-muted">Qty: {enquiry.total_quantity || 0}</small>
                               </td>
                               <td>
@@ -2360,7 +2582,7 @@ export default function QuotationModal() {
                                 </span>
                               </td>
                               <td>
-                                {new Date(enquiry.created_at).toLocaleDateString()}<br/>
+                                <span className="mobile-text-small">{new Date(enquiry.created_at).toLocaleDateString()}</span><br/>
                                 <small className="text-muted">
                                   {new Date(enquiry.created_at).toLocaleTimeString()}
                                 </small>
@@ -2396,9 +2618,9 @@ export default function QuotationModal() {
                     
                     {/* Enquiry Pagination */}
                     {enquiryTotalPages > 1 && (
-                      <div className="d-flex justify-content-between align-items-center p-3 border-top">
-                        <div className="text-muted">
-                          Showing {((enquiryCurrentPage - 1) * enquiryItemsPerPage) + 1} to {Math.min(enquiryCurrentPage * enquiryItemsPerPage, enquiryTotalItems)} of {enquiryTotalItems} entries
+                      <div className="d-flex justify-content-between align-items-center p-3 border-top mobile-pagination">
+                        <div className="text-muted mobile-text-small">
+                          Showing {((enquiryCurrentPage - 1) * enquiryItemsPerPage) + 1} to {Math.min(enquiryCurrentPage * enquiryItemsPerPage, enquiryTotalItems)} of {enquiryTotalItems}
                         </div>
                         <nav aria-label="Enquiry page navigation">
                           <ul className="pagination pagination-sm mb-0">
@@ -2447,11 +2669,11 @@ export default function QuotationModal() {
                       <i className="bi bi-question-circle display-1 text-muted"></i>
                     </div>
                     <h5 className="text-muted">No enquiries found</h5>
-                    <p className="text-muted">Create enquiries to convert them to quotations</p>
+                    <p className="text-muted mobile-text-small">Create enquiries to convert them to quotations</p>
                   </div>
                 )}
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer mobile-btn-group">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowEnquiriesModal(false)}>
                   <i className="bi bi-x-circle me-1"></i>Close
                 </button>
@@ -2474,23 +2696,23 @@ export default function QuotationModal() {
                 <button type="button" className="btn-close btn-close-white" onClick={() => setShowEnquiryDetails(false)}></button>
               </div>
               <div className="modal-body">
-                <div className="row mb-4">
+                <div className="row mb-4 mobile-row">
                   <div className="col-md-6">
                     <h6>Company Details</h6>
-                    <p><strong>{selectedEnquiry.company_name}</strong></p>
-                    <p className="mb-1">{selectedEnquiry.company_address}</p>
+                    <p className="mobile-text-small"><strong>{selectedEnquiry.company_name}</strong></p>
+                    <p className="mb-1 mobile-text-small">{selectedEnquiry.company_address}</p>
                     {selectedEnquiry.company_pincode && (
-                      <p className="mb-1">Pincode: {selectedEnquiry.company_pincode}</p>
+                      <p className="mb-1 mobile-text-small">Pincode: {selectedEnquiry.company_pincode}</p>
                     )}
                     {selectedEnquiry.company_gstin && (
-                      <p className="mb-1">GSTIN: {selectedEnquiry.company_gstin}</p>
+                      <p className="mb-1 mobile-text-small">GSTIN: {selectedEnquiry.company_gstin}</p>
                     )}
                   </div>
                   <div className="col-md-6">
                     <h6>Contact Details</h6>
-                    <p><strong>{selectedEnquiry.contact_person}</strong></p>
-                    <p className="mb-1">Phone: {selectedEnquiry.contact_mobile}</p>
-                    <p className="mb-1">Email: {selectedEnquiry.contact_email}</p>
+                    <p className="mobile-text-small"><strong>{selectedEnquiry.contact_person}</strong></p>
+                    <p className="mb-1 mobile-text-small">Phone: {selectedEnquiry.contact_mobile}</p>
+                    <p className="mb-1 mobile-text-small">Email: {selectedEnquiry.contact_email}</p>
                     <div className="mt-2">
                       <span className={`badge ${
                         selectedEnquiry.status === 'draft' ? 'bg-warning' :
@@ -2507,29 +2729,27 @@ export default function QuotationModal() {
 
                 <h6 className="mb-3">Items in Enquiry</h6>
                 {selectedEnquiry.items && selectedEnquiry.items.length > 0 ? (
-                  <div className="table-responsive">
+                  <div className="mobile-table">
                     <table className="table table-sm">
                       <thead className="table-light">
                         <tr>
                           <th>Item Name</th>
                           <th>Brand Code</th>
-                          <th>Cut Width</th>
-                          <th>Cut Length</th>
+                          <th>Width</th>
+                          <th>Length</th>
                           <th>Qty</th>
-                          <th>Unit</th>
-                          <th>Customer Description</th>
+                          <th>Customer Desc</th>
                         </tr>
                       </thead>
                       <tbody>
                         {selectedEnquiry.items.map((item, index) => (
                           <tr key={index}>
-                            <td>{item.item_name}</td>
-                            <td>{item.brand_code || '-'}</td>
-                            <td>{item.cut_width || '-'}</td>
-                            <td>{item.length || '-'}</td>
-                            <td>{item.quantity}</td>
-                            <td>{item.unit}</td>
-                            <td>{item.customer_description || '-'}</td>
+                            <td className="mobile-text-small">{item.item_name}</td>
+                            <td className="mobile-text-small">{item.brand_code || '-'}</td>
+                            <td className="mobile-text-small">{item.cut_width || '-'}</td>
+                            <td className="mobile-text-small">{item.length || '-'}</td>
+                            <td className="mobile-text-small">{item.quantity}</td>
+                            <td className="mobile-text-small">{item.customer_description || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2542,7 +2762,7 @@ export default function QuotationModal() {
                   </div>
                 )}
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer mobile-btn-group">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowEnquiryDetails(false)}>
                   <i className="bi bi-arrow-left me-1"></i>Back to List
                 </button>
@@ -2568,22 +2788,22 @@ export default function QuotationModal() {
               </div>
               
               <div className="modal-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
                   <div className={`d-flex align-items-center ${billTo.trim() ? 'text-success' : ''}`}>
                     <div className={`rounded-circle ${billTo.trim() ? 'bg-success' : 'bg-primary'} text-white d-flex align-items-center justify-content-center`} style={{ width: '30px', height: '30px' }}>
                       {billTo.trim() ? <i className="bi bi-check"></i> : '1'}
                     </div>
-                    <span className="ms-2">Company Details</span>
+                    <span className="ms-2 mobile-text-small">Company Details</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
-                    <span className="ms-2">Add Items</span>
+                    <span className="ms-2 mobile-text-small">Add Items</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
-                    <span className="ms-2">Preview</span>
+                    <span className="ms-2 mobile-text-small">Preview</span>
                   </div>
                 </div>
 
@@ -2611,12 +2831,12 @@ export default function QuotationModal() {
                               selectCompanyFromSearch(company);
                             }}
                           >
-                            <div className="fw-bold">{company.companyName || company.company_name}</div>
+                            <div className="fw-bold mobile-text-small">{company.companyName || company.company_name}</div>
                             <div className="text-muted small">
                               {company.customerName || company.customer_name} • {company.customerMobile || company.customer_mobile}
                             </div>
                             {(company.pinCode || company.pin_code) && (
-                              <div className="text-muted small mt-1">
+                              <div className="text-muted small mt-1 mobile-badge-stack">
                                 <span className="badge bg-info text-white me-1">Pincode: {company.pinCode || company.pin_code}</span>
                                 {company.gstNumber || company.gst_number ? (
                                   <span className="badge bg-secondary">GST: {company.gstNumber || company.gst_number}</span>
@@ -2629,11 +2849,11 @@ export default function QuotationModal() {
                     )}
                   </div>
                   
-                  {loadingCompanies && <div className="alert alert-info mt-2 py-2">Loading companies...</div>}
-                  {companyError && <div className="alert alert-warning mt-2 py-2">{companyError}</div>}
+                  {loadingCompanies && <div className="alert alert-info mt-2 py-2 mobile-text-small">Loading companies...</div>}
+                  {companyError && <div className="alert alert-warning mt-2 py-2 mobile-text-small">{companyError}</div>}
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Contact Person</label>
@@ -2659,7 +2879,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Company Address</label>
@@ -2682,9 +2902,9 @@ export default function QuotationModal() {
                         placeholder="Enter pincode"
                       />
                       {extractPincode(companyAddress) && companyPincode !== extractPincode(companyAddress) && (
-                        <div className="form-text text-info">
+                        <div className="form-text text-info mobile-text-small">
                           <i className="bi bi-info-circle me-1"></i>
-                          Found pincode in address: {extractPincode(companyAddress)}. Click to copy:
+                          Found pincode: {extractPincode(companyAddress)}.
                           <button 
                             type="button" 
                             className="btn btn-sm btn-outline-info ms-2"
@@ -2698,7 +2918,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Company GSTIN</label>
@@ -2761,12 +2981,12 @@ export default function QuotationModal() {
                     onChange={(e) => setProfitPercentage(parseFloat(e.target.value) || 20)}
                     placeholder="Enter profit percentage"
                   />
-                  <div className="form-text">
+                  <div className="form-text mobile-text-small">
                     Used to calculate total: Price/Unit + (Price/Unit × profit%)
                   </div>
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={cancelQuotation}>
                     <i className="bi bi-x-circle me-1"></i>Cancel
                   </button>
@@ -2791,30 +3011,30 @@ export default function QuotationModal() {
               </div>
               
               <div className="modal-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
                   <div className="d-flex align-items-center text-success">
                     <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
                       <i className="bi bi-check"></i>
                     </div>
-                    <span className="ms-2">Company Details</span>
+                    <span className="ms-2 mobile-text-small">Company Details</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-primary">
                     <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
-                    <span className="ms-2">Add Items</span>
+                    <span className="ms-2 mobile-text-small">Add Items</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
-                    <span className="ms-2">Preview</span>
+                    <span className="ms-2 mobile-text-small">Preview</span>
                   </div>
                 </div>
 
-                <div className="card mb-4">
+                <div className="card mb-4 mobile-card">
                   <div className="card-header bg-light">
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex justify-content-between align-items-center mobile-stack">
                       <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
-                      <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
+                      <button className="btn btn-sm btn-success mobile-full-width mt-2" onClick={addItemViaPopup}>
                         <i className="bi bi-plus-circle me-1"></i>Add Item
                       </button>
                     </div>
@@ -2824,10 +3044,10 @@ export default function QuotationModal() {
                       <div className="text-center py-5">
                         <i className="bi bi-box display-1 text-muted mb-3"></i>
                         <h5 className="text-muted">No items added</h5>
-                        <p className="text-muted">Click "Add Item" to start adding items to your quotation</p>
+                        <p className="text-muted mobile-text-small">Click "Add Item" to start adding items to your quotation</p>
                       </div>
                     ) : (
-                      <div className="table-responsive">
+                      <div className="mobile-table">
                         <table className="table table-hover mb-0">
                           <thead className="table-light">
                             <tr>
@@ -2851,8 +3071,8 @@ export default function QuotationModal() {
                               <tr key={item.id}>
                                 <td>{index + 1}</td>
                                 <td>
-                                  <div className="fw-bold">{item.item_name}</div>
-                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
+                                  <div className="fw-bold mobile-text-small">{item.item_name}</div>
+                                  <div className="text-muted small">{item.customer_description?.substring(0, 20) || item.description?.substring(0, 20)}...</div>
                                 </td>
                                 <td>{item.brand_code || ''}</td>
                                 <td>
@@ -2896,11 +3116,11 @@ export default function QuotationModal() {
                                     min="1"
                                     value={item.quantity}
                                     onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                                    placeholder="Enter quantity"
+                                    placeholder="Qty"
                                   />
                                 </td>
                                 <td>{item.unit}</td>
-                                <td className="text-end">₹{pricePerUnit(item).toFixed(2)}</td>
+                                <td className="text-end mobile-text-small">₹{pricePerUnit(item).toFixed(2)}</td>
                                 <td>
                                   <div className="input-group input-group-sm">
                                     <input
@@ -2922,7 +3142,7 @@ export default function QuotationModal() {
                                     </select>
                                   </div>
                                 </td>
-                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
+                                <td className="text-end fw-bold mobile-text-small">₹{itemTotal(item).toFixed(2)}</td>
                                 <td>
                                   <button
                                     className="btn btn-sm btn-danger"
@@ -2941,38 +3161,38 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-4">
-                    <div className="card">
+                    <div className="card mobile-card">
                       <div className="card-body">
                         <h6 className="card-title">Quick Summary</h6>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Items:</span>
-                          <strong>{items.length}</strong>
+                          <span className="mobile-text-small">Items:</span>
+                          <strong className="mobile-text-small">{items.length}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Subtotal:</span>
-                          <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Subtotal:</span>
+                          <strong className="mobile-text-small">₹{totals.subtotal.toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Discount:</span>
-                          <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Discount:</span>
+                          <strong className="text-danger mobile-text-small">-₹{totals.totalDiscount.toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between">
-                          <span>Tax (18%):</span>
-                          <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Tax (18%):</span>
+                          <strong className="mobile-text-small">₹{totals.totalGST.toFixed(2)}</strong>
                         </div>
                         <hr />
                         <div className="d-flex justify-content-between fw-bold">
-                          <span>Grand Total:</span>
-                          <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Grand Total:</span>
+                          <strong className="text-primary mobile-text-small">₹{totals.grandTotal.toFixed(2)}</strong>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={goBackToCompany}>
                     <i className="bi bi-arrow-left me-1"></i>Back to Company
                   </button>
@@ -3000,26 +3220,26 @@ export default function QuotationModal() {
               </div>
               
               <div className="modal-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
                   <div className={`d-flex align-items-center ${billTo.trim() ? 'text-success' : ''}`}>
                     <div className={`rounded-circle ${billTo.trim() ? 'bg-success' : 'bg-primary'} text-white d-flex align-items-center justify-content-center`} style={{ width: '30px', height: '30px' }}>
                       1
                     </div>
-                    <span className="ms-2">Company Details</span>
+                    <span className="ms-2 mobile-text-small">Company Details</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
-                    <span className="ms-2">Edit Items</span>
+                    <span className="ms-2 mobile-text-small">Edit Items</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
-                    <span className="ms-2">Preview</span>
+                    <span className="ms-2 mobile-text-small">Preview</span>
                   </div>
                 </div>
 
-                <div className="alert alert-info">
+                <div className="alert alert-info mobile-text-small">
                   <i className="bi bi-info-circle me-2"></i>
                   You are editing a quotation with "requote" status. After saving, it will be changed to "draft" status.
                 </div>
@@ -3048,7 +3268,7 @@ export default function QuotationModal() {
                               selectCompanyFromSearch(company);
                             }}
                           >
-                            <div className="fw-bold">{company.companyName || company.company_name}</div>
+                            <div className="fw-bold mobile-text-small">{company.companyName || company.company_name}</div>
                             <div className="text-muted small">
                               {company.customerName || company.customer_name} • {company.customerMobile || company.customer_mobile}
                             </div>
@@ -3059,7 +3279,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Contact Person</label>
@@ -3084,7 +3304,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Company Address</label>
@@ -3109,7 +3329,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-6">
                     <div className="mb-3">
                       <label className="form-label">Company GSTIN</label>
@@ -3186,7 +3406,7 @@ export default function QuotationModal() {
                   />
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={cancelQuotation}>
                     <i className="bi bi-x-circle me-1"></i>Cancel
                   </button>
@@ -3214,30 +3434,30 @@ export default function QuotationModal() {
               </div>
               
               <div className="modal-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
                   <div className="d-flex align-items-center text-success">
                     <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
                       <i className="bi bi-check"></i>
                     </div>
-                    <span className="ms-2">Company Details</span>
+                    <span className="ms-2 mobile-text-small">Company Details</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-primary">
                     <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>2</div>
-                    <span className="ms-2">Edit Items</span>
+                    <span className="ms-2 mobile-text-small">Edit Items</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-muted">
                     <div className="rounded-circle bg-light border d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
-                    <span className="ms-2">Preview</span>
+                    <span className="ms-2 mobile-text-small">Preview</span>
                   </div>
                 </div>
 
-                <div className="card mb-4">
+                <div className="card mb-4 mobile-card">
                   <div className="card-header bg-light">
-                    <div className="d-flex justify-content-between align-items-center">
+                    <div className="d-flex justify-content-between align-items-center mobile-stack">
                       <h6 className="mb-0">Items List {items.length > 0 && <span className="badge bg-primary ms-2">{items.length} items</span>}</h6>
-                      <button className="btn btn-sm btn-success" onClick={addItemViaPopup}>
+                      <button className="btn btn-sm btn-success mobile-full-width mt-2" onClick={addItemViaPopup}>
                         <i className="bi bi-plus-circle me-1"></i>Add Item
                       </button>
                     </div>
@@ -3247,10 +3467,10 @@ export default function QuotationModal() {
                       <div className="text-center py-5">
                         <i className="bi bi-box display-1 text-muted mb-3"></i>
                         <h5 className="text-muted">No items added</h5>
-                        <p className="text-muted">Click "Add Item" to start adding items to your quotation</p>
+                        <p className="text-muted mobile-text-small">Click "Add Item" to start adding items to your quotation</p>
                       </div>
                     ) : (
-                      <div className="table-responsive">
+                      <div className="mobile-table">
                         <table className="table table-hover mb-0">
                           <thead className="table-light">
                             <tr>
@@ -3274,8 +3494,8 @@ export default function QuotationModal() {
                               <tr key={item.id}>
                                 <td>{index + 1}</td>
                                 <td>
-                                  <div className="fw-bold">{item.item_name}</div>
-                                  <div className="text-muted small">{item.customer_description?.substring(0, 30) || item.description?.substring(0, 30)}...</div>
+                                  <div className="fw-bold mobile-text-small">{item.item_name}</div>
+                                  <div className="text-muted small">{item.customer_description?.substring(0, 20) || item.description?.substring(0, 20)}...</div>
                                 </td>
                                 <td>{item.brand_code || ''}</td>
                                 <td>
@@ -3319,11 +3539,11 @@ export default function QuotationModal() {
                                     min="1"
                                     value={item.quantity}
                                     onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                                    placeholder="Enter quantity"
+                                    placeholder="Qty"
                                   />
                                 </td>
                                 <td>{item.unit}</td>
-                                <td className="text-end">₹{pricePerUnit(item).toFixed(2)}</td>
+                                <td className="text-end mobile-text-small">₹{pricePerUnit(item).toFixed(2)}</td>
                                 <td>
                                   <div className="input-group input-group-sm">
                                     <input
@@ -3345,7 +3565,7 @@ export default function QuotationModal() {
                                     </select>
                                   </div>
                                 </td>
-                                <td className="text-end fw-bold">₹{itemTotal(item).toFixed(2)}</td>
+                                <td className="text-end fw-bold mobile-text-small">₹{itemTotal(item).toFixed(2)}</td>
                                 <td>
                                   <button
                                     className="btn btn-sm btn-danger"
@@ -3364,38 +3584,38 @@ export default function QuotationModal() {
                   </div>
                 </div>
 
-                <div className="row">
+                <div className="row mobile-row">
                   <div className="col-md-4">
-                    <div className="card">
+                    <div className="card mobile-card">
                       <div className="card-body">
                         <h6 className="card-title">Quick Summary</h6>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Items:</span>
-                          <strong>{items.length}</strong>
+                          <span className="mobile-text-small">Items:</span>
+                          <strong className="mobile-text-small">{items.length}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Subtotal:</span>
-                          <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Subtotal:</span>
+                          <strong className="mobile-text-small">₹{totals.subtotal.toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Discount:</span>
-                          <strong className="text-danger">-₹{totals.totalDiscount.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Discount:</span>
+                          <strong className="text-danger mobile-text-small">-₹{totals.totalDiscount.toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between">
-                          <span>Tax:</span>
-                          <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Tax:</span>
+                          <strong className="mobile-text-small">₹{totals.totalGST.toFixed(2)}</strong>
                         </div>
                         <hr />
                         <div className="d-flex justify-content-between fw-bold">
-                          <span>Grand Total:</span>
-                          <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                          <span className="mobile-text-small">Grand Total:</span>
+                          <strong className="text-primary mobile-text-small">₹{totals.grandTotal.toFixed(2)}</strong>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="modal-footer">
+                <div className="modal-footer mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={goBackToEditCompany}>
                     <i className="bi bi-arrow-left me-1"></i>Back to Company
                   </button>
@@ -3422,32 +3642,32 @@ export default function QuotationModal() {
                 <button type="button" className="btn-close btn-close-white" onClick={cancelQuotation}></button>
               </div>
               <div className="modal-body">
-                <div className="d-flex justify-content-between align-items-center mb-4">
+                <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
                   <div className="d-flex align-items-center text-success">
                     <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
                       <i className="bi bi-check"></i>
                     </div>
-                    <span className="ms-2">Company Details</span>
+                    <span className="ms-2 mobile-text-small">Company Details</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-success">
                     <div className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>
                       <i className="bi bi-check"></i>
                     </div>
-                    <span className="ms-2">Items</span>
+                    <span className="ms-2 mobile-text-small">Items</span>
                   </div>
-                  <div className="flex-grow-1 border-top mx-3"></div>
+                  <div className="flex-grow-1 border-top mx-2 mobile-hide"></div>
                   <div className="d-flex align-items-center text-primary">
                     <div className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style={{ width: '30px', height: '30px' }}>3</div>
-                    <span className="ms-2">Preview</span>
+                    <span className="ms-2 mobile-text-small">Preview</span>
                   </div>
                 </div>
 
                 <div ref={quotationRef}>
                   <div className="container">
-                    <div className="invoice-header border-bottom pb-3 mb-3">
+                    <div className="invoice-header border-bottom pb-3 mb-3 mobile-invoice-header">
                       <div className="row">
-                        <div className="col-2">
+                        <div className="col-2 d-flex align-items-center justify-content-center">
                           <img 
                             src={companyLogo} 
                             alt="Company Logo" 
@@ -3459,54 +3679,54 @@ export default function QuotationModal() {
                           />
                         </div>
                         <div className="col-5">
-                          <h1 className="mb-1">{issuer.name}</h1>
-                          <p className="mb-1">{issuer.address}</p>
-                          <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
-                          <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                          <h1 className="mb-1 mobile-text-small">{issuer.name}</h1>
+                          <p className="mb-1 mobile-text-small">{issuer.address}</p>
+                          <p className="mb-1 mobile-text-small">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                          <p className="mb-1 mobile-text-small">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                         </div>
                         <div className="col-5 text-end">
                           <h2 className="text-warning mb-2">QUOTATION (EDIT)</h2>
-                          <p className="mb-1"><strong>Quote No:</strong> {quoteNo}</p>
-                          <p className="mb-1"><strong>Date:</strong> {date}</p>
-                          <p className="mb-1"><strong>Time:</strong> {time}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Quote No:</strong> {quoteNo}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Date:</strong> {date}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Time:</strong> {time}</p>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="row mb-4">
+                    <div className="row mb-4 mobile-row">
                       <div className="col-6">
                         <h5>Bill To:</h5>
-                        <p className="mb-1"><strong>{billTo}</strong></p>
-                        <p className="mb-1">{companyAddress}</p>
+                        <p className="mb-1 mobile-text-small"><strong>{billTo}</strong></p>
+                        <p className="mb-1 mobile-text-small">{companyAddress}</p>
                         {companyPincode && (
-                          <p className="mb-1">Pincode: {companyPincode}</p>
+                          <p className="mb-1">
+                            Pincode: {companyPincode}
+                          </p>
                         )}
-                        <p className="mb-1">GSTIN: {companyGstin}</p>
+                        <p className="mb-1 mobile-text-small">GSTIN: {companyGstin}</p>
                       </div>
                       <div className="col-6">
                         <h5>Contact Details:</h5>
-                        <p className="mb-1"><strong>{contactPerson}</strong></p>
-                        <p className="mb-1">Phone: {contactMob}</p>
-                        <p className="mb-1">Email: {contactEmail}</p>
+                        <p className="mb-1 mobile-text-small"><strong>{contactPerson}</strong></p>
+                        <p className="mb-1 mobile-text-small">Phone: {contactMob}</p>
+                        <p className="mb-1 mobile-text-small">Email: {contactEmail}</p>
                         {ccEmail && (
-                          <p className="mb-1">CC: {ccEmail}</p>
+                          <p className="mb-1 mobile-text-small">CC: {ccEmail}</p>
                         )}
                       </div>
                     </div>
                     
-                    <div className="table-responsive">
+                    <div className="mobile-table">
                       <table className="table table-bordered">
                         <thead className="table-light">
                           <tr>
                             <th>#</th>
                             <th>Item Name</th>
                             <th>Brand Code</th>
-                            <th>Cut Width</th>
-                            <th>Cut Length</th>
+                            <th>Width</th>
+                            <th>Length</th>
                             <th>Part No</th>
-                            <th>Customer Description</th>
                             <th>Qty</th>
-                            <th>UoM</th>
                             <th>Price/Unit</th>
                             <th>GST %</th>
                             <th>Total</th>
@@ -3516,14 +3736,12 @@ export default function QuotationModal() {
                           {items.map((item, index) => (
                             <tr key={item.id}>
                               <td>{index + 1}</td>
-                              <td><strong>{item.item_name}</strong></td>
+                              <td><strong className="mobile-text-small">{item.item_name}</strong></td>
                               <td>{item.brand_code || ''}</td>
                               <td>{item.cut_width}</td>
                               <td>{item.length}</td>
                               <td>{item.supplier_part_no}</td>
-                              <td>{item.customer_description || ''}</td>
                               <td>{item.quantity}</td>
-                              <td>{item.unit}</td>
                               <td>₹{pricePerUnit(item).toFixed(2)}</td>
                               <td>{item.tax_rate}%</td>
                               <td><strong>₹{amountAfterDiscount(item).toFixed(2)}</strong></td>
@@ -3533,76 +3751,78 @@ export default function QuotationModal() {
                       </table>
                     </div>
                     
-                    <div className="row mt-4">
+                    <div className="row mt-4 mobile-row">
                       <div className="col-7">
                         <h5 className="mb-2">Tax Summary:</h5>
-                        <table className="table table-bordered table-sm">
-                          <thead className="table-light">
-                            <tr>
-                              <th>GST %</th>
-                              <th>Taxable Amount</th>
-                              <th>Tax Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(() => {
-                              const taxSummary = {};
-                              items.forEach(item => {
-                                const taxRate = item.tax_rate || 18;
-                                const taxAmount = gstAmount(item);
-                                if (!taxSummary[taxRate]) {
-                                  taxSummary[taxRate] = 0;
-                                }
-                                taxSummary[taxRate] += taxAmount;
-                              });
-                              
-                              return Object.entries(taxSummary).map(([rate, amount]) => (
-                                <tr key={rate}>
-                                  <td>{rate}%</td>
-                                  <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
-                                  <td>₹{amount.toFixed(2)}</td>
-                                </tr>
-                              ));
-                            })()}
-                          </tbody>
-                        </table>
+                        <div className="mobile-table">
+                          <table className="table table-bordered table-sm">
+                            <thead className="table-light">
+                              <tr>
+                                <th>GST %</th>
+                                <th>Taxable Amount</th>
+                                <th>Tax Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const taxSummary = {};
+                                items.forEach(item => {
+                                  const taxRate = item.tax_rate || 18;
+                                  const taxAmount = gstAmount(item);
+                                  if (!taxSummary[taxRate]) {
+                                    taxSummary[taxRate] = 0;
+                                  }
+                                  taxSummary[taxRate] += taxAmount;
+                                });
+                                
+                                return Object.entries(taxSummary).map(([rate, amount]) => (
+                                  <tr key={rate}>
+                                    <td>{rate}%</td>
+                                    <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                                    <td>₹{amount.toFixed(2)}</td>
+                                  </tr>
+                                ));
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                       <div className="col-5">
-                        <div className="card border-0">
+                        <div className="card border-0 mobile-card">
                           <div className="card-body">
                             <h5 className="card-title">Total Summary</h5>
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Subtotal:</span>
-                              <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Subtotal:</span>
+                              <strong className="mobile-text-small">₹{totals.subtotal.toFixed(2)}</strong>
                             </div>
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Discount:</span>
-                              <strong className="text-danger">- ₹{totals.totalDiscount.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Discount:</span>
+                              <strong className="text-danger mobile-text-small">- ₹{totals.totalDiscount.toFixed(2)}</strong>
                             </div>
                             {totals.totalPacking > 0 && (
                               <div className="d-flex justify-content-between mb-2">
-                                <span>Packing:</span>
-                                <strong>₹{totals.totalPacking.toFixed(2)}</strong>
+                                <span className="mobile-text-small">Packing:</span>
+                                <strong className="mobile-text-small">₹{totals.totalPacking.toFixed(2)}</strong>
                               </div>
                             )}
                             {totals.totalFreight > 0 && (
                               <div className="d-flex justify-content-between mb-2">
-                                <span>Freight:</span>
-                                <strong>₹{totals.totalFreight.toFixed(2)}</strong>
+                                <span className="mobile-text-small">Freight:</span>
+                                <strong className="mobile-text-small">₹{totals.totalFreight.toFixed(2)}</strong>
                               </div>
                             )}
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Taxable Amount:</span>
-                              <strong>₹{totals.totalBeforeGST.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Taxable Amount:</span>
+                              <strong className="mobile-text-small">₹{totals.totalBeforeGST.toFixed(2)}</strong>
                             </div>
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Total Tax:</span>
-                              <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Total Tax:</span>
+                              <strong className="mobile-text-small">₹{totals.totalGST.toFixed(2)}</strong>
                             </div>
                             <hr/>
                             <div className="d-flex justify-content-between total-row">
-                              <span>Grand Total:</span>
-                              <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Grand Total:</span>
+                              <strong className="text-primary mobile-text-small">₹{totals.grandTotal.toFixed(2)}</strong>
                             </div>
                           </div>
                         </div>
@@ -3611,27 +3831,27 @@ export default function QuotationModal() {
                     
                     {/* Bank Details with QR Code */}
                     <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '5px' }}>
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div style={{ flex: 1 }}>
+                      <div className="d-flex justify-content-between align-items-center mobile-stack">
+                        <div style={{ flex: 1 }} className="mobile-full-width">
                           <h5 className="mb-2">Bank Details:</h5>
-                          <div className="row">
+                          <div className="row mobile-row">
                             <div className="col-md-6">
-                              <p className="mb-1"><strong>Account No:</strong> {bankDetails.accountNo}</p>
-                              <p className="mb-1"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Account No:</strong> {bankDetails.accountNo}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
                             </div>
                             <div className="col-md-6">
-                              <p className="mb-1"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
-                              <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                              <p className="mb-1 mobile-text-small"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Bank:</strong> HDFC Bank</p>
                             </div>
                           </div>
                         </div>
-                        <div className="text-end">
+                        <div className="text-end mobile-full-width">
                           <h5 className="mb-2">QR Code:</h5>
                           <img 
                             src={qrCodeImage} 
                             alt="QR Code" 
                             className="img-fluid"
-                            style={{ maxWidth: '320px', maxHeight: '320px', objectFit: 'contain' }}
+                            style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
                             onError={(e) => {
                               e.target.style.display = 'none';
                             }}
@@ -3642,13 +3862,13 @@ export default function QuotationModal() {
                     
                     <div className="mt-3 p-2 bg-light rounded">
                       <h5>Notes:</h5>
-                      <p className="mb-0">Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.</p>
-                      <p className="mb-0 mt-2"><strong>Valid for 30 days from the date of issue.</strong></p>
+                      <p className="mb-0 mobile-text-small">Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.</p>
+                      <p className="mb-0 mt-2 mobile-text-small"><strong>Valid for 30 days from the date of issue.</strong></p>
                     </div>
                   </div>
                 </div>
                 
-                <div className="modal-footer mt-3">
+                <div className="modal-footer mt-3 mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={goBackToEditItems}>
                     <i className="bi bi-arrow-left me-1"></i>Back to Items
                   </button>
@@ -3663,7 +3883,7 @@ export default function QuotationModal() {
                       </>
                     ) : (
                       <>
-                        <i className="bi bi-save me-1"></i>Update Quotation (Change to Draft)
+                        <i className="bi bi-save me-1"></i>Update Quotation
                       </>
                     )}
                   </button>
@@ -3730,30 +3950,30 @@ export default function QuotationModal() {
                             setNewItemSupplierPartNo(item["Brand Code"] || "");
                           }}
                         >
-                          <div className="d-flex justify-content-between align-items-start mb-2">
+                          <div className="d-flex justify-content-between align-items-start mb-2 mobile-stack">
                             <div>
-                              <div className="fw-bold mb-1">{item["Item Name"]}</div>
+                              <div className="fw-bold mb-1 mobile-text-small">{item["Item Name"]}</div>
                               <div className="mb-1">
                                 <span className="badge bg-primary me-1">Brand</span>
-                                <strong>{item["Brand"] || "N/A"}</strong>
+                                <strong className="mobile-text-small">{item["Brand"] || "N/A"}</strong>
                               </div>
                               <div className="mb-1">
                                 <span className="badge bg-secondary me-1">Code</span>
-                                <strong className="text-dark">{item["Brand Code"]}</strong>
+                                <strong className="text-dark mobile-text-small">{item["Brand Code"]}</strong>
                               </div>
                             </div>
                             <div className="text-end">
-                              <div className="fw-bold text-success mb-1">MRP: ₹{parseFloat(item["MRP"] || 0).toFixed(2)}</div>
-                              <div className="fw-bold text-info">Buy: ₹{parseFloat(item["Buy Price"] || 0).toFixed(2)}</div>
+                              <div className="fw-bold text-success mb-1 mobile-text-small">MRP: ₹{parseFloat(item["MRP"] || 0).toFixed(2)}</div>
+                              <div className="fw-bold text-info mobile-text-small">Buy: ₹{parseFloat(item["Buy Price"] || 0).toFixed(2)}</div>
                             </div>
                           </div>
                           
-                          <div className="row mb-2">
+                          <div className="row mb-2 mobile-row">
                             <div className="col-6">
                               {item["Width"] && item["Length"] && (
                                 <div className="mb-1">
                                   <span className="badge bg-light text-dark me-1">Dimensions</span>
-                                  {item["Width"]} × {item["Length"]} {item["Unit"] || "pcs"}
+                                  <span className="mobile-text-small">{item["Width"]} × {item["Length"]} {item["Unit"] || "pcs"}</span>
                                 </div>
                               )}
                             </div>
@@ -3761,14 +3981,14 @@ export default function QuotationModal() {
                               {item["Batch Code"] && (
                                 <div className="mb-1">
                                   <span className="badge bg-light text-dark me-1">Batch</span>
-                                  {item["Batch Code"]}
+                                  <span className="mobile-text-small">{item["Batch Code"]}</span>
                                 </div>
                               )}
                             </div>
                           </div>
                           
                           {item["Brand Description"] && (
-                            <div className="small text-muted" style={{ fontSize: '0.8rem', lineHeight: '1.3' }}>
+                            <div className="small text-muted mobile-text-small" style={{ fontSize: '0.8rem', lineHeight: '1.3' }}>
                               <span className="badge bg-light text-dark me-1">Brand Description</span>
                               {item["Brand Description"]}
                             </div>
@@ -3780,16 +4000,16 @@ export default function QuotationModal() {
                 </div>
 
                 {selectedStockItem && (
-                  <div className="card mt-3">
-                    <div className="card-header bg-light d-flex justify-content-between align-items-center">
+                  <div className="card mt-3 mobile-card">
+                    <div className="card-header bg-light d-flex justify-content-between align-items-center mobile-stack">
                       <h6 className="mb-0">Item Details</h6>
-                      <div className="text-end">
+                      <div className="text-end mobile-full-width">
                         <span className="badge bg-success me-2">MRP: ₹{parseFloat(selectedStockItem["MRP"] || 0).toFixed(2)}</span>
                         <span className="badge bg-info">Buy: ₹{parseFloat(selectedStockItem["Buy Price"] || 0).toFixed(2)}</span>
                       </div>
                     </div>
                     <div className="card-body">
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-6">
                           <div className="mb-3">
                             <label className="form-label">Item Name</label>
@@ -3810,7 +4030,7 @@ export default function QuotationModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-6">
                           <div className="mb-3">
                             <label className="form-label">Batch Code</label>
@@ -3830,7 +4050,7 @@ export default function QuotationModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-12">
                           <div className="mb-3">
                             <label className="form-label">Customer Part No</label>
@@ -3841,14 +4061,14 @@ export default function QuotationModal() {
                               onChange={(e) => setNewItemSupplierPartNo(e.target.value)}
                               placeholder="Enter supplier part number..."
                             />
-                            <div className="form-text">
+                            <div className="form-text mobile-text-small">
                               This will be displayed as "Part No" in the quotation
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-3">
                           <div className="mb-3">
                             <label className="form-label">Cut Width</label>
@@ -3896,7 +4116,7 @@ export default function QuotationModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-6">
                           <div className="mb-3">
                             <label className="form-label">Price/Unit (Calculated)</label>
@@ -3906,7 +4126,7 @@ export default function QuotationModal() {
                               value={`₹${((parseFloat(selectedStockItem["MRP"] || 0) * (parseFloat(newItemLength) || 0) * (parseFloat(newItemCutWidth) || 0)) || 0).toFixed(2)}`} 
                               readOnly 
                             />
-                            <small className="text-muted">MRP × Length × Width</small>
+                            <small className="text-muted mobile-text-small">MRP × Length × Width</small>
                           </div>
                         </div>
                         <div className="col-md-6">
@@ -3918,12 +4138,12 @@ export default function QuotationModal() {
                               value={((parseFloat(newItemLength) || 0) * (parseFloat(newItemCutWidth) || 0) * (parseFloat(newItemQuantity) || 0)).toFixed(2)} 
                               readOnly 
                             />
-                            <small className="text-muted">Length × Width × Quantity</small>
+                            <small className="text-muted mobile-text-small">Length × Width × Quantity</small>
                           </div>
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-6">
                           <div className="mb-3">
                             <label className="form-label">Discount</label>
@@ -3963,7 +4183,7 @@ export default function QuotationModal() {
                         </div>
                       </div>
 
-                      <div className="row">
+                      <div className="row mobile-row">
                         <div className="col-md-4">
                           <div className="mb-3">
                             <label className="form-label">Packing Charges</label>
@@ -4004,13 +4224,13 @@ export default function QuotationModal() {
                               value="18"
                               readOnly
                             />
-                            <small className="text-muted">Default GST rate</small>
+                            <small className="text-muted mobile-text-small">Default GST rate</small>
                           </div>
                         </div>
                       </div>
                     </div>
                     <div className="card-footer">
-                      <div className="d-flex justify-content-end gap-2">
+                      <div className="d-flex justify-content-end gap-2 mobile-btn-group">
                         <button type="button" className="btn btn-secondary" onClick={() => setShowItemPopup(false)}>
                           <i className="bi bi-x-circle me-1"></i>Cancel
                         </button>
@@ -4085,9 +4305,9 @@ export default function QuotationModal() {
               <div className="modal-body">
                 <div ref={quotationRef}>
                   <div className="container">
-                    <div className="invoice-header border-bottom pb-3 mb-3">
+                    <div className="invoice-header border-bottom pb-3 mb-3 mobile-invoice-header">
                       <div className="row">
-                        <div className="col-2">
+                        <div className="col-2 d-flex align-items-center justify-content-center">
                           <img 
                             src={companyLogo} 
                             alt="Company Logo" 
@@ -4099,37 +4319,37 @@ export default function QuotationModal() {
                           />
                         </div>
                         <div className="col-5">
-                          <h1 className="mb-1">{issuer.name}</h1>
-                          <p className="mb-1">{issuer.address}</p>
-                          <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
-                          <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                          <h1 className="mb-1 mobile-text-small">{issuer.name}</h1>
+                          <p className="mb-1 mobile-text-small">{issuer.address}</p>
+                          <p className="mb-1 mobile-text-small">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                          <p className="mb-1 mobile-text-small">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                         </div>
                         <div className="col-5 text-end">
                           <h2 className="text-primary mb-2">QUOTATION</h2>
-                          <p className="mb-1"><strong>Quote No:</strong> {quoteNo}</p>
-                          <p className="mb-1"><strong>Date:</strong> {date}</p>
-                          <p className="mb-1"><strong>Time:</strong> {time}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Quote No:</strong> {quoteNo}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Date:</strong> {date}</p>
+                          <p className="mb-1 mobile-text-small"><strong>Time:</strong> {time}</p>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="row mb-4">
+                    <div className="row mb-4 mobile-row">
                       <div className="col-6">
                         <h5>Bill To:</h5>
-                        <p className="mb-1"><strong>{billTo}</strong></p>
-                        <p className="mb-1">{companyAddress}</p>
+                        <p className="mb-1 mobile-text-small"><strong>{billTo}</strong></p>
+                        <p className="mb-1 mobile-text-small">{companyAddress}</p>
                         {companyPincode && (
                           <p className="mb-1">
                             Pincode: <span className="badge bg-info text-white">{companyPincode}</span>
                           </p>
                         )}
-                        <p className="mb-1">GSTIN: {companyGstin}</p>
+                        <p className="mb-1 mobile-text-small">GSTIN: {companyGstin}</p>
                       </div>
                       <div className="col-6">
                         <h5>Contact Details:</h5>
-                        <p className="mb-1"><strong>{contactPerson}</strong></p>
-                        <p className="mb-1">Phone: {contactMob}</p>
-                        <p className="mb-1">Email: {contactEmail}</p>
+                        <p className="mb-1 mobile-text-small"><strong>{contactPerson}</strong></p>
+                        <p className="mb-1 mobile-text-small">Phone: {contactMob}</p>
+                        <p className="mb-1 mobile-text-small">Email: {contactEmail}</p>
                         {ccEmail && (
                           <p className="mb-1">
                             CC: {ccEmail} <span className="badge bg-secondary">CC</span>
@@ -4138,19 +4358,17 @@ export default function QuotationModal() {
                       </div>
                     </div>
                     
-                    <div className="table-responsive">
+                    <div className="mobile-table">
                       <table className="table table-bordered">
                         <thead className="table-light">
                           <tr>
                             <th>#</th>
                             <th>Item Name</th>
                             <th>Brand Code</th>
-                            <th>Cut Width</th>
-                            <th>Cut Length</th>
-                            <th>Customer Part No</th>
-                            <th>Customer Description</th>
+                            <th>Width</th>
+                            <th>Length</th>
+                            <th>Part No</th>
                             <th>Qty</th>
-                            <th>UoM</th>
                             <th>Price/Unit</th>
                             <th>GST %</th>
                             <th>Total</th>
@@ -4160,14 +4378,12 @@ export default function QuotationModal() {
                           {items.map((item, index) => (
                             <tr key={item.id}>
                               <td>{index + 1}</td>
-                              <td><strong>{item.item_name}</strong></td>
+                              <td><strong className="mobile-text-small">{item.item_name}</strong></td>
                               <td>{item.brand_code || ''}</td>
                               <td>{item.cut_width}</td>
                               <td>{item.length}</td>
                               <td>{item.supplier_part_no}</td>
-                              <td>{item.customer_description || ''}</td>
                               <td>{item.quantity}</td>
-                              <td>{item.unit}</td>
                               <td>₹{pricePerUnit(item).toFixed(2)}</td>
                               <td>{item.tax_rate}%</td>
                               <td><strong>₹{amountAfterDiscount(item).toFixed(2)}</strong></td>
@@ -4177,76 +4393,78 @@ export default function QuotationModal() {
                       </table>
                     </div>
                     
-                    <div className="row mt-4">
+                    <div className="row mt-4 mobile-row">
                       <div className="col-7">
                         <h5 className="mb-2">Tax Summary:</h5>
-                        <table className="table table-bordered table-sm">
-                          <thead className="table-light">
-                            <tr>
-                              <th>GST %</th>
-                              <th>Taxable Amount</th>
-                              <th>Tax Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {(() => {
-                              const taxSummary = {};
-                              items.forEach(item => {
-                                const taxRate = item.tax_rate || 18;
-                                const taxAmount = gstAmount(item);
-                                if (!taxSummary[taxRate]) {
-                                  taxSummary[taxRate] = 0;
-                                }
-                                taxSummary[taxRate] += taxAmount;
-                              });
-                              
-                              return Object.entries(taxSummary).map(([rate, amount]) => (
-                                <tr key={rate}>
-                                  <td>{rate}%</td>
-                                  <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
-                                  <td>₹{amount.toFixed(2)}</td>
-                                </tr>
-                              ));
-                            })()}
-                          </tbody>
-                        </table>
+                        <div className="mobile-table">
+                          <table className="table table-bordered table-sm">
+                            <thead className="table-light">
+                              <tr>
+                                <th>GST %</th>
+                                <th>Taxable Amount</th>
+                                <th>Tax Amount</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(() => {
+                                const taxSummary = {};
+                                items.forEach(item => {
+                                  const taxRate = item.tax_rate || 18;
+                                  const taxAmount = gstAmount(item);
+                                  if (!taxSummary[taxRate]) {
+                                    taxSummary[taxRate] = 0;
+                                  }
+                                  taxSummary[taxRate] += taxAmount;
+                                });
+                                
+                                return Object.entries(taxSummary).map(([rate, amount]) => (
+                                  <tr key={rate}>
+                                    <td>{rate}%</td>
+                                    <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                                    <td>₹{amount.toFixed(2)}</td>
+                                  </tr>
+                                ));
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
                       <div className="col-5">
-                        <div className="card border-0">
+                        <div className="card border-0 mobile-card">
                           <div className="card-body">
                             <h5 className="card-title">Total Summary</h5>
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Subtotal:</span>
-                              <strong>₹{totals.subtotal.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Subtotal:</span>
+                              <strong className="mobile-text-small">₹{totals.subtotal.toFixed(2)}</strong>
                             </div>
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Discount:</span>
-                              <strong className="text-danger">- ₹{totals.totalDiscount.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Discount:</span>
+                              <strong className="text-danger mobile-text-small">- ₹{totals.totalDiscount.toFixed(2)}</strong>
                             </div>
                             {totals.totalPacking > 0 && (
                               <div className="d-flex justify-content-between mb-2">
-                                <span>Packing:</span>
-                                <strong>₹{totals.totalPacking.toFixed(2)}</strong>
+                                <span className="mobile-text-small">Packing:</span>
+                                <strong className="mobile-text-small">₹{totals.totalPacking.toFixed(2)}</strong>
                               </div>
                             )}
                             {totals.totalFreight > 0 && (
                               <div className="d-flex justify-content-between mb-2">
-                                <span>Freight:</span>
-                                <strong>₹{totals.totalFreight.toFixed(2)}</strong>
+                                <span className="mobile-text-small">Freight:</span>
+                                <strong className="mobile-text-small">₹{totals.totalFreight.toFixed(2)}</strong>
                               </div>
                             )}
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Taxable Amount:</span>
-                              <strong>₹{totals.totalBeforeGST.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Taxable Amount:</span>
+                              <strong className="mobile-text-small">₹{totals.totalBeforeGST.toFixed(2)}</strong>
                             </div>
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Total Tax:</span>
-                              <strong>₹{totals.totalGST.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Total Tax:</span>
+                              <strong className="mobile-text-small">₹{totals.totalGST.toFixed(2)}</strong>
                             </div>
                             <hr/>
                             <div className="d-flex justify-content-between total-row">
-                              <span>Grand Total:</span>
-                              <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                              <span className="mobile-text-small">Grand Total:</span>
+                              <strong className="text-primary mobile-text-small">₹{totals.grandTotal.toFixed(2)}</strong>
                             </div>
                           </div>
                         </div>
@@ -4255,21 +4473,21 @@ export default function QuotationModal() {
                     
                     {/* Bank Details with QR Code on right */}
                     <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '5px' }}>
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div style={{ flex: 1 }}>
+                      <div className="d-flex justify-content-between align-items-center mobile-stack">
+                        <div style={{ flex: 1 }} className="mobile-full-width">
                           <h5 className="mb-2">Bank Details:</h5>
-                          <div className="row">
+                          <div className="row mobile-row">
                             <div className="col-md-6">
-                              <p className="mb-1"><strong>Account No:</strong> {bankDetails.accountNo}</p>
-                              <p className="mb-1"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Account No:</strong> {bankDetails.accountNo}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
                             </div>
                             <div className="col-md-6">
-                              <p className="mb-1"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
-                              <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                              <p className="mb-1 mobile-text-small"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
+                              <p className="mb-1 mobile-text-small"><strong>Bank:</strong> HDFC Bank</p>
                             </div>
                           </div>
                         </div>
-                        <div className="text-end">
+                        <div className="text-end mobile-full-width">
                           <h5 className="mb-2">QR Code:</h5>
                           <img 
                             src={qrCodeImage} 
@@ -4286,13 +4504,13 @@ export default function QuotationModal() {
                     
                     <div className="mt-3 p-2 bg-light rounded">
                       <h5>Notes:</h5>
-                      <p className="mb-0">Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.</p>
-                      <p className="mb-0 mt-2"><strong>Valid for 30 days from the date of issue.</strong></p>
+                      <p className="mb-0 mobile-text-small">Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.</p>
+                      <p className="mb-0 mt-2 mobile-text-small"><strong>Valid for 30 days from the date of issue.</strong></p>
                     </div>
                   </div>
                 </div>
                 
-                <div className="modal-footer mt-3">
+                <div className="modal-footer mt-3 mobile-btn-group">
                   <button type="button" className="btn btn-secondary" onClick={goBackToItems}>
                     <i className="bi bi-arrow-left me-1"></i>Back to Items
                   </button>
@@ -4329,9 +4547,9 @@ export default function QuotationModal() {
               </div>
               <div className="modal-body">
                 <div className="container">
-                  <div className="invoice-header border-bottom pb-3 mb-3">
+                  <div className="invoice-header border-bottom pb-3 mb-3 mobile-invoice-header">
                     <div className="row">
-                      <div className="col-2">
+                      <div className="col-2 d-flex align-items-center justify-content-center">
                         <img 
                           src={companyLogo} 
                           alt="Company Logo" 
@@ -4343,37 +4561,37 @@ export default function QuotationModal() {
                         />
                       </div>
                       <div className="col-5">
-                        <h1 className="mb-1">{issuer.name}</h1>
-                        <p className="mb-1">{issuer.address}</p>
-                        <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
-                        <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
+                        <h1 className="mb-1 mobile-text-small">{issuer.name}</h1>
+                        <p className="mb-1 mobile-text-small">{issuer.address}</p>
+                        <p className="mb-1 mobile-text-small">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                        <p className="mb-1 mobile-text-small">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                       </div>
                       <div className="col-5 text-end">
                         <h2 className="text-info mb-2">QUOTATION</h2>
-                        <p className="mb-1"><strong>Quote No:</strong> {selectedQuotation.quote_number || selectedQuotation.quoteNo}</p>
-                        <p className="mb-1"><strong>Date:</strong> {selectedQuotation.date || selectedQuotation.date}</p>
-                        <p className="mb-1"><strong>Time:</strong> {selectedQuotation.time || selectedQuotation.time}</p>
+                        <p className="mb-1 mobile-text-small"><strong>Quote No:</strong> {selectedQuotation.quote_number || selectedQuotation.quoteNo}</p>
+                        <p className="mb-1 mobile-text-small"><strong>Date:</strong> {selectedQuotation.date || selectedQuotation.date}</p>
+                        <p className="mb-1 mobile-text-small"><strong>Time:</strong> {selectedQuotation.time || selectedQuotation.time}</p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="row mb-4">
+                  <div className="row mb-4 mobile-row">
                     <div className="col-6">
                       <h5>Bill To:</h5>
-                      <p className="mb-1"><strong>{selectedQuotation.company_name || selectedQuotation.billTo}</strong></p>
-                      <p className="mb-1">{selectedQuotation.company_address || ''}</p>
+                      <p className="mb-1 mobile-text-small"><strong>{selectedQuotation.company_name || selectedQuotation.billTo}</strong></p>
+                      <p className="mb-1 mobile-text-small">{selectedQuotation.company_address || ''}</p>
                       {(selectedQuotation.company_pincode || extractPincode(selectedQuotation.company_address || '')) && (
                         <p className="mb-1">
                           Pincode: <span className="badge bg-info text-white">{selectedQuotation.company_pincode || extractPincode(selectedQuotation.company_address || '')}</span>
                         </p>
                       )}
-                      <p className="mb-1">GSTIN: {selectedQuotation.company_gstin || ''}</p>
+                      <p className="mb-1 mobile-text-small">GSTIN: {selectedQuotation.company_gstin || ''}</p>
                     </div>
                     <div className="col-6">
                       <h5>Contact Details:</h5>
-                      <p className="mb-1"><strong>{selectedQuotation.contact_person || selectedQuotation.contactPerson}</strong></p>
-                      <p className="mb-1">Phone: {selectedQuotation.contact_mobile || selectedQuotation.contactMob}</p>
-                      <p className="mb-1">Email: {selectedQuotation.contact_email || selectedQuotation.contactEmail}</p>
+                      <p className="mb-1 mobile-text-small"><strong>{selectedQuotation.contact_person || selectedQuotation.contactPerson}</strong></p>
+                      <p className="mb-1 mobile-text-small">Phone: {selectedQuotation.contact_mobile || selectedQuotation.contactMob}</p>
+                      <p className="mb-1 mobile-text-small">Email: {selectedQuotation.contact_email || selectedQuotation.contactEmail}</p>
                       {(selectedQuotation.cc_email || selectedQuotation.ccEmail) && (
                         <p className="mb-1">
                           CC: {selectedQuotation.cc_email || selectedQuotation.ccEmail} <span className="badge bg-secondary">CC</span>
@@ -4382,19 +4600,17 @@ export default function QuotationModal() {
                     </div>
                   </div>
                   
-                  <div className="table-responsive">
+                  <div className="mobile-table">
                     <table className="table table-bordered">
                       <thead className="table-light">
                         <tr>
                           <th>#</th>
                           <th>Item Name</th>
                           <th>Brand Code</th>
-                          <th>Cut Width</th>
-                          <th>Cut Length</th>
-                          <th>Customer Part No</th>
-                          <th>Customer Description</th>
+                          <th>Width</th>
+                          <th>Length</th>
+                          <th>Part No</th>
                           <th>Qty</th>
-                          <th>UoM</th>
                           <th>Price/Unit</th>
                           <th>GST %</th>
                           <th>Total</th>
@@ -4461,14 +4677,12 @@ export default function QuotationModal() {
                           return (
                             <tr key={index}>
                               <td>{index + 1}</td>
-                              <td><strong>{item.item_name}</strong></td>
+                              <td><strong className="mobile-text-small">{item.item_name}</strong></td>
                               <td>{brand_code || item.brand_code || ''}</td>
                               <td>{item.cut_width || ''}</td>
                               <td>{item.length || ''}</td>
                               <td>{item.supplier_part_no}</td>
-                              <td>{customer_description || item.customer_description || ''}</td>
                               <td>{item.quantity}</td>
-                              <td>{item.unit}</td>
                               <td>₹{itemPricePerUnit.toFixed(2)}</td>
                               <td>{item.tax_rate || 18}%</td>
                               <td><strong>₹{amountAfterDiscount.toFixed(2)}</strong></td>
@@ -4484,76 +4698,78 @@ export default function QuotationModal() {
                     </table>
                   </div>
                   
-                  <div className="row mt-4">
+                  <div className="row mt-4 mobile-row">
                     <div className="col-7">
                       <h5 className="mb-2">Tax Summary:</h5>
-                      <table className="table table-bordered table-sm">
-                        <thead className="table-light">
-                          <tr>
-                            <th>GST %</th>
-                            <th>Taxable Amount</th>
-                            <th>Tax Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(() => {
-                            const taxSummary = {};
-                            (selectedQuotation.items || []).forEach(item => {
-                              const taxRate = item.tax_rate || 18;
-                              const taxAmount = item.tax_amount || 0;
-                              if (!taxSummary[taxRate]) {
-                                taxSummary[taxRate] = 0;
-                              }
-                              taxSummary[taxRate] += taxAmount;
-                            });
-                            
-                            return Object.entries(taxSummary).map(([rate, amount]) => (
-                              <tr key={rate}>
-                                <td>{rate}%</td>
-                                <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
-                                <td>₹{amount.toFixed(2)}</td>
-                              </tr>
-                            ));
-                          })()}
-                        </tbody>
-                      </table>
+                      <div className="mobile-table">
+                        <table className="table table-bordered table-sm">
+                          <thead className="table-light">
+                            <tr>
+                              <th>GST %</th>
+                              <th>Taxable Amount</th>
+                              <th>Tax Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const taxSummary = {};
+                              (selectedQuotation.items || []).forEach(item => {
+                                const taxRate = item.tax_rate || 18;
+                                const taxAmount = item.tax_amount || 0;
+                                if (!taxSummary[taxRate]) {
+                                  taxSummary[taxRate] = 0;
+                                }
+                                taxSummary[taxRate] += taxAmount;
+                              });
+                              
+                              return Object.entries(taxSummary).map(([rate, amount]) => (
+                                <tr key={rate}>
+                                  <td>{rate}%</td>
+                                  <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
+                                  <td>₹{amount.toFixed(2)}</td>
+                                </tr>
+                              ));
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                     <div className="col-5">
-                      <div className="card border-0">
+                      <div className="card border-0 mobile-card">
                         <div className="card-body">
                           <h5 className="card-title">Total Summary</h5>
                           <div className="d-flex justify-content-between mb-2">
-                            <span>Subtotal:</span>
-                            <strong>₹{(selectedQuotation.subtotal || selectedQuotation.totals?.subtotal || 0).toFixed(2)}</strong>
+                            <span className="mobile-text-small">Subtotal:</span>
+                            <strong className="mobile-text-small">₹{(selectedQuotation.subtotal || selectedQuotation.totals?.subtotal || 0).toFixed(2)}</strong>
                           </div>
                           <div className="d-flex justify-content-between mb-2">
-                            <span>Discount:</span>
-                            <strong className="text-danger">- ₹{(selectedQuotation.total_discount || selectedQuotation.totals?.totalDiscount || 0).toFixed(2)}</strong>
+                            <span className="mobile-text-small">Discount:</span>
+                            <strong className="text-danger mobile-text-small">- ₹{(selectedQuotation.total_discount || selectedQuotation.totals?.totalDiscount || 0).toFixed(2)}</strong>
                           </div>
                           {(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0) > 0 && (
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Packing:</span>
-                              <strong>₹{(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0).toFixed(2)}</strong>
+                              <span className="mobile-text-small">Packing:</span>
+                              <strong className="mobile-text-small">₹{(selectedQuotation.total_packing || selectedQuotation.totals?.totalPacking || 0).toFixed(2)}</strong>
                             </div>
                           )}
                           {(selectedQuotation.total_freight || selectedQuotation.totals?.totalFreight || 0) > 0 && (
                             <div className="d-flex justify-content-between mb-2">
-                              <span>Freight:</span>
-                              <strong>₹{(selectedQuotation.total_freight || selectedQuotation.totals?.totalFreight || 0).toFixed(2)}</strong>
+                              <span className="mobile-text-small">Freight:</span>
+                              <strong className="mobile-text-small">₹{(selectedQuotation.total_freight || selectedQuotation.totals?.totalFreight || 0).toFixed(2)}</strong>
                             </div>
                           )}
                           <div className="d-flex justify-content-between mb-2">
-                            <span>Taxable Amount:</span>
-                            <strong>₹{(selectedQuotation.total_before_gst || selectedQuotation.totals?.totalBeforeGST || 0).toFixed(2)}</strong>
+                            <span className="mobile-text-small">Taxable Amount:</span>
+                            <strong className="mobile-text-small">₹{(selectedQuotation.total_before_gst || selectedQuotation.totals?.totalBeforeGST || 0).toFixed(2)}</strong>
                           </div>
                           <div className="d-flex justify-content-between mb-2">
-                            <span>Total Tax:</span>
-                            <strong>₹{(selectedQuotation.total_tax || selectedQuotation.totals?.totalGST || 0).toFixed(2)}</strong>
+                            <span className="mobile-text-small">Total Tax:</span>
+                            <strong className="mobile-text-small">₹{(selectedQuotation.total_tax || selectedQuotation.totals?.totalGST || 0).toFixed(2)}</strong>
                           </div>
                           <hr/>
                           <div className="d-flex justify-content-between total-row">
-                            <span>Grand Total:</span>
-                            <strong className="text-primary">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</strong>
+                            <span className="mobile-text-small">Grand Total:</span>
+                            <strong className="text-primary mobile-text-small">₹{(selectedQuotation.grand_total || selectedQuotation.totals?.grandTotal || 0).toFixed(2)}</strong>
                           </div>
                         </div>
                       </div>
@@ -4562,21 +4778,21 @@ export default function QuotationModal() {
                   
                   {/* Bank Details with QR Code on right */}
                   <div className="bank-details mt-4 p-3" style={{ backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '5px' }}>
-                    <div className="d-flex justify-content-between align-items-center">
-                      <div style={{ flex: 1 }}>
+                    <div className="d-flex justify-content-between align-items-center mobile-stack">
+                      <div style={{ flex: 1 }} className="mobile-full-width">
                         <h5 className="mb-2">Bank Details:</h5>
-                        <div className="row">
+                        <div className="row mobile-row">
                           <div className="col-md-6">
-                            <p className="mb-1"><strong>Account No:</strong> {bankDetails.accountNo}</p>
-                            <p className="mb-1"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
+                            <p className="mb-1 mobile-text-small"><strong>Account No:</strong> {bankDetails.accountNo}</p>
+                            <p className="mb-1 mobile-text-small"><strong>Account Title:</strong> {bankDetails.accountTitle}</p>
                           </div>
                           <div className="col-md-6">
-                            <p className="mb-1"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
-                            <p className="mb-1"><strong>Bank:</strong> HDFC Bank</p>
+                            <p className="mb-1 mobile-text-small"><strong>IFSC Code:</strong> {bankDetails.ifscCode}</p>
+                            <p className="mb-1 mobile-text-small"><strong>Bank:</strong> HDFC Bank</p>
                           </div>
                         </div>
                       </div>
-                      <div className="text-end">
+                      <div className="text-end mobile-full-width">
                         <h5 className="mb-2">QR Code:</h5>
                         <img 
                           src={qrCodeImage} 
@@ -4592,7 +4808,7 @@ export default function QuotationModal() {
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer mobile-btn-group">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowViewModal(false)}>
                   <i className="bi bi-x-circle me-1"></i>Close
                 </button>
@@ -4606,10 +4822,10 @@ export default function QuotationModal() {
       )}
 
       {/* Saved Quotations Section */}
-      <div className="card">
+      <div className="card mobile-card">
         <div className="card-header bg-light">
-          <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">
+          <div className="d-flex justify-content-between align-items-center mobile-stack">
+            <h5 className="mb-0 mobile-full-width">
               Saved Quotations 
               <span className="ms-2">
                 <span className="badge bg-primary">Total: {totalItems}</span>
@@ -4619,10 +4835,10 @@ export default function QuotationModal() {
                 <span className="badge bg-secondary ms-1">User: {currentUser.username || 'You'}</span>
               </span>
             </h5>
-            <div className="d-flex gap-2">
+            <div className="d-flex gap-2 mobile-full-width mobile-stack">
               <input
                 type="text"
-                className="form-control form-control-sm"
+                className="form-control form-control-sm mobile-full-width"
                 style={{ width: '250px' }}
                 placeholder="Search by quote no, company, contact..."
                 value={searchTerm}
@@ -4645,11 +4861,11 @@ export default function QuotationModal() {
               <div className="spinner-border text-primary" role="status">
                 <span className="visually-hidden">Loading...</span>
               </div>
-              <p className="mt-2 text-muted">Loading quotations...</p>
+              <p className="mt-2 text-muted mobile-text-small">Loading quotations...</p>
             </div>
           ) : savedQuotations.length > 0 ? (
             <>
-              <div className="table-responsive">
+              <div className="mobile-table">
                 <table className="table table-hover mb-0">
                   <thead className="table-light">
                     <tr>
@@ -4657,9 +4873,9 @@ export default function QuotationModal() {
                       <th>Quote No</th>
                       <th>Date</th>
                       <th>Company</th>
-                      <th>Contact Person</th>
+                      <th>Contact</th>
                       <th>Items</th>
-                      <th>Grand Total</th>
+                      <th>Total</th>
                       <th>Status</th>
                       <th width="180">Actions</th>
                     </tr>
@@ -4669,14 +4885,14 @@ export default function QuotationModal() {
                       <tr key={quote.id}>
                         <td>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
                         <td>
-                          <strong>{quote.quote_number || quote.quoteNo}</strong>
+                          <strong className="mobile-text-small">{quote.quote_number || quote.quoteNo}</strong>
                         </td>
                         <td>
-                          {quote.date || quote.date}<br/>
+                          <span className="mobile-text-small">{quote.date || quote.date}</span><br/>
                           <small className="text-muted">{quote.time || quote.time}</small>
                         </td>
                         <td>
-                          {quote.company_name || quote.billTo}<br/>
+                          <span className="mobile-text-small">{quote.company_name || quote.billTo}</span><br/>
                           <small className="text-muted">{quote.contact_email || quote.contactEmail}</small>
                           {(quote.cc_email || quote.ccEmail) && (
                             <small className="text-muted d-block">
@@ -4686,12 +4902,12 @@ export default function QuotationModal() {
                           )}
                         </td>
                         <td>
-                          {quote.contact_person || quote.contactPerson}<br/>
+                          <span className="mobile-text-small">{quote.contact_person || quote.contactPerson}</span><br/>
                           <small className="text-muted">{quote.contact_mobile || quote.contactMob}</small>
                         </td>
-                        <td>{(quote.items || []).length} items</td>
+                        <td className="mobile-text-small">{(quote.items || []).length}</td>
                         <td>
-                          <strong className="text-primary">
+                          <strong className="text-primary mobile-text-small">
                             ₹{((quote.grand_total || quote.totals?.grandTotal) || 0).toFixed(2)}
                           </strong>
                         </td>
@@ -4737,9 +4953,9 @@ export default function QuotationModal() {
               
               {/* PAGINATION */}
               {totalPages > 1 && (
-                <div className="d-flex justify-content-between align-items-center p-3 border-top">
-                  <div className="text-muted">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+                <div className="d-flex justify-content-between align-items-center p-3 border-top mobile-pagination">
+                  <div className="text-muted mobile-text-small">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}
                   </div>
                   <nav aria-label="Page navigation">
                     <ul className="pagination pagination-sm mb-0">
@@ -4788,7 +5004,7 @@ export default function QuotationModal() {
                 <i className="bi bi-file-earmark-text display-1 text-muted"></i>
               </div>
               <h5 className="text-muted">No quotations found</h5>
-              <p className="text-muted">
+              <p className="text-muted mobile-text-small">
                 {searchTerm ? 'Try a different search term or ' : ''}
                 {statusFilter !== 'all' ? 'Try a different status filter or ' : ''}
                 Create your first quotation to get started
