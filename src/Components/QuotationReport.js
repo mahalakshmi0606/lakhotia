@@ -2976,14 +2976,236 @@ export default function QuotationModal() {
 
   return (
     <div className="container-fluid py-4">
+      {/* Mobile Responsive Styles */}
+      <style>{`
+        @media (max-width: 768px) {
+          .container-fluid {
+            padding-left: 8px !important;
+            padding-right: 8px !important;
+          }
+          
+          .mobile-stack {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 12px !important;
+          }
+          
+          .mobile-full-width {
+            width: 100% !important;
+          }
+          
+          .mobile-btn-group {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 8px;
+          }
+          
+          .mobile-btn-group .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .mobile-table {
+            display: block;
+            overflow-x: auto;
+            white-space: nowrap;
+            -webkit-overflow-scrolling: touch;
+          }
+          
+          .mobile-hide {
+            display: none !important;
+          }
+          
+          .mobile-card {
+            margin-bottom: 12px;
+            border-radius: 8px;
+          }
+          
+          .mobile-pagination {
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+          }
+          
+          .modal-dialog {
+            margin: 10px !important;
+            max-width: calc(100% - 20px) !important;
+          }
+          
+          .modal-body {
+            padding: 16px !important;
+          }
+          
+          .modal-body .row {
+            margin-left: -8px;
+            margin-right: -8px;
+          }
+          
+          .modal-body .row > [class*="col-"] {
+            padding-left: 8px;
+            padding-right: 8px;
+          }
+          
+          .mobile-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          }
+          
+          .mobile-text-small {
+            font-size: 12px !important;
+          }
+          
+          .mobile-badge-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+          }
+          
+          .mobile-stat-card {
+            margin-bottom: 8px;
+          }
+          
+          .mobile-row {
+            flex-direction: column;
+          }
+          
+          .mobile-row > [class*="col-"] {
+            width: 100%;
+            margin-bottom: 8px;
+          }
+          
+          .mobile-search-container {
+            width: 100%;
+            margin-top: 8px;
+          }
+          
+          .mobile-search-input {
+            width: 100% !important;
+          }
+          
+          .mobile-export-buttons {
+            flex-direction: column;
+            width: 100%;
+          }
+          
+          .mobile-export-buttons .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .mobile-invoice-header {
+            flex-direction: column;
+            text-align: center;
+          }
+          
+          .mobile-invoice-header .col-2,
+          .mobile-invoice-header .col-5,
+          .mobile-invoice-header .col-5 {
+            width: 100%;
+            text-align: center !important;
+          }
+          
+          .mobile-invoice-header img {
+            margin: 0 auto 12px;
+          }
+          
+          .mobile-quick-summary {
+            flex-direction: column;
+          }
+          
+          .mobile-quick-summary > div {
+            width: 100%;
+            margin-bottom: 8px;
+          }
+          
+          .mobile-filter-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+          }
+          
+          .mobile-filter-buttons .btn {
+            width: 100%;
+          }
+          
+          .table th, .table td {
+            font-size: 11px;
+            padding: 4px !important;
+          }
+          
+          .btn-sm {
+            padding: 0.25rem 0.4rem;
+            font-size: 0.7rem;
+          }
+          
+          .btn-group-sm > .btn {
+            padding: 0.25rem 0.4rem;
+            font-size: 0.7rem;
+          }
+          
+          .badge {
+            font-size: 0.65rem;
+          }
+          
+          h1.h2 {
+            font-size: 1.5rem !important;
+          }
+          
+          .card-title {
+            font-size: 0.9rem;
+          }
+        }
+        
+        @media (max-width: 576px) {
+          h1.h2 {
+            font-size: 1.3rem !important;
+          }
+          
+          .mobile-grid-2 {
+            grid-template-columns: 1fr;
+          }
+          
+          .mobile-filter-buttons {
+            grid-template-columns: 1fr;
+          }
+          
+          .modal-footer {
+            flex-direction: column;
+            gap: 8px;
+          }
+          
+          .modal-footer .btn {
+            width: 100%;
+            margin: 0 !important;
+          }
+          
+          .d-flex.gap-2 {
+            gap: 8px !important;
+          }
+          
+          .input-group {
+            flex-direction: column;
+          }
+          
+          .input-group > .form-control,
+          .input-group > .input-group-text {
+            width: 100%;
+            border-radius: 4px !important;
+            margin-bottom: 4px;
+          }
+        }
+      `}</style>
+
       {/* Header with Action Buttons */}
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
+      <div className="d-flex justify-content-between align-items-center mb-4 mobile-stack">
+        <div className="mobile-full-width">
           <h1 className="h2 mb-1">Quotation Management</h1>
-          <p className="text-muted mb-0">Manage and track your quotations</p>
+          <p className="text-muted mb-0 mobile-text-small">Manage and track your quotations</p>
         </div>
-        <div className="d-flex gap-2">
-          <button className="btn btn-primary" onClick={startNewQuotation}>
+        <div className="d-flex gap-2 mobile-full-width mobile-btn-group">
+          <button className="btn btn-primary mobile-full-width" onClick={startNewQuotation}>
             <i className="bi bi-plus-circle me-1"></i>Create New Quotation
           </button>
         </div>
@@ -2993,44 +3215,44 @@ export default function QuotationModal() {
       {statistics && (
         <div className="row mb-4">
           <div className="col-md-2 col-6 mb-3">
-            <div className="card border-success">
+            <div className="card border-success mobile-card">
               <div className="card-body text-center">
                 <div className="h3 text-success">{statistics.status_counts?.completed || 0}</div>
-                <div className="text-muted">Completed</div>
+                <div className="text-muted mobile-text-small">Completed</div>
               </div>
             </div>
           </div>
           <div className="col-md-2 col-6 mb-3">
-            <div className="card border-warning">
+            <div className="card border-warning mobile-card">
               <div className="card-body text-center">
                 <div className="h3 text-warning">{statistics.status_counts?.requote || 0}</div>
-                <div className="text-muted">Re-quote</div>
+                <div className="text-muted mobile-text-small">Re-quote</div>
               </div>
             </div>
           </div>
           <div className="col-md-2 col-6 mb-3">
-            <div className="card border-primary">
+            <div className="card border-primary mobile-card">
               <div className="card-body text-center">
                 <div className="h3 text-primary">{statistics.status_counts?.draft || 0}</div>
-                <div className="text-muted">Draft</div>
+                <div className="text-muted mobile-text-small">Draft</div>
               </div>
             </div>
           </div>
           <div className="col-md-2 col-6 mb-3">
-            <div className="card border-info">
+            <div className="card border-info mobile-card">
               <div className="card-body text-center">
                 <div className="h3 text-info">{statistics.total || 0}</div>
-                <div className="text-muted">Total</div>
+                <div className="text-muted mobile-text-small">Total</div>
               </div>
             </div>
           </div>
           <div className="col-md-4 col-12 mb-3">
-            <div className="card">
+            <div className="card mobile-card">
               <div className="card-body">
                 <div className="d-flex justify-content-between">
                   <div>
-                    <div className="text-muted">This Month</div>
-                    <div className="h4">₹{(statistics.current_month_revenue || 0).toLocaleString()}</div>
+                    <div className="text-muted mobile-text-small">This Month</div>
+                    <div className="h4 mobile-text-small">₹{(statistics.current_month_revenue || 0).toLocaleString()}</div>
                   </div>
                   <div className="align-self-center">
                     <i className="bi bi-graph-up text-success fs-3"></i>
@@ -3050,14 +3272,14 @@ export default function QuotationModal() {
       {renderViewModal()}
 
       {/* Saved Quotations Section */}
-      <div className="card">
+      <div className="card mobile-card">
         <div className="card-header bg-light">
-          <div className="d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">Saved Quotations</h5>
-            <div className="d-flex gap-2">
+          <div className="d-flex justify-content-between align-items-center mobile-stack">
+            <h5 className="mb-0 mobile-full-width">Saved Quotations</h5>
+            <div className="d-flex gap-2 mobile-full-width mobile-stack">
               <input
                 type="text"
-                className="form-control form-control-sm"
+                className="form-control form-control-sm mobile-full-width"
                 style={{ width: '250px' }}
                 placeholder="Search quotations..."
                 value={searchTerm}
@@ -3080,11 +3302,11 @@ export default function QuotationModal() {
               <div className="spinner-border text-primary" role="status">
                 <span className="visually-hidden">Loading...</span>
               </div>
-              <p className="mt-2 text-muted">Loading quotations...</p>
+              <p className="mt-2 text-muted mobile-text-small">Loading quotations...</p>
             </div>
           ) : savedQuotations.length > 0 ? (
             <>
-              <div className="table-responsive">
+              <div className="mobile-table">
                 <table className="table table-hover mb-0">
                   <thead className="table-light">
                     <tr>
@@ -3092,11 +3314,11 @@ export default function QuotationModal() {
                       <th>Quote No</th>
                       <th>Date</th>
                       <th>Company</th>
-                      <th>Contact Person</th>
+                      <th>Contact</th>
                       <th>Items</th>
                       <th>Status</th>
-                      <th>Grand Total</th>
-                      <th>Total Profit</th>
+                      <th>Total</th>
+                      <th>Profit</th>
                       <th width="200">Actions</th>
                     </tr>
                   </thead>
@@ -3132,22 +3354,22 @@ export default function QuotationModal() {
                         <tr key={quote.id}>
                           <td>{((currentPage - 1) * itemsPerPage) + index + 1}</td>
                           <td>
-                            <strong>{quote.quote_number || quote.quoteNo}</strong>
-                            {isRequote && <span className="badge bg-warning ms-1">Re-quote</span>}
+                            <strong className="mobile-text-small">{quote.quote_number || quote.quoteNo}</strong>
+                            {isRequote && <span className="badge bg-warning ms-1">R</span>}
                           </td>
                           <td>
-                            {quote.date || quote.date}<br/>
+                            <span className="mobile-text-small">{quote.date || quote.date}</span><br/>
                             <small className="text-muted">{quote.time || quote.time}</small>
                           </td>
                           <td>
-                            {quote.company_name || quote.billTo}<br/>
+                            <span className="mobile-text-small">{quote.company_name || quote.billTo}</span><br/>
                             <small className="text-muted">{quote.contact_email || quote.contactEmail}</small>
                           </td>
                           <td>
-                            {quote.contact_person || quote.contactPerson}<br/>
+                            <span className="mobile-text-small">{quote.contact_person || quote.contactPerson}</span><br/>
                             <small className="text-muted">{quote.contact_mobile || quote.contactMob}</small>
                           </td>
-                          <td>{(quote.items || []).length} items</td>
+                          <td>{(quote.items || []).length}</td>
                           <td>
                             <span className={`badge ${
                               isCompleted ? 'bg-success' : 
@@ -3159,14 +3381,13 @@ export default function QuotationModal() {
                             </span>
                           </td>
                           <td>
-                            <strong className="text-primary">
+                            <strong className="text-primary mobile-text-small">
                               ₹{((quote.grand_total || 0)).toFixed(2)}
                             </strong>
                           </td>
                           <td>
                             <strong className={totalProfit >= 0 ? 'text-success' : 'text-danger'}>
-                              ₹{totalProfit.toFixed(2)}<br/>
-                              <small className="text-muted">({profitMargin}%)</small>
+                              ₹{totalProfit.toFixed(2)}
                             </strong>
                           </td>
                           <td>
@@ -3193,7 +3414,7 @@ export default function QuotationModal() {
                                 <button
                                   className="btn btn-outline-primary"
                                   onClick={() => startCreateReQuote(quote)}
-                                  title="Create Re-quote"
+                                  title="Re-quote"
                                 >
                                   <i className="bi bi-arrow-repeat"></i>
                                 </button>
@@ -3203,7 +3424,7 @@ export default function QuotationModal() {
                                 <button
                                   className="btn btn-outline-success"
                                   onClick={() => markAsCompleted(quote.id)}
-                                  title="Mark as Completed"
+                                  title="Complete"
                                 >
                                   <i className="bi bi-check-circle"></i>
                                 </button>
@@ -3237,9 +3458,9 @@ export default function QuotationModal() {
               
               {/* PAGINATION */}
               {totalPages > 1 && (
-                <div className="d-flex justify-content-between align-items-center p-3 border-top">
-                  <div className="text-muted">
-                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+                <div className="d-flex justify-content-between align-items-center p-3 border-top mobile-pagination">
+                  <div className="text-muted mobile-text-small">
+                    Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems}
                   </div>
                   <nav aria-label="Page navigation">
                     <ul className="pagination pagination-sm mb-0">
@@ -3288,7 +3509,7 @@ export default function QuotationModal() {
                 <i className="bi bi-file-earmark-text display-1 text-muted"></i>
               </div>
               <h5 className="text-muted">No quotations found</h5>
-              <p className="text-muted">
+              <p className="text-muted mobile-text-small">
                 {searchTerm ? 'Try a different search term or ' : ''}
                 Create your first quotation to get started
               </p>

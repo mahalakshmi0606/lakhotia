@@ -1198,7 +1198,7 @@ const EmployeePage = () => {
         <div style={styles.modalOverlay}>
           <div style={styles.viewModal}>
             <div style={styles.viewHeader}>
-              <h3 style={{ margin: 0 }}>{selectedEmployee.name}</h3>
+              <h3 style={{ margin: 0, fontSize: "18px" }}>{selectedEmployee.name}</h3>
               <FaTimes
                 onClick={() => {
                   setViewOpen(false);
@@ -1483,10 +1483,23 @@ const EmployeePage = () => {
   );
 };
 
-// Updated Styles with error styling
+// Updated Styles with improved mobile view for the employee details modal
 const styles = {
-  container: { padding: "30px", fontFamily: "Poppins, sans-serif", background: "#fff" },
-  heading: { marginBottom: "20px" },
+  container: { 
+    padding: "30px", 
+    fontFamily: "Poppins, sans-serif", 
+    background: "#fff",
+    "@media (max-width: 768px)": {
+      padding: "15px"
+    }
+  },
+  heading: { 
+    marginBottom: "20px",
+    "@media (max-width: 768px)": {
+      fontSize: "20px",
+      textAlign: "center"
+    }
+  },
   toolbar: {
     display: "flex",
     justifyContent: "space-between",
@@ -1499,7 +1512,11 @@ const styles = {
     position: "relative",
     flex: 1,
     minWidth: "300px",
-    maxWidth: "500px"
+    maxWidth: "500px",
+    "@media (max-width: 768px)": {
+      minWidth: "100%",
+      maxWidth: "100%"
+    }
   },
   searchIcon: {
     position: "absolute",
@@ -1516,7 +1533,11 @@ const styles = {
     border: "1px solid #ddd",
     fontSize: "14px",
     outline: "none",
-    transition: "border-color 0.3s"
+    transition: "border-color 0.3s",
+    "@media (max-width: 768px)": {
+      fontSize: "16px",
+      padding: "12px 40px 12px 40px"
+    }
   },
   clearSearchButton: {
     position: "absolute",
@@ -1533,7 +1554,10 @@ const styles = {
   buttonGroup: {
     display: "flex",
     gap: "10px",
-    alignItems: "center"
+    alignItems: "center",
+    "@media (max-width: 768px)": {
+      width: "100%"
+    }
   },
   excelButton: {
     background: "#217346",
@@ -1572,6 +1596,11 @@ const styles = {
     fontWeight: "600",
     display: "flex",
     alignItems: "center",
+    "@media (max-width: 768px)": {
+      width: "100%",
+      justifyContent: "center",
+      padding: "12px"
+    }
   },
   resultsCount: {
     marginBottom: "15px",
@@ -1583,7 +1612,12 @@ const styles = {
     gap: "10px",
     padding: "8px 12px",
     backgroundColor: "#fff8d6",
-    borderRadius: "6px"
+    borderRadius: "6px",
+    "@media (max-width: 768px)": {
+      flexDirection: "column",
+      alignItems: "flex-start",
+      fontSize: "13px"
+    }
   },
   clearResultsButton: {
     background: "transparent",
@@ -1593,7 +1627,11 @@ const styles = {
     borderRadius: "4px",
     cursor: "pointer",
     fontSize: "12px",
-    marginLeft: "10px"
+    marginLeft: "10px",
+    "@media (max-width: 768px)": {
+      marginLeft: "0",
+      marginTop: "5px"
+    }
   },
   table: { width: "100%", borderCollapse: "collapse", marginBottom: "20px" },
   th: { 
@@ -1601,19 +1639,31 @@ const styles = {
     padding: "12px", 
     borderBottom: "2px solid #f5c518",
     textAlign: "left",
-    whiteSpace: "nowrap"
+    whiteSpace: "nowrap",
+    "@media (max-width: 768px)": {
+      padding: "8px",
+      fontSize: "12px"
+    }
   },
   td: { 
     padding: "12px", 
     textAlign: "left", 
     borderBottom: "1px solid #eee",
-    verticalAlign: "middle"
+    verticalAlign: "middle",
+    "@media (max-width: 768px)": {
+      padding: "8px",
+      fontSize: "12px"
+    }
   },
   tablePhoto: { 
     width: "45px", 
     height: "45px", 
     borderRadius: "50%",
-    objectFit: "cover"
+    objectFit: "cover",
+    "@media (max-width: 768px)": {
+      width: "35px",
+      height: "35px"
+    }
   },
   modalOverlay: {
     position: "fixed",
@@ -1623,7 +1673,10 @@ const styles = {
     justifyContent: "center",
     alignItems: "center",
     zIndex: 999,
-    padding: 16,
+    padding: "16px",
+    "@media (max-width: 768px)": {
+      padding: "10px"
+    }
   },
   modal: {
     background: "#fff",
@@ -1633,97 +1686,172 @@ const styles = {
     maxHeight: "90vh",
     overflowY: "auto",
     boxShadow: "0 8px 30px rgba(0,0,0,0.15)",
+    "@media (max-width: 768px)": {
+      padding: "15px",
+      width: "100%"
+    }
   },
   viewModal: {
     background: "#fff",
-    padding: "18px",
-    borderRadius: "12px",
+    padding: "20px",
+    borderRadius: "16px",
     width: "760px",
     maxHeight: "90vh",
     overflowY: "auto",
     boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
+    "@media (max-width: 768px)": {
+      padding: "16px",
+      width: "100%",
+      borderRadius: "20px"
+    }
   },
   viewHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: "16px",
+    paddingBottom: "12px",
+    borderBottom: "2px solid #f5c518",
+    "@media (max-width: 768px)": {
+      marginBottom: "12px",
+      paddingBottom: "8px"
+    }
   },
   viewContent: {
     display: "flex",
-    gap: 18,
+    gap: "24px",
+    "@media (max-width: 768px)": {
+      flexDirection: "column",
+      gap: "16px"
+    }
   },
   viewLeft: { 
-    width: 160, 
+    width: "160px", 
     display: "flex", 
     justifyContent: "center", 
-    alignItems: "center" 
+    alignItems: "center",
+    "@media (max-width: 768px)": {
+      width: "100%",
+      marginBottom: "8px"
+    }
   },
   viewRight: { 
-    flex: 1 
+    flex: 1,
+    "@media (max-width: 768px)": {
+      width: "100%"
+    }
   },
   viewPhoto: { 
-    width: 140, 
-    height: 140, 
-    borderRadius: "12px", 
-    objectFit: "cover" 
+    width: "140px", 
+    height: "140px", 
+    borderRadius: "16px", 
+    objectFit: "cover",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+    "@media (max-width: 768px)": {
+      width: "120px",
+      height: "120px",
+      borderRadius: "60px"
+    }
   },
   noPhoto: {
-    width: 140,
-    height: 140,
-    borderRadius: 12,
+    width: "140px",
+    height: "140px",
+    borderRadius: "16px",
     background: "#f0f0f0",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     color: "#888",
+    fontSize: "14px",
+    "@media (max-width: 768px)": {
+      width: "120px",
+      height: "120px",
+      borderRadius: "60px"
+    }
   },
   viewRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "8px 0",
+    padding: "10px 0",
     borderBottom: "1px dashed #eee",
+    "@media (max-width: 768px)": {
+      flexDirection: "column",
+      alignItems: "flex-start",
+      padding: "8px 0",
+      gap: "4px"
+    }
   },
   attachmentActions: {
     display: "flex",
-    gap: "8px",
+    gap: "10px",
+    "@media (max-width: 768px)": {
+      width: "100%",
+      justifyContent: "flex-start",
+      marginTop: "4px"
+    }
   },
   viewAttachmentButton: {
     background: "#2b7cff",
     color: "white",
     border: "none",
-    padding: "6px 12px",
-    borderRadius: "4px",
+    padding: "8px 16px",
+    borderRadius: "8px",
     cursor: "pointer",
-    fontSize: "12px",
+    fontSize: "13px",
     display: "flex",
     alignItems: "center",
+    fontWeight: "500",
+    transition: "all 0.2s",
+    "@media (max-width: 768px)": {
+      padding: "10px 16px",
+      fontSize: "14px",
+      flex: "1",
+      justifyContent: "center"
+    }
   },
   downloadAttachmentButton: {
     background: "#4CAF50",
     color: "white",
     border: "none",
-    padding: "6px 12px",
-    borderRadius: "4px",
+    padding: "8px 16px",
+    borderRadius: "8px",
     cursor: "pointer",
-    fontSize: "12px",
+    fontSize: "13px",
     display: "flex",
     alignItems: "center",
+    fontWeight: "500",
+    transition: "all 0.2s",
+    "@media (max-width: 768px)": {
+      padding: "10px 16px",
+      fontSize: "14px",
+      flex: "1",
+      justifyContent: "center"
+    }
   },
   gridForm: {
     display: "grid",
     gridTemplateColumns: "1fr 1fr",
     gap: "15px 20px",
+    "@media (max-width: 768px)": {
+      gridTemplateColumns: "1fr",
+      gap: "12px"
+    }
   },
   gridItemFull: { 
-    gridColumn: "1 / span 2" 
+    gridColumn: "1 / span 2",
+    "@media (max-width: 768px)": {
+      gridColumn: "1"
+    }
   },
   label: { 
     fontWeight: "500", 
     display: "block", 
-    marginBottom: 6,
-    fontSize: "14px"
+    marginBottom: "6px",
+    fontSize: "14px",
+    "@media (max-width: 768px)": {
+      fontSize: "13px"
+    }
   },
   input: { 
     width: "100%", 
@@ -1731,17 +1859,25 @@ const styles = {
     borderRadius: "6px", 
     border: "1px solid #ddd",
     fontSize: "14px",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    "@media (max-width: 768px)": {
+      fontSize: "16px",
+      padding: "12px"
+    }
   },
   textarea: {
     width: "100%",
     borderRadius: "6px",
     border: "1px solid #ddd",
     padding: "10px",
-    minHeight: 70,
+    minHeight: "70px",
     fontSize: "14px",
     boxSizing: "border-box",
-    resize: "vertical"
+    resize: "vertical",
+    "@media (max-width: 768px)": {
+      fontSize: "16px",
+      padding: "12px"
+    }
   },
   fileInputContainer: {
     position: "relative",
@@ -1780,7 +1916,7 @@ const styles = {
     width: "80px",
     height: "80px",
     borderRadius: "8px",
-    marginTop: 10,
+    marginTop: "10px",
     objectFit: "cover",
     border: "1px solid #ddd"
   },
@@ -1794,12 +1930,18 @@ const styles = {
   },
   modalTitle: { 
     margin: 0,
-    fontSize: "18px"
+    fontSize: "18px",
+    "@media (max-width: 768px)": {
+      fontSize: "16px"
+    }
   },
   closeIcon: { 
     cursor: "pointer", 
     color: "#ff4d4d",
-    fontSize: "20px"
+    fontSize: "20px",
+    "@media (max-width: 768px)": {
+      fontSize: "22px"
+    }
   },
   buttonGroupStep: {
     gridColumn: "1 / span 2",
@@ -1807,7 +1949,10 @@ const styles = {
     justifyContent: "space-between",
     marginTop: "20px",
     paddingTop: "15px",
-    borderTop: "1px solid #eee"
+    borderTop: "1px solid #eee",
+    "@media (max-width: 768px)": {
+      gridColumn: "1"
+    }
   },
   prevButton: {
     background: "#f0f0f0",
@@ -1817,7 +1962,13 @@ const styles = {
     cursor: "pointer",
     fontWeight: "600",
     fontSize: "14px",
-    color: "#333"
+    color: "#333",
+    "@media (max-width: 768px)": {
+      padding: "12px 20px",
+      fontSize: "14px",
+      flex: "1",
+      marginRight: "8px"
+    }
   },
   nextButton: {
     background: "#f5c518",
@@ -1827,7 +1978,13 @@ const styles = {
     cursor: "pointer",
     fontWeight: "600",
     fontSize: "14px",
-    color: "#333"
+    color: "#333",
+    "@media (max-width: 768px)": {
+      padding: "12px 20px",
+      fontSize: "14px",
+      flex: "1",
+      marginLeft: "8px"
+    }
   },
   submitButton: {
     background: "#4CAF50",
@@ -1837,7 +1994,12 @@ const styles = {
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "600",
-    fontSize: "14px"
+    fontSize: "14px",
+    "@media (max-width: 768px)": {
+      padding: "12px 20px",
+      fontSize: "14px",
+      flex: "1"
+    }
   },
   noData: { 
     textAlign: "center", 
@@ -1853,7 +2015,12 @@ const styles = {
     margin: "0 5px",
     padding: "5px",
     borderRadius: "4px",
-    transition: "background-color 0.2s"
+    transition: "background-color 0.2s",
+    "@media (max-width: 768px)": {
+      fontSize: "20px",
+      padding: "8px",
+      margin: "0 3px"
+    }
   },
   // New styles for password fields with eye icons
   passwordContainer: {
@@ -1894,16 +2061,27 @@ const styles = {
     backgroundColor: "#f9f9f9",
     borderRadius: "8px",
     flexWrap: "wrap",
-    gap: "10px"
+    gap: "10px",
+    "@media (max-width: 768px)": {
+      flexDirection: "column",
+      padding: "12px"
+    }
   },
   paginationInfo: {
     color: "#666",
-    fontSize: "14px"
+    fontSize: "14px",
+    "@media (max-width: 768px)": {
+      fontSize: "13px"
+    }
   },
   paginationControls: {
     display: "flex",
     gap: "5px",
-    alignItems: "center"
+    alignItems: "center",
+    "@media (max-width: 768px)": {
+      flexWrap: "wrap",
+      justifyContent: "center"
+    }
   },
   paginationButton: {
     padding: "8px 12px",
@@ -1918,7 +2096,12 @@ const styles = {
     justifyContent: "center",
     minWidth: "36px",
     height: "36px",
-    transition: "all 0.2s"
+    transition: "all 0.2s",
+    "@media (max-width: 768px)": {
+      padding: "10px 14px",
+      minWidth: "40px",
+      height: "40px"
+    }
   }
 };
 

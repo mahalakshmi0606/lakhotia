@@ -234,7 +234,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   // ⭐ Handle overlay click - close sidebar
   const handleOverlayClick = () => {
     if (setIsOpen) {
-      setIsOpen(false);
+      setIsOpen(true);
     }
   };
 
@@ -270,7 +270,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
 
   return (
     <>
-      {/* Overlay for mobile when sidebar is open */}
+      {/* Overlay without visual feedback - captures clicks to close sidebar */}
       {isOpen && <div style={styles.overlay} onClick={handleOverlayClick} />}
       
       <div
@@ -417,11 +417,12 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "transparent",
     zIndex: 8,
     display: "block",
+    cursor: "default",
     "@media (min-width: 768px)": {
-      display: "none",
+      display: "block", // Show overlay on desktop too
     },
   },
   sidebar: {
