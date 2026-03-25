@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -49,11 +49,30 @@ import QuotationWholeReport from "./Components/QuotationWholeReport";
 import Enquiryreport from "./Components/EnquiryReport";
 import Dashboardsetter from "./Components/Dashboardsetter";
 import EmployeeReportPage from "./Components/EmployeeReport";
+import PurchaseOrderReceiptPage from "./Components/PurchaseOrderReceived";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Start closed on mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // Auto-open sidebar on desktop, auto-close on mobile
+      if (!mobile) {
+        setSidebarOpen(true);
+      } else {
+        setSidebarOpen(false);
+      }
+    };
+    
+    handleResize(); // Call initially
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <Router>
@@ -64,6 +83,7 @@ function App() {
         setEmail={setEmail}
         sidebarOpen={sidebarOpen}
         setSidebarOpen={setSidebarOpen}
+        isMobile={isMobile}
       />
     </Router>
   );
@@ -76,6 +96,7 @@ function AppContent({
   setEmail,
   sidebarOpen,
   setSidebarOpen,
+  isMobile,
 }) {
   const navigate = useNavigate();
 
@@ -110,6 +131,14 @@ function AppContent({
       : "/dashboard";
   };
 
+  // Handle click on main content to close sidebar on mobile
+  const handleContentClick = (e) => {
+    // Only close if clicking on the content area itself (not on children that might need interaction)
+    if (isMobile && sidebarOpen && e.target === e.currentTarget) {
+      setSidebarOpen(false);
+    }
+  };
+
   return (
     <div style={styles.appContainer}>
       {isAuthenticated ? (
@@ -120,83 +149,96 @@ function AppContent({
             onToggleSidebar={handleToggleSidebar}
           />
 
-          <Sidebar isOpen={sidebarOpen} />
+          <div style={styles.layoutContainer}>
+            <Sidebar 
+              isOpen={sidebarOpen} 
+              setIsOpen={setSidebarOpen}
+              isMobile={isMobile}
+            />
+            
+            <div
+              style={{
+                ...styles.mainContent,
+                // On desktop: add margin when sidebar is open
+                marginLeft: !isMobile && sidebarOpen ? "280px" : "0",
+                // On mobile: no margin shift, just overlay effect
+                opacity: isMobile && sidebarOpen ? 0.5 : 1,
+                pointerEvents: isMobile && sidebarOpen ? "none" : "auto",
+                transition: "margin-left 0.3s ease, opacity 0.3s ease",
+              }}
+              onClick={handleContentClick}
+            >
+              <Routes>
+                {/* 🔥 DEFAULT ROUTE */}
+                <Route path="/" element={<Navigate to={getHomeRoute()} replace />} />
 
-          <div
-            style={{
-              ...styles.mainContent,
-              marginLeft: sidebarOpen ? 200 : 0,
-            }}
-          >
-            <Routes>
-              {/* 🔥 DEFAULT ROUTE */}
-              <Route path="/" element={<Navigate to={getHomeRoute()} replace />} />
+                {/* DASHBOARDS */}
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route
+                  path="/company-dashboard"
+                  element={<CompanyDashboard />}
+                />
 
-              {/* DASHBOARDS */}
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route
-                path="/company-dashboard"
-                element={<CompanyDashboard />}
-              />
+                {/* OTHER ROUTES */}
+                <Route path="/user-types" element={<UserTypePage />} />
+                <Route path="/employees" element={<EmployeePage />} />
+                <Route path="/companies" element={<CompanyPage />} />
+                <Route path="/departments" element={<DepartmentPage />} />
+                <Route path="/designations" element={<DesignationPage />} />
+                <Route path="/attendance" element={<AttendancePage />} />
+                <Route
+                  path="/AdminAttendance"
+                  element={<AdminAttendancePage />}
+                />
+                <Route path="/visitreport" element={<VisitReport />} />
+                <Route
+                  path="/AdminVisitReport"
+                  element={<AdminVisitReport />}
+                />
+                <Route path="/Task" element={<TaskPage />} />
+                <Route path="/Taskstatus" element={<Taskstatus />} />
+                <Route path="/AdminTask" element={<AdminTask />} />
+                <Route
+                  path="/AttendanceReport"
+                  element={<AttendanceReport />}
+                />
+                <Route path="/EsiReport" element={<SalaryReport />} />
+                <Route path="/Settings" element={<Settings />} />
+                <Route path="/Loan" element={<AdvancePage />} />
+                <Route path="/CasualLeave" element={<CasualLeave />} />
+                <Route
+                  path="/noesipf"
+                  element={<CasualLabourSalaryReport />}
+                />
+                <Route path="/accesscontrol" element={<AccessControlPage />} />
+                <Route
+                  path="/quotationreport"
+                  element={<QuotationReportPage />}
+                />
+                <Route path="/salesorder" element={<SalesOrder />} />
+                <Route path="/stockupload" element={<StockUploadPage />} />
+                <Route path="/stocksold" element={<StockSoldPage />} />
+                <Route path="/grn" element={<GRNPage />} />
+                <Route path="/quotation" element={<Quotation />} />
+                <Route path="/rejected" element={<RejectedItemsPage />} />
+                <Route path="/PurchaseOrder" element={<Purchaseorder />} />
+                <Route path="/enquiry" element={<EnquiryModal />} />
+                <Route path="/QuotationWholeReport" element={<QuotationWholeReport />} />
+                <Route path="/PurchaseOrderapproval" element={<PurchaseOrderPage />} />
+                <Route path="/EmployeeReport" element={<EmployeeReportPage />} />
+                <Route path="/mrpchange" element={<MRPChangePage />} />
+                <Route path="/enquiryreport" element={<Enquiryreport />}/>
+                <Route path="/dashboardsetter" element={<Dashboardsetter />} />
+                <Route path="/orderdelivered" element={<PurchaseOrderReceiptPage />} />
+                <Route path="/IndustrialSegmentation" element={<IndustrySegmentationPage />} />
 
-              {/* OTHER ROUTES */}
-              <Route path="/user-types" element={<UserTypePage />} />
-              <Route path="/employees" element={<EmployeePage />} />
-              <Route path="/companies" element={<CompanyPage />} />
-              <Route path="/departments" element={<DepartmentPage />} />
-              <Route path="/designations" element={<DesignationPage />} />
-              <Route path="/attendance" element={<AttendancePage />} />
-              <Route
-                path="/AdminAttendance"
-                element={<AdminAttendancePage />}
-              />
-              <Route path="/visitreport" element={<VisitReport />} />
-              <Route
-                path="/AdminVisitReport"
-                element={<AdminVisitReport />}
-              />
-              <Route path="/Task" element={<TaskPage />} />
-              <Route path="/Taskstatus" element={<Taskstatus />} />
-              <Route path="/AdminTask" element={<AdminTask />} />
-              <Route
-                path="/AttendanceReport"
-                element={<AttendanceReport />}
-              />
-              <Route path="/EsiReport" element={<SalaryReport />} />
-              <Route path="/Settings" element={<Settings />} />
-              <Route path="/Loan" element={<AdvancePage />} />
-              <Route path="/CasualLeave" element={<CasualLeave />} />
-              <Route
-                path="/noesipf"
-                element={<CasualLabourSalaryReport />}
-              />
-              <Route path="/accesscontrol" element={<AccessControlPage />} />
-              <Route
-                path="/quotationreport"
-                element={<QuotationReportPage />}
-              />
-              <Route path="/salesorder" element={<SalesOrder />} />
-              <Route path="/stockupload" element={<StockUploadPage />} />
-              <Route path="/stocksold" element={<StockSoldPage />} />
-              <Route path="/grn" element={<GRNPage />} />
-              <Route path="/quotation" element={<Quotation />} />
-              <Route path="/rejected" element={<RejectedItemsPage />} />
-              <Route path="/PurchaseOrder" element={<Purchaseorder />} />
-              <Route path="/enquiry" element={<EnquiryModal />} />
-              <Route path="/QuotationWholeReport" element={<QuotationWholeReport />} />
-              <Route path="/PurchaseOrderapproval" element={<PurchaseOrderPage />} />
-              <Route path="/EmployeeReport" element={<EmployeeReportPage />} />
-              <Route path="/mrpchange" element={<MRPChangePage />} />
-              <Route path="/enquiryreport" element={<Enquiryreport />}/>
-              <Route path="/dashboardsetter" element={<Dashboardsetter />} />
-              <Route path="/IndustrialSegmentation" element={<IndustrySegmentationPage />} />
-
-              {/* 🔁 FALLBACK */}
-              <Route
-                path="*"
-                element={<Navigate to={getHomeRoute()} replace />}
-              />
-            </Routes>
+                {/* 🔁 FALLBACK */}
+                <Route
+                  path="*"
+                  element={<Navigate to={getHomeRoute()} replace />}
+                />
+              </Routes>
+            </div>
           </div>
 
           <Footer />
@@ -218,10 +260,19 @@ const styles = {
     backgroundColor: "#ffffffff",
     position: "relative",
   },
+  layoutContainer: {
+    display: "flex",
+    minHeight: "calc(100vh - 105px)", // Account for header + footer
+    position: "relative",
+  },
   mainContent: {
-    transition: "margin 0.3s ease",
+    flex: 1,
     padding: "20px",
-    minHeight: "calc(100vh - 60px)",
+    width: "100%",
+    backgroundColor: "#ffffff",
+    position: "relative",
+    zIndex: 1,
+    minHeight: "calc(100vh - 105px)",
   },
 };
 
