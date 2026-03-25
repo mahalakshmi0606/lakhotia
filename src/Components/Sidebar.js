@@ -171,7 +171,9 @@ export const menuItems = [
       { name: "Quotation Approval", icon: <FaThumbsUp />, path: "/quotationreport" },
       { name: "Industrial Segmentation", icon: <FaIndustryIcon />, path: "/IndustrialSegmentation" },
       { name: "Enquiry Report", icon: <FaRegFileAlt />, path: "/enquiryreport" },
-      { name: "Employee Report", icon: <FaFileExport />, path: "/EmployeeReport" }
+      { name: "Employee Report", icon: <FaFileExport />, path: "/EmployeeReport" },
+      { name: "OrderDelivered", icon: <FaFileExport />, path: "/orderdelivered" },
+
     ]
   }
 ];

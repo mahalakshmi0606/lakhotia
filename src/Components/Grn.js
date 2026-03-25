@@ -7,7 +7,8 @@ import {
   FaEye, FaSearch, FaFileInvoice, FaBuilding, FaUser, 
   FaBox, FaTag, FaBarcode, FaRulerCombined, FaRupeeSign,
   FaHashtag, FaReceipt, FaCopy, FaCalendarAlt,
-  FaCheckCircle, FaFileAlt, FaClipboardCheck, FaExternalLinkAlt
+  FaCheckCircle, FaFileAlt, FaClipboardCheck, FaExternalLinkAlt,
+  FaTruck, FaPercent, FaPlus, FaMinus
 } from "react-icons/fa";
 
 const GRNPage = () => {
@@ -26,8 +27,8 @@ const GRNPage = () => {
   const [mobileView, setMobileView] = useState(false);
   const [expandedInvoice, setExpandedInvoice] = useState(null);
   
-  // New state for completed POs
-  const [completedPOs, setCompletedPOs] = useState([]);
+  // State for POs ready for GRN
+  const [posReadyForGRN, setPosReadyForGRN] = useState([]);
   const [loadingPOs, setLoadingPOs] = useState(false);
   
   // Check if mobile view on mount and resize
@@ -42,23 +43,24 @@ const GRNPage = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
   
-  // Fetch completed POs and GRN list on component mount
+  // Fetch POs ready for GRN and GRN list on component mount
   useEffect(() => {
-    fetchCompletedPOs();
+    fetchPosReadyForGRN();
     fetchGRN();
   }, []);
   
-  // Fetch completed purchase orders
-  const fetchCompletedPOs = async () => {
+  // Fetch POs ready for GRN (approved and partially received)
+  const fetchPosReadyForGRN = async () => {
     setLoadingPOs(true);
     try {
-      const res = await axios.get("http://localhost:5000/api/grn/completed-po");
+      // CORRECTED: Use the GRN blueprint endpoint instead of purchase-orders
+      const res = await axios.get("http://localhost:5000/api/grn/ready-for-grn");
       if (res.data.success) {
-        setCompletedPOs(res.data.data);
+        setPosReadyForGRN(res.data.data);
       }
     } catch (err) {
-      console.log("Error loading completed POs", err);
-      toast.error("Error loading completed purchase orders");
+      console.log("Error loading POs ready for GRN", err);
+      toast.error("Error loading purchase orders");
     } finally {
       setLoadingPOs(false);
     }
@@ -76,13 +78,13 @@ const GRNPage = () => {
   };
   
   // Handle PO selection from buttons
-  const handlePOSelect = (poNumber) => {
+  const handlePOSelect = (poNumber, poData) => {
     setPoNumber(poNumber);
-    fetchPODetails(poNumber);
+    fetchPODetails(poNumber, poData);
   };
   
-  // Fetch PO details by PO number
-  const fetchPODetails = async (poNum = null) => {
+  // Fetch PO details by PO number with delivery tracking
+  const fetchPODetails = async (poNum = null, preloadedData = null) => {
     const poToFetch = poNum || poNumber;
     
     if (!poToFetch.trim()) {
@@ -92,33 +94,55 @@ const GRNPage = () => {
     
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:5000/api/grn/get-po/${poToFetch}`);
+      let poData;
       
-      if (res.data.success) {
-        const poData = res.data.data;
-        setPoDetails(poData);
-        toast.success("PO details loaded successfully!");
+      if (preloadedData) {
+        // Use preloaded data if available
+        poData = preloadedData;
+      } else {
+        const res = await axios.get(`http://localhost:5000/api/grn/get-po/${poToFetch}`);
+        if (!res.data.success) {
+          toast.error(res.data.message || "PO not found");
+          setPoDetails(null);
+          return;
+        }
+        poData = res.data.data;
+      }
+      
+      setPoDetails(poData);
+      
+      // Check if PO has remaining items
+      const remainingItems = poData.remaining_items || poData.items;
+      
+      if (remainingItems && remainingItems.length > 0) {
+        // Initialize selected items with remaining quantities
+        const itemsWithBatch = remainingItems.map((item, index) => ({
+          ...item,
+          selected: true,
+          batch_code: "",
+          hsn_code: item.hsn_code || "",
+          brand_description: item.brand_description || "",
+          buy_price: item.buy_price || 0,
+          brand: item.brand || "",
+          brand_code: item.brand_code || "",
+          index: index,
+          current_delivery: item.remaining_quantity || item.quantity,
+          remaining_quantity: item.remaining_quantity || item.quantity,
+          delivered_quantity: item.delivered_quantity || 0,
+          original_quantity: item.original_quantity || item.quantity
+        }));
+        setSelectedItems(itemsWithBatch);
         
-        // Initialize selected items (all items selected by default) with batch codes
-        if (poData.items && poData.items.length > 0) {
-          const itemsWithBatch = poData.items.map((item, index) => ({
-            ...item,
-            selected: true,
-            batch_code: "",
-            hsn_code: item.hsn_code || "",
-            brand_description: item.brand_description || "",
-            buy_price: item.buy_price || 0,
-            brand: item.brand || "",
-            brand_code: item.brand_code || "",
-            index: index
-          }));
-          setSelectedItems(itemsWithBatch);
+        if (poData.delivery_status === 'partial') {
+          toast.info(`This PO has partial deliveries. Remaining quantities loaded.`);
+        } else {
+          toast.success("PO details loaded successfully!");
         }
         
         // Open the popup
         setOpenPopup(true);
       } else {
-        toast.error(res.data.message || "PO not found or not completed");
+        toast.error("No items remaining to receive");
         setPoDetails(null);
       }
     } catch (err) {
@@ -132,27 +156,20 @@ const GRNPage = () => {
   
   // Generate batch code
   const generateBatchCode = (brand, date, index) => {
-    // Get first 3 letters of brand (uppercase)
     const brandPrefix = (brand || "GEN").substring(0, 3).toUpperCase();
-    
-    // Format date as YYYYMMDD
     const formattedDate = date.replace(/-/g, "");
-    
-    // Generate sequence number with leading zeros
     const sequence = String(index + 1).padStart(3, '0');
-    
-    // Combine: BRAND-YYYYMMDD-001
     return `${brandPrefix}-${formattedDate}-${sequence}`;
   };
   
   // Generate batch codes for all selected items
   const generateBatchCodes = () => {
     const today = todayDate;
-    
-    // Count items per brand for the day
     const brandCounts = {};
     
     const updatedItems = selectedItems.map((item, index) => {
+      if (!item.selected) return item;
+      
       const brand = item.brand || "GENERIC";
       const brandKey = `${brand}_${today}`;
       
@@ -183,10 +200,8 @@ const GRNPage = () => {
     }
     
     const today = todayDate;
-    
-    // Count how many items have the same brand today
     const sameBrandItems = selectedItems.filter((it, idx) => 
-      it.brand === item.brand && idx <= index
+      it.brand === item.brand && idx <= index && it.selected
     );
     
     const batchNumber = sameBrandItems.length;
@@ -197,18 +212,40 @@ const GRNPage = () => {
     setSelectedItems(updatedItems);
   };
   
-  // Toggle item selection
-  const toggleItemSelection = (index) => {
+  // Handle delivery quantity change for partial GRN
+  const handleDeliveryQuantityChange = (index, value) => {
     const updatedItems = [...selectedItems];
-    updatedItems[index].selected = !updatedItems[index].selected;
+    const item = updatedItems[index];
+    const maxQty = item.remaining_quantity || item.quantity;
+    let newQty = parseFloat(value) || 0;
+    
+    if (newQty > maxQty) {
+      newQty = maxQty;
+      toast.warning(`Maximum quantity for ${item.item_name} is ${maxQty}`);
+    }
+    if (newQty < 0) newQty = 0;
+    
+    updatedItems[index].current_delivery = newQty;
+    updatedItems[index].selected = newQty > 0;
     setSelectedItems(updatedItems);
   };
   
-  // Select all items
+  // Toggle item selection
+  const toggleItemSelection = (index) => {
+    const updatedItems = [...selectedItems];
+    if (updatedItems[index].current_delivery > 0) {
+      updatedItems[index].selected = !updatedItems[index].selected;
+    } else {
+      toast.warning("Please enter quantity > 0 to select this item");
+    }
+    setSelectedItems(updatedItems);
+  };
+  
+  // Select all items with remaining quantity
   const selectAllItems = () => {
     const updatedItems = selectedItems.map(item => ({
       ...item,
-      selected: true
+      selected: (item.current_delivery || 0) > 0
     }));
     setSelectedItems(updatedItems);
   };
@@ -236,15 +273,16 @@ const GRNPage = () => {
       .catch(() => toast.error("Failed to copy"));
   };
   
-  // Submit GRN from PO
+  // Submit GRN from PO (supports partial delivery)
   const handleSubmitGRN = async () => {
-    // Filter selected items
+    // Filter selected items that have delivery quantity > 0
     const itemsToSubmit = selectedItems
-      .filter(item => item.selected)
+      .filter(item => item.selected && item.current_delivery > 0)
       .map(item => {
-        const { selected, index, ...itemData } = item;
+        const { selected, index, remaining_quantity, delivered_quantity, original_quantity, current_delivery, ...itemData } = item;
         return {
           ...itemData,
+          quantity: current_delivery,
           batch_code: item.batch_code || generateBatchCode(item.brand || "GEN", todayDate, 0),
           hsn_code: item.hsn_code || "",
           brand_description: item.brand_description || "",
@@ -255,7 +293,7 @@ const GRNPage = () => {
       });
     
     if (itemsToSubmit.length === 0) {
-      toast.error("Please select at least one item");
+      toast.error("Please select at least one item with quantity > 0");
       return;
     }
     
@@ -268,10 +306,18 @@ const GRNPage = () => {
       return;
     }
     
+    // Check if this is a partial delivery
+    const isPartial = itemsToSubmit.some(item => item.quantity < item.original_quantity);
+    const remainingItems = selectedItems.some(item => 
+      item.remaining_quantity && item.remaining_quantity > item.current_delivery
+    );
+    
     try {
       const payload = {
         po_number: poNumber,
-        items: itemsToSubmit
+        items: itemsToSubmit,
+        is_partial: isPartial,
+        remaining_items: remainingItems
       };
       
       const res = await axios.post("http://localhost:5000/api/grn/save-from-po", payload);
@@ -280,8 +326,9 @@ const GRNPage = () => {
         toast.success(res.data.message);
         setInvoiceNumber(res.data.invoice_number);
         
-        // Update completed POs list
-        await fetchCompletedPOs();
+        // Refresh data
+        await fetchPosReadyForGRN();
+        await fetchGRN();
         
         // Reset and close
         setTimeout(() => {
@@ -290,7 +337,6 @@ const GRNPage = () => {
           setPoNumber("");
           setSelectedItems([]);
           setInvoiceNumber("");
-          fetchGRN(); // Refresh GRN list
         }, 2000);
       }
     } catch (err) {
@@ -346,12 +392,14 @@ const GRNPage = () => {
         gst_number: item.gst_number,
         items: [],
         total_amount: 0,
-        item_count: 0
+        item_count: 0,
+        is_partial: item.is_partial || false
       };
     }
     acc[item.invoice_number].items.push(item);
     acc[item.invoice_number].total_amount += (item.quantity * item.buy_price);
     acc[item.invoice_number].item_count++;
+    if (item.is_partial) acc[item.invoice_number].is_partial = true;
     return acc;
   }, {});
   
@@ -365,6 +413,11 @@ const GRNPage = () => {
           <div className="d-flex align-items-center gap-2">
             <FaFileInvoice className="text-primary" />
             <span className="fw-bold text-primary">{invoice.invoice_number}</span>
+            {invoice.is_partial && (
+              <span className="badge bg-warning text-dark">
+                <FaPercent size={10} /> Partial
+              </span>
+            )}
           </div>
           <span className="badge bg-secondary">{invoice.item_count} items</span>
         </div>
@@ -505,15 +558,15 @@ const GRNPage = () => {
             </div>
           </div>
           
-          {/* Completed Purchase Orders Section */}
+          {/* POs Ready for GRN Section */}
           <div className="card mb-4 border-primary">
             <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center">
               <h5 className="mb-0 fw-bold text-primary fs-6">
-                <FaCheckCircle className="me-2" />
-                {mobileView ? "Completed POs" : "Completed Purchase Orders Ready for GRN"}
+                <FaTruck className="me-2" />
+                {mobileView ? "Ready for GRN" : "Purchase Orders Ready for GRN"}
               </h5>
               <span className="badge bg-primary">
-                {completedPOs.length}
+                {posReadyForGRN.length}
               </span>
             </div>
             <div className="card-body p-2">
@@ -524,24 +577,24 @@ const GRNPage = () => {
                   </div>
                   <p className="mt-2 small">Loading...</p>
                 </div>
-              ) : completedPOs.length === 0 ? (
+              ) : posReadyForGRN.length === 0 ? (
                 <div className="text-center py-4">
                   <FaFileAlt className="text-muted mb-2" size={32} />
-                  <h6 className="text-muted small">No completed POs found</h6>
+                  <h6 className="text-muted small">No POs ready for GRN</h6>
                 </div>
               ) : (
                 <div className="row g-2">
-                  {completedPOs.map((po) => (
-                    <div key={po.id} className="col-12 col-md-4 mb-2">
-                      <div className={`card h-100 ${po.has_grn ? 'border-success' : 'border-warning'}`}>
+                  {posReadyForGRN.map((po) => (
+                    <div key={po.id} className="col-12 col-md-6 col-lg-4 mb-2">
+                      <div className={`card h-100 ${po.delivery_status === 'partial' ? 'border-warning' : 'border-success'}`}>
                         <div className="card-body p-2">
                           <div className="d-flex justify-content-between align-items-start mb-1">
                             <h6 className="card-title fw-bold small text-truncate mb-0">
                               <FaReceipt className="me-1" />
                               {mobileView ? po.po_number.slice(0, 8) + '...' : po.po_number}
                             </h6>
-                            <span className={`badge ${po.has_grn ? 'bg-success' : 'bg-warning'} small`}>
-                              {po.has_grn ? 'Done' : 'Ready'}
+                            <span className={`badge ${po.delivery_status === 'partial' ? 'bg-warning' : 'bg-success'} small`}>
+                              {po.delivery_status === 'partial' ? 'Partial' : 'New'}
                             </span>
                           </div>
                           
@@ -552,35 +605,24 @@ const GRNPage = () => {
                             </p>
                             <p className="mb-0 small">
                               <FaBox className="me-1" size={10} />
-                              {po.items?.length || 0} items
+                              {po.remaining_items?.length || 0} items remaining
                             </p>
+                            {po.delivery_status === 'partial' && po.remaining_amount && (
+                              <p className="mb-0 small text-warning">
+                                <FaRupeeSign className="me-1" size={10} />
+                                Remaining: ₹{parseFloat(po.remaining_amount).toLocaleString('en-IN')}
+                              </p>
+                            )}
                           </div>
                           
-                          {po.has_grn ? (
-                            <button
-                              className="btn btn-outline-success btn-sm w-100"
-                              onClick={() => viewGRNByInvoice(po.grn_invoice)}
-                            >
-                              <FaExternalLinkAlt className="me-1" size={10} />
-                              View GRN
-                            </button>
-                          ) : (
-                            <button
-                              className="btn btn-primary btn-sm w-100"
-                              onClick={() => handlePOSelect(po.po_number)}
-                            >
-                              <FaClipboardCheck className="me-1" size={10} />
-                              Convert
-                            </button>
-                          )}
+                          <button
+                            className="btn btn-primary btn-sm w-100"
+                            onClick={() => handlePOSelect(po.po_number, po)}
+                          >
+                            <FaClipboardCheck className="me-1" size={10} />
+                            {po.delivery_status === 'partial' ? 'Continue Delivery' : 'Create GRN'}
+                          </button>
                         </div>
-                        {!mobileView && (
-                          <div className="card-footer bg-transparent border-0 pt-0">
-                            <small className="text-muted">
-                              Total: ₹{parseFloat(po.total_amount || 0).toLocaleString('en-IN')}
-                            </small>
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -677,13 +719,14 @@ const GRNPage = () => {
                         <th>Items</th>
                         <th>Batch Codes</th>
                         <th>Total Amount</th>
+                        <th>Type</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {Object.keys(groupedGRN).length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center py-4">
+                          <td colSpan="10" className="text-center py-4">
                             <div className="text-muted">
                               <FaFileInvoice className="fa-2x mb-2" />
                               <p>No GRN records found</p>
@@ -743,6 +786,19 @@ const GRNPage = () => {
                               })}
                             </td>
                             <td>
+                              {invoice.is_partial ? (
+                                <span className="badge bg-warning text-dark">
+                                  <FaPercent className="me-1" size={10} />
+                                  Partial
+                                </span>
+                              ) : (
+                                <span className="badge bg-success">
+                                  <FaCheckCircle className="me-1" size={10} />
+                                  Full
+                                </span>
+                              )}
+                            </td>
+                            <td>
                               <button
                                 className="btn btn-outline-primary btn-sm"
                                 onClick={() => viewGRNByInvoice(invoice.invoice_number)}
@@ -772,6 +828,12 @@ const GRNPage = () => {
                 <h5 className="modal-title fs-6">
                   <FaFileInvoice className="me-2" />
                   {mobileView ? `GRN: ${poNumber}` : `Create GRN from PO: ${poNumber}`}
+                  {poDetails.delivery_status === 'partial' && (
+                    <span className="badge bg-warning text-dark ms-2">
+                      <FaPercent className="me-1" size={10} />
+                      Continue Partial Delivery
+                    </span>
+                  )}
                 </h5>
                 <button type="button" className="btn-close btn-close-white btn-sm" onClick={() => setOpenPopup(false)}></button>
               </div>
@@ -808,6 +870,17 @@ const GRNPage = () => {
                   </div>
                 </div>
                 
+                {/* Delivery Summary */}
+                {poDetails.delivery_status === 'partial' && (
+                  <div className="alert alert-info py-2 mb-3">
+                    <small>
+                      <FaTruck className="me-1" />
+                      <strong>Partial Delivery Status:</strong> This PO already has partial deliveries.
+                      Enter quantities for remaining items below.
+                    </small>
+                  </div>
+                )}
+                
                 {/* Batch Code Generator */}
                 <div className="card mb-3">
                   <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center">
@@ -827,16 +900,18 @@ const GRNPage = () => {
                   </div>
                 </div>
                 
-                {/* Items Selection - Mobile Card View */}
+                {/* Items Selection with Quantity Control */}
                 <div className="card mb-3">
                   <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                    <h6 className="mb-0 fw-bold small">Items ({selectedItems.filter(i => i.selected).length} selected)</h6>
+                    <h6 className="mb-0 fw-bold small">
+                      Items ({selectedItems.filter(i => i.selected && i.current_delivery > 0).length} selected)
+                    </h6>
                     <div>
                       <button className="btn btn-sm btn-outline-success me-1" onClick={selectAllItems}>
-                        All
+                        Select All
                       </button>
                       <button className="btn btn-sm btn-outline-danger" onClick={deselectAllItems}>
-                        None
+                        Clear All
                       </button>
                     </div>
                   </div>
@@ -844,22 +919,40 @@ const GRNPage = () => {
                     {selectedItems.map((item, index) => (
                       <div 
                         key={index} 
-                        className={`card mb-2 ${item.selected ? 'border-success' : ''}`}
-                        style={{ backgroundColor: item.selected ? '#f0fff4' : 'white' }}
+                        className={`card mb-2 ${item.selected && item.current_delivery > 0 ? 'border-success' : ''}`}
+                        style={{ backgroundColor: item.selected && item.current_delivery > 0 ? '#f0fff4' : 'white' }}
                       >
                         <div className="card-body p-2">
                           <div className="d-flex justify-content-between align-items-start mb-1">
                             <div className="d-flex align-items-center gap-2">
                               <input
                                 type="checkbox"
-                                checked={item.selected}
+                                checked={item.selected && item.current_delivery > 0}
                                 onChange={() => toggleItemSelection(index)}
                                 className="form-check-input mt-0"
                               />
                               <span className="fw-bold small">{item.item_name}</span>
                             </div>
-                            <span className="badge bg-secondary">Qty: {item.quantity}</span>
+                            <span className="badge bg-secondary">
+                              Ordered: {item.original_quantity || item.quantity}
+                            </span>
                           </div>
+                          
+                          {/* Delivery Progress Indicator */}
+                          {(item.delivered_quantity > 0 || item.original_quantity) && (
+                            <div className="mb-2">
+                              <div className="d-flex justify-content-between small text-muted">
+                                <span>Delivered: {item.delivered_quantity || 0}</span>
+                                <span>Remaining: {item.remaining_quantity || item.quantity}</span>
+                              </div>
+                              <div className="progress" style={{ height: '4px' }}>
+                                <div 
+                                  className="progress-bar bg-info" 
+                                  style={{ width: `${((item.delivered_quantity || 0) / (item.original_quantity || item.quantity)) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
                           
                           <div className="row g-1 mt-1">
                             <div className="col-6">
@@ -925,9 +1018,29 @@ const GRNPage = () => {
                             <div className="col-4">
                               <div className="fw-bold text-success small text-end">
                                 <FaRupeeSign size={8} />
-                                {(item.quantity * (parseFloat(item.buy_price) || 0)).toFixed(0)}
+                                {(item.current_delivery * (parseFloat(item.buy_price) || 0)).toFixed(0)}
                               </div>
                             </div>
+                            
+                            {/* Delivery Quantity Input for Partial GRN */}
+                            <div className="col-12">
+                              <label className="small text-muted mb-1">Delivery Quantity</label>
+                              <div className="d-flex gap-2">
+                                <input
+                                  type="number"
+                                  className="form-control form-control-sm"
+                                  value={item.current_delivery || 0}
+                                  onChange={(e) => handleDeliveryQuantityChange(index, e.target.value)}
+                                  min="0"
+                                  max={item.remaining_quantity || item.quantity}
+                                  step="1"
+                                />
+                                <span className="small text-muted align-self-center">
+                                  / {item.remaining_quantity || item.quantity}
+                                </span>
+                              </div>
+                            </div>
+                            
                             <div className="col-12">
                               <div className="d-flex gap-1">
                                 <input
@@ -962,7 +1075,8 @@ const GRNPage = () => {
                     
                     <div className="alert alert-warning mt-2 py-1 px-2">
                       <small>
-                        <strong>Note:</strong> Ensure unique batch codes
+                        <strong>Note:</strong> Enter quantity to deliver for each item.
+                        {poDetails.delivery_status === 'partial' && " This is a partial delivery. Remaining items can be delivered later."}
                       </small>
                     </div>
                   </div>
@@ -973,10 +1087,10 @@ const GRNPage = () => {
                 <button
                   className="btn btn-success btn-sm"
                   onClick={handleSubmitGRN}
-                  disabled={selectedItems.filter(item => item.selected).length === 0}
+                  disabled={selectedItems.filter(item => item.selected && item.current_delivery > 0).length === 0}
                 >
                   <FaFileInvoice className="me-2" size={12} />
-                  Create GRN
+                  {poDetails.delivery_status === 'partial' ? "Create Partial GRN" : "Create GRN"}
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setOpenPopup(false)}>
                   Cancel
@@ -1096,6 +1210,12 @@ const GRNPage = () => {
                             <h4 className="text-primary fw-bold">
                               <FaFileInvoice className="me-2" />
                               {viewData[0]?.invoice_number}
+                              {viewData[0]?.is_partial && (
+                                <span className="badge bg-warning text-dark ms-2">
+                                  <FaPercent className="me-1" size={12} />
+                                  Partial Delivery
+                                </span>
+                              )}
                             </h4>
                             <p>
                               <strong>PO Number:</strong> 
