@@ -664,13 +664,14 @@ export default function QuotationModal() {
     fetchStockItems();
   }, [showItemsModal, showEditModal]);
 
-  // Handle bill to search (company name search)
+  // Handle bill to search (company name search) - UPDATED with auto-select
   const handleBillToSearch = (searchTerm) => {
     setBillTo(searchTerm);
     
     if (searchTerm.trim() === "") {
       setFilteredCompanies([]);
       setShowCompanyDropdown(false);
+      setSelectedCompanyId(""); // Clear selected company when search is empty
       return;
     }
     
@@ -693,6 +694,15 @@ export default function QuotationModal() {
     
     setFilteredCompanies(results);
     setShowCompanyDropdown(results.length > 0);
+    
+    // If exact match found, auto-select it
+    if (results.length === 1) {
+      const exactMatch = results[0];
+      const exactCompanyName = (exactMatch.companyName || exactMatch.company_name || "").toLowerCase();
+      if (exactCompanyName === term) {
+        selectCompanyFromSearch(exactMatch);
+      }
+    }
   };
 
   // Handle contact mobile number input - lookup company details
@@ -711,22 +721,48 @@ export default function QuotationModal() {
     }
   };
 
-  // Select company from search results
+  // Select company from search results - FIXED to properly set company ID
   const selectCompanyFromSearch = (company) => {
-    const companyId = company.id || company.ID || company.company_id || "";
+    // Try different possible ID field names
+    const companyId = company.id || company.ID || company.company_id || company._id;
+    
+    // Make sure we have a valid ID
+    if (!companyId) {
+      console.warn("Company selected but no ID found:", company);
+      // Try to find the company in the companies list by matching other fields
+      const foundCompany = companies.find(c => {
+        const cName = (c.companyName || c.company_name || "").toLowerCase();
+        const compName = (company.companyName || company.company_name || "").toLowerCase();
+        return cName === compName;
+      });
+      
+      if (foundCompany) {
+        const foundId = foundCompany.id || foundCompany.ID || foundCompany.company_id;
+        if (foundId) {
+          setSelectedCompanyId(foundId.toString());
+        } else {
+          // Generate a temporary ID if none exists
+          setSelectedCompanyId(`temp-${Date.now()}`);
+        }
+      } else {
+        setSelectedCompanyId(`temp-${Date.now()}`);
+      }
+    } else {
+      setSelectedCompanyId(companyId.toString());
+    }
+    
     const companyName = company.companyName || company.company_name || "";
     const companyAddr = company.companyAddress || company.company_address || "";
-    const companyPincode = company.pinCode || company.pin_code || "";
+    const companyPincodeValue = company.pinCode || company.pin_code || "";
     const companyGst = company.gstNumber || company.gst_number || "";
     const customerName = company.customerName || company.customer_name || company.contact_person || "";
     const customerMobile = company.customerMobile || company.customer_mobile || company.contact_mobile || "";
     const customerEmail = company.customerEmail || company.customer_email || company.contact_email || "";
     
-    setSelectedCompanyId(companyId.toString());
     setSelectedCompany(company);
     setBillTo(companyName);
     setCompanyAddress(companyAddr);
-    setCompanyPincode(companyPincode);
+    setCompanyPincode(companyPincodeValue);
     setCompanyGstin(companyGst);
     setContactPerson(customerName);
     setContactMob(customerMobile);
@@ -759,7 +795,7 @@ export default function QuotationModal() {
     setSelectedCompany(company);
     const companyName = company.companyName || company.company_name || "";
     const companyAddr = company.companyAddress || company.company_address || "";
-    const companyPincode = company.pinCode || company.pin_code || "";
+    const companyPincodeValue = company.pinCode || company.pin_code || "";
     const companyGst = company.gstNumber || company.gst_number || "";
     const customerName = company.customerName || company.customer_name || "";
     const customerMobile = company.customerMobile || company.customer_mobile || "";
@@ -767,7 +803,7 @@ export default function QuotationModal() {
     
     setBillTo(companyName);
     setCompanyAddress(companyAddr);
-    setCompanyPincode(companyPincode);
+    setCompanyPincode(companyPincodeValue);
     setCompanyGstin(companyGst);
     setContactPerson(customerName);
     setContactMob(customerMobile);
@@ -990,14 +1026,43 @@ export default function QuotationModal() {
 
   // Save quotation to backend with item status
   async function saveQuotation() {
-    if (!selectedCompanyId) {
-      alert("Please select a company first!");
-      return;
-    }
+    // Add debug logs to check the state
+    console.log("Save Quotation - selectedCompanyId:", selectedCompanyId);
+    console.log("Save Quotation - billTo:", billTo);
+    console.log("Save Quotation - items length:", items.length);
     
+    // Validate company information
     if (!billTo.trim()) {
       alert("Please enter Bill To information!");
       return;
+    }
+    
+    // FIX: If selectedCompanyId is not set but billTo is filled, try to find the company
+    let finalCompanyId = selectedCompanyId;
+    if (!finalCompanyId && billTo.trim()) {
+      console.log("selectedCompanyId is empty, searching for company by name:", billTo);
+      
+      // Try to find company by exact name match
+      const foundCompany = companies.find(c => {
+        const cName = (c.companyName || c.company_name || "").trim().toLowerCase();
+        return cName === billTo.trim().toLowerCase();
+      });
+      
+      if (foundCompany) {
+        const companyId = foundCompany.id || foundCompany.ID || foundCompany.company_id;
+        if (companyId) {
+          finalCompanyId = companyId.toString();
+          console.log("Found company, using ID:", finalCompanyId);
+          // Update state for consistency
+          setSelectedCompanyId(finalCompanyId);
+        }
+      }
+    }
+    
+    // If still no company ID, use billTo as temporary identifier
+    if (!finalCompanyId) {
+      console.warn("No company ID found, using billTo as temporary identifier");
+      finalCompanyId = `temp-${Date.now()}`;
     }
     
     if (items.length === 0) {
@@ -1053,7 +1118,7 @@ export default function QuotationModal() {
       date: date,
       time: time,
       issuer_details: issuer,
-      company_id: selectedCompanyId,
+      company_id: finalCompanyId,
       company_name: billTo,
       company_address: companyAddress,
       company_pincode: companyPincode,
@@ -1079,6 +1144,8 @@ export default function QuotationModal() {
       created_by_id: currentUser.userId || "",
       updated_by: currentUser.username || "User"
     };
+    
+    console.log("Saving quotation with company_id:", selectedCompanyId);
     
     try {
       const response = await axios.post(`${API_BASE_URL}/api/quotations`, quotationData, {
@@ -1284,14 +1351,38 @@ export default function QuotationModal() {
   const updateQuotation = async () => {
     if (!editingQuotation) return;
     
-    if (!selectedCompanyId) {
-      alert("Please select a company first!");
-      return;
-    }
-    
+    // Validate company information
     if (!billTo.trim()) {
       alert("Please enter Bill To information!");
       return;
+    }
+    
+    // FIX: If selectedCompanyId is not set but billTo is filled, try to find the company
+    let finalCompanyId = selectedCompanyId;
+    if (!finalCompanyId && billTo.trim()) {
+      console.log("selectedCompanyId is empty, searching for company by name:", billTo);
+      
+      // Try to find company by exact name match
+      const foundCompany = companies.find(c => {
+        const cName = (c.companyName || c.company_name || "").trim().toLowerCase();
+        return cName === billTo.trim().toLowerCase();
+      });
+      
+      if (foundCompany) {
+        const companyId = foundCompany.id || foundCompany.ID || foundCompany.company_id;
+        if (companyId) {
+          finalCompanyId = companyId.toString();
+          console.log("Found company, using ID:", finalCompanyId);
+          // Update state for consistency
+          setSelectedCompanyId(finalCompanyId);
+        }
+      }
+    }
+    
+    // If still no company ID, use billTo as temporary identifier
+    if (!finalCompanyId) {
+      console.warn("No company ID found, using billTo as temporary identifier");
+      finalCompanyId = `temp-${Date.now()}`;
     }
     
     if (items.length === 0) {
@@ -1347,7 +1438,7 @@ export default function QuotationModal() {
       date: date,
       time: time,
       issuer_details: issuer,
-      company_id: selectedCompanyId,
+      company_id: finalCompanyId,
       company_name: billTo,
       company_address: companyAddress,
       company_pincode: companyPincode,
@@ -1653,7 +1744,7 @@ export default function QuotationModal() {
                   <th>Price/Unit</th>
                   <th>GST %</th>
                   <th>Total</th>
-                </tr>
+                 </tr>
               </thead>
               <tbody>
                 ${items.map((item, index) => {
@@ -2552,7 +2643,7 @@ export default function QuotationModal() {
                             <th>Status</th>
                             <th>Date</th>
                             <th>Actions</th>
-                          </tr>
+                           </tr>
                         </thead>
                         <tbody>
                           {enquiries.map((enquiry, index) => (
@@ -3064,7 +3155,7 @@ export default function QuotationModal() {
                               <th width="120">Discount</th>
                               <th width="100">Total</th>
                               <th width="80">Actions</th>
-                            </tr>
+                             </tr>
                           </thead>
                           <tbody>
                             {items.map((item, index) => (
@@ -3487,7 +3578,7 @@ export default function QuotationModal() {
                               <th width="120">Discount</th>
                               <th width="100">Total</th>
                               <th width="80">Actions</th>
-                            </tr>
+                             </tr>
                           </thead>
                           <tbody>
                             {items.map((item, index) => (
@@ -3719,7 +3810,7 @@ export default function QuotationModal() {
                     <div className="mobile-table">
                       <table className="table table-bordered">
                         <thead className="table-light">
-                          <tr>
+                           <tr>
                             <th>#</th>
                             <th>Item Name</th>
                             <th>Brand Code</th>
@@ -3730,7 +3821,7 @@ export default function QuotationModal() {
                             <th>Price/Unit</th>
                             <th>GST %</th>
                             <th>Total</th>
-                          </tr>
+                           </tr>
                         </thead>
                         <tbody>
                           {items.map((item, index) => (
