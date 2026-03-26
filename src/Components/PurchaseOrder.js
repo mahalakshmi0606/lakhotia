@@ -7,7 +7,8 @@ import {
   FaEye, FaCheck, FaTimes, FaEdit, FaTrash, FaPlus, 
   FaSearch, FaFilter, FaBuilding, FaUser, FaCalendarAlt,
   FaBox, FaRupeeSign, FaTag, FaBarcode, FaRulerCombined,
-  FaHashtag, FaReceipt, FaCalculator, FaTimesCircle
+  FaHashtag, FaReceipt, FaCalculator, FaTimesCircle,
+  FaTruck, FaPercent, FaFileInvoice
 } from "react-icons/fa";
 
 const API_BASE_URL = "http://localhost:5000/api/purchase-orders";
@@ -65,7 +66,9 @@ const PurchaseOrderPage = () => {
     pending: 0,
     approved: 0,
     rejected: 0,
-    completed: 0
+    completed: 0,
+    partially_received: 0,
+    partially_converted_to_grn: 0
   });
 
   // Fetch stock data, companies, and purchase orders
@@ -73,10 +76,36 @@ const PurchaseOrderPage = () => {
     fetchStock();
     fetchCompanies();
     fetchPurchaseOrders();
-    fetchStats();
   }, []);
 
-  // Fetch statistics
+  // Update stats when purchaseOrders change
+  useEffect(() => {
+    updateStats();
+  }, [purchaseOrders]);
+
+  // Update statistics based on purchase orders
+  const updateStats = () => {
+    const total = purchaseOrders.length;
+    const pending = purchaseOrders.filter(po => po.status === 'pending').length;
+    const approved = purchaseOrders.filter(po => po.status === 'approved').length;
+    const rejected = purchaseOrders.filter(po => po.status === 'rejected').length;
+    const completed = purchaseOrders.filter(po => po.status === 'completed').length;
+    const partiallyConverted = purchaseOrders.filter(po => 
+      po.status === 'approved' && getDeliveryStatus(po) === 'partially_converted_to_grn'
+    ).length;
+    
+    setStats({
+      total,
+      pending,
+      approved,
+      rejected,
+      completed,
+      partially_received: partiallyConverted,
+      partially_converted_to_grn: partiallyConverted
+    });
+  };
+
+  // Fetch statistics from API (fallback)
   const fetchStats = async () => {
     try {
       const res = await axios.get(`${API_BASE_URL}/stats`);
@@ -85,6 +114,7 @@ const PurchaseOrderPage = () => {
       }
     } catch (err) {
       console.error("Error loading stats:", err);
+      updateStats();
     }
   };
 
@@ -119,6 +149,7 @@ const PurchaseOrderPage = () => {
     try {
       const res = await axios.get(`${API_BASE_URL}/all`);
       if (res.data.success) {
+        console.log("Fetched POs:", res.data.data); // Debug log
         setPurchaseOrders(res.data.data);
       }
     } catch (err) {
@@ -129,13 +160,130 @@ const PurchaseOrderPage = () => {
     }
   };
 
+  // Calculate total ordered quantity for a PO
+  const calculateTotalOrdered = (items) => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
+  };
+
+  // Calculate total received quantity for a PO - Uses delivered_quantity from items
+  const calculateTotalReceived = (items) => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((sum, item) => {
+      const receivedQty = parseFloat(item.delivered_quantity || item.received_quantity || 0);
+      return sum + receivedQty;
+    }, 0);
+  };
+
+  // Calculate total pending quantity for a PO
+  const calculateTotalPending = (items) => {
+    if (!items || items.length === 0) return 0;
+    return items.reduce((sum, item) => {
+      const pendingQty = parseFloat(item.remaining_quantity || 0);
+      return sum + (pendingQty > 0 ? pendingQty : 0);
+    }, 0);
+  };
+
+  // Get delivery status for a PO - Enhanced to use your data structure
+  const getDeliveryStatus = (po) => {
+    // If PO is not approved, return the status
+    if (po.status !== 'approved') {
+      return po.status;
+    }
+    
+    // For approved POs, check delivery status from items
+    if (!po.items || po.items.length === 0) {
+      return 'pending_delivery';
+    }
+    
+    const totalOrdered = calculateTotalOrdered(po.items);
+    const totalReceived = calculateTotalReceived(po.items);
+    
+    console.log(`Delivery Status Check for ${po.po_number}:`, {
+      totalOrdered,
+      totalReceived,
+      items: po.items.map(i => ({
+        quantity: i.quantity,
+        delivered: i.delivered_quantity,
+        remaining: i.remaining_quantity
+      }))
+    });
+    
+    if (totalReceived === 0) {
+      return 'pending_delivery';
+    } else if (totalReceived > 0 && totalReceived < totalOrdered) {
+      return 'partially_converted_to_grn';
+    } else if (totalReceived === totalOrdered && totalOrdered > 0) {
+      return 'fully_received';
+    }
+    
+    return 'approved';
+  };
+
+  // Get status badge class for delivery status
+  const getDeliveryStatusBadgeClass = (status, po) => {
+    const deliveryStatus = getDeliveryStatus(po);
+    
+    if (po.status !== 'approved') {
+      switch (po.status) {
+        case 'pending': return 'bg-warning text-dark';
+        case 'rejected': return 'bg-danger text-white';
+        case 'completed': return 'bg-info text-white';
+        default: return 'bg-secondary text-white';
+      }
+    }
+    
+    switch (deliveryStatus) {
+      case 'pending_delivery': return 'bg-warning text-dark';
+      case 'partially_converted_to_grn': return 'bg-info text-white';
+      case 'fully_received': return 'bg-success text-white';
+      default: return 'bg-primary text-white';
+    }
+  };
+
+  // Get status text for delivery status
+  const getDeliveryStatusText = (po) => {
+    if (po.status !== 'approved') {
+      return po.status.toUpperCase();
+    }
+    
+    const deliveryStatus = getDeliveryStatus(po);
+    switch (deliveryStatus) {
+      case 'pending_delivery': return 'PENDING DELIVERY';
+      case 'partially_converted_to_grn': return 'PARTIALLY CONVERTED TO GRN';
+      case 'fully_received': return 'FULLY RECEIVED';
+      default: return 'APPROVED';
+    }
+  };
+
+  // Calculate receipt progress percentage
+  const getReceiptProgress = (po) => {
+    if (po.status !== 'approved') return 0;
+    
+    const totalOrdered = calculateTotalOrdered(po.items);
+    const totalReceived = calculateTotalReceived(po.items);
+    
+    if (totalOrdered === 0) return 0;
+    return (totalReceived / totalOrdered) * 100;
+  };
+
   // Filter and sort purchase orders
   const filteredPOs = useCallback(() => {
     let filtered = [...purchaseOrders];
 
     // Filter by status
     if (filterStatus !== "all") {
-      filtered = filtered.filter(po => po.status === filterStatus);
+      filtered = filtered.filter(po => {
+        if (filterStatus === "partially_converted_to_grn") {
+          return getDeliveryStatus(po) === "partially_converted_to_grn";
+        } else if (filterStatus === "pending_delivery") {
+          return getDeliveryStatus(po) === "pending_delivery";
+        } else if (filterStatus === "fully_received") {
+          return getDeliveryStatus(po) === "fully_received";
+        } else {
+          return po.status === filterStatus;
+        }
+      });
     }
 
     // Filter by search term
@@ -196,7 +344,6 @@ const PurchaseOrderPage = () => {
       return;
     }
 
-    // Filter from already loaded companies
     const results = companies.filter(company => 
       company.companyName?.toLowerCase().includes(value.toLowerCase()) ||
       company.customerName?.toLowerCase().includes(value.toLowerCase()) ||
@@ -245,7 +392,6 @@ const PurchaseOrderPage = () => {
 
   // Handle item suggestion selection
   const handleSuggestionSelect = (item) => {
-    // Calculate count if dimensions exist
     const length = parseFloat(item.Length || item.length || 0);
     const width = parseFloat(item.Width || item.width || 0);
     const quantity = parseFloat(formData.quantity || 1);
@@ -255,9 +401,7 @@ const PurchaseOrderPage = () => {
     let buyPrice = mrp;
     
     if (length > 0 && width > 0) {
-      // Count = Length × Width × Quantity
       count = length * width * quantity;
-      // Price/Unit = MRP × Length × Width
       buyPrice = mrp * length * width;
     }
     
@@ -282,14 +426,12 @@ const PurchaseOrderPage = () => {
     const { name, value } = e.target;
     const newFormData = { ...formData, [name]: value };
     
-    // Recalculate buy_price when length, width, or mrp changes
     if (name === 'length' || name === 'width' || name === 'mrp') {
       const length = parseFloat(name === 'length' ? value : formData.length) || 0;
       const width = parseFloat(name === 'width' ? value : formData.width) || 0;
       const mrp = parseFloat(name === 'mrp' ? value : formData.mrp) || 0;
       
       if (length > 0 && width > 0 && mrp > 0) {
-        // Price/Unit = MRP × Length × Width
         newFormData.buy_price = (mrp * length * width).toFixed(2);
       }
     }
@@ -333,7 +475,6 @@ const PurchaseOrderPage = () => {
       return;
     }
 
-    // Calculate count and total price
     const length = parseFloat(formData.length) || 0;
     const width = parseFloat(formData.width) || 0;
     const quantity = parseFloat(formData.quantity);
@@ -344,9 +485,7 @@ const PurchaseOrderPage = () => {
     let totalPrice = buyPrice * quantity;
     
     if (length > 0 && width > 0) {
-      // Count = Length × Width × Quantity
       count = length * width * quantity;
-      // Total price already calculated as buy_price * quantity
     }
 
     const itemWithId = {
@@ -368,7 +507,6 @@ const PurchaseOrderPage = () => {
 
     setTempItems([...tempItems, itemWithId]);
 
-    // Reset item-specific fields only
     setFormData({
       ...formData,
       item_name: "",
@@ -430,19 +568,15 @@ const PurchaseOrderPage = () => {
       };
 
       if (editMode && currentPoId) {
-        // Update existing PO
         await axios.put(`${API_BASE_URL}/update/${currentPoId}`, payload);
         toast.success("Purchase Order Updated Successfully!");
       } else {
-        // Create new PO
         await axios.post(`${API_BASE_URL}/create`, payload);
         toast.success("Purchase Order Created Successfully!");
       }
 
-      // Reset form and refresh data
       resetForm();
       fetchPurchaseOrders();
-      fetchStats();
     } catch (err) {
       const errorMsg = err.response?.data?.error || "Error saving Purchase Order";
       toast.error(errorMsg);
@@ -487,19 +621,20 @@ const PurchaseOrderPage = () => {
   };
 
   // Update PO status
-  const updatePOStatus = async (poId, newStatus) => {
+  const updatePOStatus = async (poId, newStatus, remarks = "") => {
     if (!window.confirm(`Are you sure you want to ${newStatus} this purchase order?`)) {
       return;
     }
 
     try {
       await axios.put(`${API_BASE_URL}/update-status/${poId}`, {
-        status: newStatus
+        status: newStatus,
+        approval_remarks: newStatus === 'approved' ? remarks : undefined,
+        rejection_remarks: newStatus === 'rejected' ? remarks : undefined
       });
       
       toast.success(`PO ${newStatus} successfully!`);
       fetchPurchaseOrders();
-      fetchStats();
     } catch (err) {
       toast.error("Error updating status");
       console.error(err);
@@ -516,7 +651,6 @@ const PurchaseOrderPage = () => {
       await axios.delete(`${API_BASE_URL}/delete/${poId}`);
       toast.success("Purchase Order deleted successfully!");
       fetchPurchaseOrders();
-      fetchStats();
     } catch (err) {
       const errorMsg = err.response?.data?.error || "Error deleting Purchase Order";
       toast.error(errorMsg);
@@ -530,7 +664,6 @@ const PurchaseOrderPage = () => {
     setCurrentPoId(po.id);
     setOpenPopup(true);
     
-    // Populate form data
     setFormData({
       po_date: po.po_date?.slice(0, 10) || todayDate,
       delivery_date: po.delivery_date?.slice(0, 10) || "",
@@ -558,7 +691,6 @@ const PurchaseOrderPage = () => {
       mrp: "",
     });
 
-    // Populate items with temporary IDs
     const itemsWithIds = po.items?.map(item => ({
       ...item,
       id: Date.now() + Math.random(),
@@ -567,18 +699,7 @@ const PurchaseOrderPage = () => {
     setTempItems(itemsWithIds);
   };
 
-  // Get status badge class
-  const getStatusBadgeClass = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-warning text-dark';
-      case 'approved': return 'bg-success text-white';
-      case 'rejected': return 'bg-danger text-white';
-      case 'completed': return 'bg-info text-white';
-      default: return 'bg-secondary text-white';
-    }
-  };
-
-  // Get item row background color based on your requirement
+  // Get item row background color
   const getItemRowClass = (index) => {
     return index % 2 === 0 ? '' : 'table-warning';
   };
@@ -634,6 +755,14 @@ const PurchaseOrderPage = () => {
             <div className="col-md-2">
               <div className="card bg-white shadow-sm">
                 <div className="card-body text-center">
+                  <h6 className="text-muted">Partially Converted to GRN</h6>
+                  <h3 className="fw-bold text-info">{stats.partially_converted_to_grn || 0}</h3>
+                </div>
+              </div>
+            </div>
+            <div className="col-md-2">
+              <div className="card bg-white shadow-sm">
+                <div className="card-body text-center">
                   <h6 className="text-muted">Rejected</h6>
                   <h3 className="fw-bold text-danger">{stats.rejected}</h3>
                 </div>
@@ -643,7 +772,7 @@ const PurchaseOrderPage = () => {
               <div className="card bg-white shadow-sm">
                 <div className="card-body text-center">
                   <h6 className="text-muted">Completed</h6>
-                  <h3 className="fw-bold text-info">{stats.completed}</h3>
+                  <h3 className="fw-bold text-secondary">{stats.completed}</h3>
                 </div>
               </div>
             </div>
@@ -674,6 +803,9 @@ const PurchaseOrderPage = () => {
                 <option value="all">All Status</option>
                 <option value="pending">Pending</option>
                 <option value="approved">Approved</option>
+                <option value="partially_converted_to_grn">Partially Converted to GRN</option>
+                <option value="pending_delivery">Pending Delivery</option>
+                <option value="fully_received">Fully Received</option>
                 <option value="rejected">Rejected</option>
                 <option value="completed">Completed</option>
               </select>
@@ -737,96 +869,115 @@ const PurchaseOrderPage = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredPOs().map((po) => (
-                      <tr key={po.id}>
-                        <td className="fw-bold text-primary">{po.po_number}</td>
-                        <td>
-                          <FaCalendarAlt className="me-1 text-secondary" />
-                          {po.po_date?.slice(0, 10)}
-                        </td>
-                        <td>
-                          {po.delivery_date ? (
-                            <>
-                              <FaCalendarAlt className="me-1 text-secondary" />
-                              {po.delivery_date?.slice(0, 10)}
-                            </>
-                          ) : (
-                            <span className="text-muted">Not set</span>
-                          )}
-                        </td>
-                        <td>
-                          <div>
-                            <strong>
-                              <FaBuilding className="me-1" />
-                              {po.company_name}
-                            </strong>
-                            <small className="d-block text-muted">
-                              <FaUser className="me-1" />
-                              {po.customer_name}
-                            </small>
-                            {po.gst_number && (
-                              <small className="d-block">
-                                <strong>GST:</strong> {po.gst_number}
-                              </small>
+                    filteredPOs().map((po) => {
+                      const deliveryStatus = getDeliveryStatus(po);
+                      
+                      return (
+                        <tr key={po.id}>
+                          <td className="fw-bold text-primary">{po.po_number}</td>
+                          <td>
+                            <FaCalendarAlt className="me-1 text-secondary" />
+                            {po.po_date?.slice(0, 10)}
+                          </td>
+                          <td>
+                            {po.delivery_date ? (
+                              <>
+                                <FaCalendarAlt className="me-1 text-secondary" />
+                                {po.delivery_date?.slice(0, 10)}
+                              </>
+                            ) : (
+                              <span className="text-muted">Not set</span>
                             )}
-                            {po.customer_mobile && (
-                              <small className="d-block">
-                                <strong>Mobile:</strong> {po.customer_mobile}
+                          </td>
+                          <td>
+                            <div>
+                              <strong>
+                                <FaBuilding className="me-1" />
+                                {po.company_name}
+                              </strong>
+                              <small className="d-block text-muted">
+                                <FaUser className="me-1" />
+                                {po.customer_name}
                               </small>
-                            )}
-                          </div>
-                        </td>
-                        <td>
-                          <span className="badge bg-secondary">
-                            <FaBox className="me-1" />
-                            {po.items?.length || 0} items
-                          </span>
-                          <div className="mt-1">
-                            <small className="text-muted">
-                              {po.items?.slice(0, 2).map((item, idx) => (
-                                <div key={idx} className="text-truncate" style={{ maxWidth: '150px' }}>
-                                  • {item.item_name}
-                                  {item.count > 0 && (
-                                    <span className="ms-2 badge bg-info">
-                                      Count: {item.count}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                              {po.items?.length > 2 && (
-                                <div className="text-muted">+ {po.items.length - 2} more</div>
+                              {po.gst_number && (
+                                <small className="d-block">
+                                  <strong>GST:</strong> {po.gst_number}
+                                </small>
                               )}
-                            </small>
-                          </div>
-                        </td>
-                        <td className="fw-bold">
-                          <FaRupeeSign className="me-1 text-success" />
-                          {parseFloat(po.total_amount || 0).toLocaleString('en-IN', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
-                          })}
-                        </td>
-                        <td>
-                          <span className={`badge ${getStatusBadgeClass(po.status)}`}>
-                            {po.status.toUpperCase()}
-                          </span>
-                        </td>
-                        {/* MODIFIED ACTIONS COLUMN */}
-                        <td>
-                          <div className="btn-group btn-group-sm">
-                            {/* VIEW button - Always visible */}
-                            <button
-                              className="btn btn-outline-primary"
-                              onClick={() => setViewData(po)}
-                              title="View"
-                            >
-                              <FaEye />
-                            </button>
-                            {/* REMOVED: 'Complete' button for approved status */}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {po.customer_mobile && (
+                                <small className="d-block">
+                                  <strong>Mobile:</strong> {po.customer_mobile}
+                                </small>
+                              )}
+                            </div>
+                          </td>
+                          <td>
+                            <span className="badge bg-secondary">
+                              <FaBox className="me-1" />
+                              {po.items?.length || 0} items
+                            </span>
+                            <div className="mt-1">
+                              <small className="text-muted">
+                                {po.items?.slice(0, 2).map((item, idx) => (
+                                  <div key={idx} className="text-truncate" style={{ maxWidth: '150px' }}>
+                                    • {item.item_name}
+                                    {item.count > 0 && (
+                                      <span className="ms-2 badge bg-info">
+                                        Count: {item.count}
+                                      </span>
+                                    )}
+                                    {item.delivered_quantity > 0 && (
+                                      <span className="ms-2 badge bg-success">
+                                        Rec: {item.delivered_quantity}
+                                      </span>
+                                    )}
+                                    {item.remaining_quantity > 0 && item.remaining_quantity < item.quantity && (
+                                      <span className="ms-2 badge bg-warning">
+                                        Rem: {item.remaining_quantity}
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                                {po.items?.length > 2 && (
+                                  <div className="text-muted">+ {po.items.length - 2} more</div>
+                                )}
+                              </small>
+                            </div>
+                          </td>
+                          <td className="fw-bold">
+                            <FaRupeeSign className="me-1 text-success" />
+                            {parseFloat(po.total_amount || 0).toLocaleString('en-IN', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </td>
+                          <td>
+                            <span className={`badge ${getDeliveryStatusBadgeClass(po.status, po)}`}>
+                              {getDeliveryStatusText(po)}
+                            </span>
+                            {po.status === 'approved' && deliveryStatus === 'partially_converted_to_grn' && (
+                              <div className="mt-1">
+                                <small className="text-info">
+                                  <FaFileInvoice className="me-1" />
+                                  GRN created for partial items
+                                </small>
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            <div className="btn-group btn-group-sm">
+                              <button
+                                className="btn btn-outline-primary"
+                                onClick={() => setViewData(po)}
+                                title="View"
+                              >
+                                <FaEye />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -1367,7 +1518,7 @@ const PurchaseOrderPage = () => {
               <div className="modal-header bg-dark text-white">
                 <h5 className="modal-title">
                   <i className="fas fa-file-invoice me-2"></i>
-                  Purchase Order Details
+                  Purchase Order Details - {viewData.po_number}
                 </h5>
                 <button type="button" className="btn-close btn-close-white" onClick={() => setViewData(null)}></button>
               </div>
@@ -1418,8 +1569,8 @@ const PurchaseOrderPage = () => {
                         )}
                       </div>
                       <div className="col-md-6 text-end">
-                        <span className={`badge ${getStatusBadgeClass(viewData.status)} fs-6`}>
-                          {viewData.status.toUpperCase()}
+                        <span className={`badge ${getDeliveryStatusBadgeClass(viewData.status, viewData)} fs-6`}>
+                          {getDeliveryStatusText(viewData)}
                         </span>
                         <p className="mt-2 mb-1">
                           <strong>
@@ -1441,7 +1592,7 @@ const PurchaseOrderPage = () => {
                         {viewData.updated_on && (
                           <p className="mb-1">
                             <strong>Updated:</strong> {viewData.updated_on?.slice(0, 16)}
-                        </p>
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1463,7 +1614,9 @@ const PurchaseOrderPage = () => {
                               <th>HSN</th>
                               <th>Size (L×W)</th>
                               <th>Unit</th>
-                              <th>Qty</th>
+                              <th>Ordered Qty</th>
+                              <th>Received Qty</th>
+                              <th>Pending Qty</th>
                               <th>MRP</th>
                               <th>Count</th>
                               <th>Buy Price</th>
@@ -1473,6 +1626,9 @@ const PurchaseOrderPage = () => {
                           <tbody>
                             {viewData.items?.map((item, index) => {
                               const count = calculateCount(item.length, item.width, item.quantity);
+                              const receivedQty = parseFloat(item.delivered_quantity || 0);
+                              const pendingQty = parseFloat(item.remaining_quantity || (item.quantity - receivedQty));
+                              
                               return (
                                 <tr key={index} className={getItemRowClass(index)}>
                                   <td>{index + 1}</td>
@@ -1494,7 +1650,9 @@ const PurchaseOrderPage = () => {
                                     }
                                   </td>
                                   <td>{item.unit}</td>
-                                  <td>{item.quantity}</td>
+                                  <td className="fw-bold">{item.quantity}</td>
+                                  <td className="text-success fw-bold">{receivedQty}</td>
+                                  <td className="text-warning fw-bold">{pendingQty}</td>
                                   <td>
                                     <FaRupeeSign className="me-1" />
                                     {parseFloat(item.mrp || item.buy_price).toFixed(2)}
@@ -1521,7 +1679,7 @@ const PurchaseOrderPage = () => {
                           </tbody>
                           <tfoot className="table-secondary">
                             <tr>
-                              <td colSpan="11" className="text-end fw-bold">Total Amount:</td>
+                              <td colSpan="13" className="text-end fw-bold">Total Amount:</td>
                               <td colSpan="2" className="fw-bold text-success">
                                 <FaRupeeSign className="me-1" />
                                 {parseFloat(viewData.total_amount || 0).toLocaleString('en-IN', {
@@ -1568,9 +1726,7 @@ const PurchaseOrderPage = () => {
                   </div>
                 </div>
               </div>
-              {/* MODIFIED VIEW MODAL FOOTER */}
               <div className="modal-footer">
-                {/* Only show action buttons for pending POs */}
                 {viewData.status === 'pending' && (
                   <>
                     <button 
@@ -1595,7 +1751,6 @@ const PurchaseOrderPage = () => {
                     </button>
                   </>
                 )}
-                {/* REMOVED: 'Mark Complete' button for approved status */}
                 <button className="btn btn-secondary" onClick={() => setViewData(null)}>
                   Close
                 </button>
@@ -1635,6 +1790,15 @@ const PurchaseOrderPage = () => {
         /* Yellow background for alternate rows */
         .table-warning {
           background-color: #fff3cd !important;
+        }
+        
+        .progress {
+          background-color: #e9ecef;
+          border-radius: 10px;
+        }
+        .progress-bar {
+          transition: width 0.3s ease;
+          border-radius: 10px;
         }
       `}</style>
     </div>

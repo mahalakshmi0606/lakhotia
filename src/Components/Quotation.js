@@ -86,7 +86,7 @@ export default function QuotationModal() {
 
   // Logo paths
   const companyLogo = "/Asset/Name1.jpg";
-  const qrCodeImage = "/Asset/lakhotia qr code.jpeg"; // QR code image path
+  const qrCodeImage = "/Asset/lakhotia qr code.png"; // QR code image path
 
   // State variables
   const [companies, setCompanies] = useState([]);

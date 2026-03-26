@@ -28,7 +28,7 @@ export default function QuotationModal() {
       buy_price: 0,
       quantity: 1,
       unit: "pcs",
-      profit_percentage: 20, // Changed from discount to profit percentage
+      profit_percentage: 20,
       packing_charges: 0,
       freight_charges: 0,
       customer_description: "",
@@ -45,11 +45,12 @@ export default function QuotationModal() {
   const [date] = useState(() => dayjs().format("YYYY-MM-DD"));
   const [time] = useState(() => dayjs().format("HH:mm:ss"));
 
-  // Issuer static details
+  // Issuer static details - UPDATED ADDRESS
   const issuer = {
-    name: "Lakhotia",
-    address: "64/3A Sidco Industrial Estate, Ambatur, Chennai",
-    phone: "7845663338",
+    name: "Lakhotia Enterprise",
+    address: "64/3A Sidco Industrial Estate (N.P), 9th Street, Ambattur, Chennai 600 098, INDIA",
+    phone: "+91 44 26251033",
+    website: "www.lakhotia.in",
     email: "vivek@lakhotia.net",
     gstin: "33AABFL9981E1Z7",
     stateCode: "33-Tamil Nadu",
@@ -63,7 +64,7 @@ export default function QuotationModal() {
 
   // Logo and QR code paths
   const companyLogo = "/Asset/Name1.jpg";
-  const qrCodeImage = "/Asset/lakhotia qr code.jpeg";
+  const qrCodeImage = "/Asset/lakhotia qr code.png";
 
   // State variables
   const [companies, setCompanies] = useState([]);
@@ -202,9 +203,7 @@ export default function QuotationModal() {
           priceMap[item.brand_code] = parseFloat(item.buy_price) || 0;
         });
         
-        // Update cache
         setStockCache(prev => ({ ...prev, ...priceMap }));
-        
         return priceMap;
       }
     } catch (err) {
@@ -252,7 +251,6 @@ export default function QuotationModal() {
         const fetchedQuotations = response.data.data || [];
         const pagination = response.data.pagination || {};
         
-        // Extract all unique brand codes for buy price lookup
         const allBrandCodes = [];
         fetchedQuotations.forEach(quotation => {
           (quotation.items || []).forEach(item => {
@@ -263,10 +261,8 @@ export default function QuotationModal() {
           });
         });
         
-        // Fetch buy prices in bulk for all brand codes
         const buyPriceMap = await fetchBulkBuyPrices([...new Set(allBrandCodes)]);
         
-        // Transform quotations with buy prices
         const transformedQuotations = fetchedQuotations.map(quotation => {
           const transformedItems = (quotation.items || []).map(item => {
             const brandCode = extractBrandCode(item.description || "");
@@ -656,16 +652,11 @@ export default function QuotationModal() {
     }
   }, [contactEmailSame]);
 
-  // ============================================
-  // EDIT QUOTATION FUNCTIONS
-  // ============================================
-  
   // Start editing a quotation
   const startEditQuotation = async (quotation) => {
     setActionMode('edit');
     setCurrentQuotationId(quotation.id);
     
-    // Extract brand codes from items for buy price lookup
     const brandCodes = [];
     (quotation.items || []).forEach(item => {
       const brandCode = extractBrandCode(item.description || "");
@@ -674,10 +665,8 @@ export default function QuotationModal() {
       }
     });
     
-    // Fetch buy prices in bulk for brand codes
     const buyPriceMap = await fetchBulkBuyPrices([...new Set(brandCodes)]);
     
-    // Load quotation data into form
     setQuoteNo(quotation.quote_number || quotation.quoteNo || "");
     setSelectedCompanyId(quotation.company_id || "");
     setBillTo(quotation.company_name || quotation.billTo || "");
@@ -689,7 +678,6 @@ export default function QuotationModal() {
     setNotes(quotation.notes || "");
     setRequoteNote(quotation.requote_note || "");
     
-    // Load items with extracted data and buy prices
     const loadedItems = (quotation.items || []).map(item => {
       const brandCode = extractBrandCode(item.description || "");
       const customerDescription = extractCustomerDescription(item.description || "");
@@ -712,14 +700,12 @@ export default function QuotationModal() {
     });
     setItems(loadedItems);
     
-    // Start with company modal
     setShowCompanyModal(true);
   };
 
-  // UPDATED: Create re-quote - SIMPLE UPDATE, NOT CREATE NEW
+  // Create re-quote
   const startCreateReQuote = async (quotation) => {
     try {
-      // Ask for re-quote note
       const requoteNote = prompt(
         "Enter re-quote reason:",
         `Re-quote created on ${new Date().toLocaleDateString()}`
@@ -730,7 +716,6 @@ export default function QuotationModal() {
         return;
       }
       
-      // Generate new quote number with -R suffix
       const originalQuoteNumber = quotation.quote_number || quotation.quoteNo || "";
       let newQuoteNumber = "";
       
@@ -747,7 +732,6 @@ export default function QuotationModal() {
         newQuoteNumber = `${originalQuoteNumber}-R1`;
       }
       
-      // Prepare update data
       const updateData = {
         quote_number: newQuoteNumber,
         requote_note: requoteNote,
@@ -755,7 +739,6 @@ export default function QuotationModal() {
         updated_by: "User"
       };
       
-      // Update existing quotation (not create new)
       const response = await axios.put(`${API_BASE_URL}/api/quotations/${quotation.id}`, updateData, {
         headers: {
           'Content-Type': 'application/json'
@@ -781,7 +764,6 @@ export default function QuotationModal() {
     setActionMode('create');
     setCurrentQuotationId(null);
     
-    // Reset form
     setItems([]);
     setSelectedCompanyId("");
     setSelectedCompany(null);
@@ -795,11 +777,9 @@ export default function QuotationModal() {
     setNotes("");
     setRequoteNote("");
     
-    // Reset search states
     setFilteredCompanies([]);
     setShowCompanyDropdown(false);
     
-    // Reset item popup states
     setShowItemPopup(false);
     setItemSearchTerm("");
     setSearchResults([]);
@@ -818,21 +798,18 @@ export default function QuotationModal() {
     setNewItemSupplierPartNo("");
     setNewItemBrandCode("");
     
-    // Generate new quote number
     setQuoteNo(`Q-${Date.now().toString().slice(-8)}`);
     
-    // Start with company modal
     setShowCompanyModal(true);
   };
 
-  // Handle item field changes - UPDATED CALCULATIONS
+  // Handle item field changes
   function handleItemChange(index, field, value) {
     setItems(prevItems => {
       const updatedItems = [...prevItems];
       let newValue = value;
       
-      // Handle number fields
-      if (["cut_width", "length", "count", "mrp", "buy_price", "quantity", "profit_percentage", "tax_rate", "packing_charges", "freight_charges"].includes(field)) {
+      if (["cut_width", "length", "count", "mrp", "buy_price", "quantity", "profit_percentage", "packing_charges", "freight_charges"].includes(field)) {
         newValue = parseFloat(value) || 0;
       }
       
@@ -841,13 +818,10 @@ export default function QuotationModal() {
         [field]: newValue
       };
       
-      // UPDATED: Auto-calculate count when width, length, or quantity changes
-      // Formula: Count = Length × Width × Quantity
       if (["cut_width", "length", "quantity"].includes(field)) {
         const width = updatedItems[index].cut_width || 1;
         const length = updatedItems[index].length || 1;
         const quantity = updatedItems[index].quantity || 1;
-        // Count = Length × Width × Quantity
         updatedItems[index].count = parseFloat((width * length * quantity).toFixed(2)) || 1;
       }
       
@@ -865,11 +839,7 @@ export default function QuotationModal() {
     setItems(prevItems => prevItems.filter((_, i) => i !== index));
   }
 
-  // ============================================
-  // UPDATED CALCULATIONS AS PER REQUIREMENTS:
-  // ============================================
-  
-  // 1. Price/Unit = MRP × Length × Width
+  // UPDATED CALCULATIONS
   const pricePerUnit = (item) => {
     const mrp = parseFloat(item.mrp) || 0;
     const length = parseFloat(item.length) || 1;
@@ -878,7 +848,6 @@ export default function QuotationModal() {
     return parseFloat(price.toFixed(2)) || 0;
   };
 
-  // 2. Total = Price/Unit + (Price/Unit × Profit%)
   const calculateTotal = (item) => {
     const pricePerUnitValue = pricePerUnit(item);
     const profitPercentage = parseFloat(item.profit_percentage) || 20;
@@ -887,7 +856,6 @@ export default function QuotationModal() {
     return parseFloat(total.toFixed(2));
   };
 
-  // 3. Grand Total = Total + Packing + Freight
   const calculateGrandTotal = (item) => {
     const total = calculateTotal(item);
     const packing = parseFloat(item.packing_charges) || 0;
@@ -895,24 +863,10 @@ export default function QuotationModal() {
     return parseFloat((total + packing + freight).toFixed(2));
   };
 
-  // 4. Count = Length × Width × Quantity (calculated in handleItemChange)
-  
-  // Calculate GST amount (tax_rate% of Grand Total)
-  const gstAmount = (item) => {
-    const grandTotal = calculateGrandTotal(item);
-    const tax_rate = parseFloat(item.tax_rate) || 18.0;
-    const gst = grandTotal * (tax_rate / 100);
-    return parseFloat(gst.toFixed(2));
+  const calculateItemTotal = (item) => {
+    return calculateGrandTotal(item);
   };
 
-  // Calculate item total including GST
-  const itemTotal = (item) => {
-    const grandTotal = calculateGrandTotal(item);
-    const gst = gstAmount(item);
-    return parseFloat((grandTotal + gst).toFixed(2));
-  };
-
-  // Calculate profit amount per item
   const calculateProfitAmount = (item) => {
     const pricePerUnitValue = pricePerUnit(item);
     const profitPercentage = parseFloat(item.profit_percentage) || 20;
@@ -920,31 +874,42 @@ export default function QuotationModal() {
     return parseFloat(profitPerUnit.toFixed(2));
   };
 
-  // Calculate total profit for all items
   const calculateTotalProfit = () => {
     return items.reduce((total, item) => {
       return total + calculateProfitAmount(item);
     }, 0);
   };
 
-  // Calculate all totals
+  const calculateGSTAmount = (item) => {
+    const grandTotal = calculateGrandTotal(item);
+    const taxRate = parseFloat(item.tax_rate) || 18;
+    const gst = grandTotal * (taxRate / 100);
+    return parseFloat(gst.toFixed(2));
+  };
+
+  const calculateTotalGST = () => {
+    return items.reduce((sum, item) => sum + calculateGSTAmount(item), 0);
+  };
+
   const calculateTotals = () => {
     const totalPricePerUnit = items.reduce((sum, item) => sum + pricePerUnit(item), 0);
     const totalProfit = calculateTotalProfit();
     const totalPacking = items.reduce((sum, item) => sum + (parseFloat(item.packing_charges) || 0), 0);
     const totalFreight = items.reduce((sum, item) => sum + (parseFloat(item.freight_charges) || 0), 0);
-    const totalGST = items.reduce((sum, item) => sum + gstAmount(item), 0);
-    const grandTotal = items.reduce((sum, item) => sum + itemTotal(item), 0);
+    const grandTotal = items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
     const totalBuyCost = items.reduce((sum, item) => sum + pricePerUnit(item), 0);
+    const totalGST = calculateTotalGST();
+    const grandTotalWithGST = grandTotal + totalGST;
     
     return {
       totalPricePerUnit: parseFloat(totalPricePerUnit.toFixed(2)),
       totalProfit: parseFloat(totalProfit.toFixed(2)),
       totalPacking: parseFloat(totalPacking.toFixed(2)),
       totalFreight: parseFloat(totalFreight.toFixed(2)),
-      totalGST: parseFloat(totalGST.toFixed(2)),
       grandTotal: parseFloat(grandTotal.toFixed(2)),
       totalBuyCost: parseFloat(totalBuyCost.toFixed(2)),
+      totalGST: parseFloat(totalGST.toFixed(2)),
+      grandTotalWithGST: parseFloat(grandTotalWithGST.toFixed(2)),
       profitMargin: totalBuyCost > 0 ? parseFloat(((totalProfit / totalBuyCost) * 100).toFixed(2)) : 0
     };
   };
@@ -1004,9 +969,7 @@ export default function QuotationModal() {
     
     const totals = calculateTotals();
     
-    // Prepare items with calculated fields
     const preparedItems = items.map(item => {
-      // Combine brand_code and customer_description into the description field
       const enhancedDescription = [
         item.description || "",
         item.customer_description ? `[CUSTOMER_DESC:${item.customer_description}]` : "",
@@ -1028,12 +991,12 @@ export default function QuotationModal() {
         quantity: item.quantity,
         unit: item.unit,
         profit_percentage: item.profit_percentage || 20,
-        tax_rate: item.tax_rate,
+        tax_rate: item.tax_rate || 18,
         price_per_unit: pricePerUnit(item),
         total: calculateTotal(item),
         grand_total: calculateGrandTotal(item),
-        tax_amount: gstAmount(item),
-        item_total: itemTotal(item)
+        tax_amount: calculateGSTAmount(item),
+        item_total: calculateItemTotal(item) + calculateGSTAmount(item)
       };
     });
     
@@ -1055,7 +1018,8 @@ export default function QuotationModal() {
       total_freight: totals.totalFreight,
       total_tax: totals.totalGST,
       grand_total: totals.grandTotal,
-      notes: notes || `Please process this quote as per the terms mentioned.\nAll prices are in INR and inclusive of GST.\nDelivery within 7-10 business days.`,
+      grand_total_with_gst: totals.grandTotalWithGST,
+      notes: notes || `Please process this quote as per the terms mentioned.\nAll prices are in INR.\nDelivery within 7-10 business days.`,
       requote_note: requoteNote,
       status: actionMode === 'edit' ? "draft" : "draft",
       items: preparedItems,
@@ -1065,7 +1029,6 @@ export default function QuotationModal() {
     
     try {
       if (isUpdate) {
-        // Update existing quotation
         const response = await axios.put(`${API_BASE_URL}/api/quotations/${currentQuotationId}`, quotationData, {
           headers: {
             'Content-Type': 'application/json'
@@ -1073,13 +1036,11 @@ export default function QuotationModal() {
         });
         
         if (response.data.success) {
-          alert(`✅ Quotation updated successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nTotal Profit: ₹${totals.totalProfit}`);
+          alert(`✅ Quotation updated successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotalWithGST}`);
           
-          // Refresh quotations list
           await fetchQuotations();
           await fetchStatistics();
           
-          // Close all modals
           setShowPreviewModal(false);
           setShowCompanyModal(false);
           setShowItemsModal(false);
@@ -1088,7 +1049,6 @@ export default function QuotationModal() {
           throw new Error(response.data.message || "Failed to update quotation");
         }
       } else {
-        // Create new quotation
         const response = await axios.post(`${API_BASE_URL}/api/quotations`, quotationData, {
           headers: {
             'Content-Type': 'application/json'
@@ -1096,14 +1056,11 @@ export default function QuotationModal() {
         });
         
         if (response.data.success) {
-          const message = 'Quotation saved successfully!';
-          alert(`✅ ${message}\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nTotal Profit: ₹${totals.totalProfit}`);
+          alert(`✅ Quotation saved successfully!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotalWithGST}`);
           
-          // Refresh quotations list
           await fetchQuotations();
           await fetchStatistics();
           
-          // Close all modals
           setShowPreviewModal(false);
           setShowCompanyModal(false);
           setShowItemsModal(false);
@@ -1116,7 +1073,6 @@ export default function QuotationModal() {
     } catch (err) {
       console.error("Save/Update quotation failed:", err);
       
-      // Save to localStorage as fallback
       const quotationToSave = {
         ...quotationData,
         id: isUpdate ? currentQuotationId : Date.now(),
@@ -1131,8 +1087,8 @@ export default function QuotationModal() {
           price_per_unit: pricePerUnit(item),
           total: calculateTotal(item),
           grand_total: calculateGrandTotal(item),
-          tax_amount: gstAmount(item),
-          item_total: itemTotal(item)
+          tax_amount: calculateGSTAmount(item),
+          item_total: calculateItemTotal(item) + calculateGSTAmount(item)
         }))
       };
       
@@ -1140,21 +1096,18 @@ export default function QuotationModal() {
       const existingQuotations = saved ? JSON.parse(saved) : [];
       
       if (isUpdate) {
-        // Update existing
         const updatedQuotations = existingQuotations.map(q => 
           q.id === currentQuotationId ? quotationToSave : q
         );
         localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
       } else {
-        // Add new
         const updatedQuotations = [quotationToSave, ...existingQuotations];
         localStorage.setItem("savedQuotations", JSON.stringify(updatedQuotations));
       }
       
-      // Update state
       loadFromLocalStorage();
       
-      alert(`✅ Quotation ${isUpdate ? 'updated' : 'saved'} to local storage!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotal}\nTotal Profit: ₹${totals.totalProfit}\n\nNote: Backend API failed, using local storage.`);
+      alert(`✅ Quotation ${isUpdate ? 'updated' : 'saved'} to local storage!\n\nQuote: ${quoteNo}\nCompany: ${billTo}\nGrand Total: ₹${totals.grandTotalWithGST}\n\nNote: Backend API failed, using local storage.`);
       
       setShowPreviewModal(false);
       setShowCompanyModal(false);
@@ -1212,25 +1165,38 @@ export default function QuotationModal() {
     }
   }
 
-  // View quotation details in modal - FIXED VERSION
+  // View quotation details in modal
   function viewQuotation(quotation) {
-    console.log("Viewing quotation:", quotation);
     setSelectedQuotation(quotation);
     setShowViewModal(true);
   }
 
-  // Print quotation - UPDATED WITH LOGO AND BANK DETAILS
+  // Print quotation - UPDATED with tax on left and no profit
   function printQuotation(quotation) {
     const printWindow = window.open('', '_blank');
     
     const items = quotation.items || [];
+    
+    // Calculate tax summary
+    const taxSummary = {};
+    items.forEach(item => {
+      const taxRate = item.tax_rate || 18;
+      const taxAmount = parseFloat(item.tax_amount) || 0;
+      const taxableValue = parseFloat(item.grand_total) || 0;
+      if (!taxSummary[taxRate]) {
+        taxSummary[taxRate] = { taxAmount: 0, taxableValue: 0 };
+      }
+      taxSummary[taxRate].taxAmount += taxAmount;
+      taxSummary[taxRate].taxableValue += taxableValue;
+    });
+    
     const totals = {
-      totalPricePerUnit: quotation.total_price_per_unit || quotation.totals?.totalPricePerUnit || 0,
-      totalProfit: quotation.total_profit || quotation.totals?.totalProfit || 0,
-      totalPacking: quotation.total_packing || quotation.totals?.totalPacking || 0,
-      totalFreight: quotation.total_freight || quotation.totals?.totalFreight || 0,
-      totalGST: quotation.total_tax || quotation.totals?.totalGST || 0,
-      grandTotal: quotation.grand_total || quotation.totals?.grandTotal || 0,
+      totalPricePerUnit: quotation.total_price_per_unit || 0,
+      totalPacking: quotation.total_packing || 0,
+      totalFreight: quotation.total_freight || 0,
+      totalTax: quotation.total_tax || 0,
+      grandTotal: quotation.grand_total || 0,
+      grandTotalWithGST: quotation.grand_total_with_gst || (quotation.grand_total + (quotation.total_tax || 0)),
       totalBuyCost: items.reduce((sum, item) => {
         const mrp = parseFloat(item.mrp) || 0;
         const width = parseFloat(item.cut_width) || 0;
@@ -1239,17 +1205,6 @@ export default function QuotationModal() {
         return sum + pricePerUnitValue;
       }, 0)
     };
-    
-    // Calculate tax summary (group by tax rate)
-    const taxSummary = {};
-    items.forEach(item => {
-      const taxRate = item.tax_rate || 18;
-      const taxAmount = item.tax_amount || 0;
-      if (!taxSummary[taxRate]) {
-        taxSummary[taxRate] = 0;
-      }
-      taxSummary[taxRate] += taxAmount;
-    });
     
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -1289,12 +1244,12 @@ export default function QuotationModal() {
           <div class="invoice-header">
             <div class="row">
               <div class="col-2">
-                <img src="${companyLogo}" alt="Company Logo" class="company-logo">
+                <img src="${companyLogo}" alt="Company Logo" class="company-logo" onerror="this.style.display='none'">
               </div>
               <div class="col-5">
                 <h1 class="mb-1">${issuer.name}</h1>
                 <p class="mb-1">${issuer.address}</p>
-                <p class="mb-1">Phone: ${issuer.phone} | Email: ${issuer.email}</p>
+                <p class="mb-1">Phone: ${issuer.phone} | Web: ${issuer.website}</p>
                 <p class="mb-1">GSTIN: ${issuer.gstin} | State: ${issuer.stateCode}</p>
               </div>
               <div class="col-5 text-end">
@@ -1339,13 +1294,13 @@ export default function QuotationModal() {
                   <th>UoM</th>
                   <th>MRP</th>
                   <th>Price/Unit</th>
-                  <th>Profit %</th>
                   <th>Total</th>
                   <th>Packing</th>
                   <th>Freight</th>
                   <th>Grand Total</th>
                   <th>GST %</th>
-                  <th>Amount</th>
+                  <th>Tax Amount</th>
+                  <th>Amount (incl. Tax)</th>
                 </tr>
               </thead>
               <tbody>
@@ -1379,12 +1334,13 @@ export default function QuotationModal() {
                   const quantity = parseFloat(item.quantity) || 0;
                   const count = parseFloat(item.count) || 0;
                   const pricePerUnitValue = mrp * width * length;
-                  const profitPercentage = parseFloat(item.profit_percentage) || 20;
-                  const totalValue = pricePerUnitValue + (pricePerUnitValue * (profitPercentage / 100));
+                  const totalValue = pricePerUnitValue + (pricePerUnitValue * (parseFloat(item.profit_percentage) || 20 / 100));
                   const packing = parseFloat(item.packing_charges) || 0;
                   const freight = parseFloat(item.freight_charges) || 0;
                   const grandTotalValue = totalValue + packing + freight;
-                  const sellingPrice = parseFloat(item.item_total) || 0;
+                  const taxRate = parseFloat(item.tax_rate) || 18;
+                  const taxAmount = parseFloat(item.tax_amount) || (grandTotalValue * taxRate / 100);
+                  const finalAmount = grandTotalValue + taxAmount;
                   
                   return `
                     <tr>
@@ -1394,7 +1350,7 @@ export default function QuotationModal() {
                       <td>${width}</td>
                       <td>${length}</td>
                       <td>${quantity}</td>
-                      <td>${count}</td>
+                      <td>${count.toFixed(2)}</td>
                       <td>${item.supplier_part_no || ''}</td>
                       <td>${customer_description || item.customer_description || ''}</td>
                       <td>${item.batch_no || ''}</td>
@@ -1402,13 +1358,13 @@ export default function QuotationModal() {
                       <td>${item.unit || ''}</td>
                       <td>₹${mrp.toFixed(2)}</td>
                       <td>₹${pricePerUnitValue.toFixed(2)}</td>
-                      <td>${profitPercentage}%</td>
                       <td>₹${totalValue.toFixed(2)}</td>
                       <td>₹${packing.toFixed(2)}</td>
                       <td>₹${freight.toFixed(2)}</td>
                       <td>₹${grandTotalValue.toFixed(2)}</td>
-                      <td>${item.tax_rate || 18}%</td>
-                      <td><strong>₹${sellingPrice.toFixed(2)}</strong></td>
+                      <td>${taxRate}%</td>
+                      <td>₹${taxAmount.toFixed(2)}</td>
+                      <td><strong>₹${finalAmount.toFixed(2)}</strong></td>
                     </tr>
                   `;
                 }).join('')}
@@ -1428,11 +1384,11 @@ export default function QuotationModal() {
                   </tr>
                 </thead>
                 <tbody>
-                  ${Object.entries(taxSummary).map(([rate, amount]) => `
+                  ${Object.entries(taxSummary).map(([rate, data]) => `
                     <tr>
                       <td>${rate}%</td>
-                      <td>₹${(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
-                      <td>₹${amount.toFixed(2)}</td>
+                      <td>₹${data.taxableValue.toFixed(2)}</td>
+                      <td>₹${data.taxAmount.toFixed(2)}</td>
                     </tr>
                   `).join('')}
                 </tbody>
@@ -1447,24 +1403,16 @@ export default function QuotationModal() {
                     <strong>₹${totals.totalPricePerUnit.toFixed(2)}</strong>
                   </div>
                   <div class="d-flex justify-content-between mb-1">
-                    <span>Total Profit:</span>
-                    <strong class="text-success">₹${totals.totalProfit.toFixed(2)}</strong>
+                    <span>Total Packing:</span>
+                    <strong>₹${totals.totalPacking.toFixed(2)}</strong>
                   </div>
-                  ${totals.totalPacking > 0 ? `
-                    <div class="d-flex justify-content-between mb-1">
-                      <span>Total Packing:</span>
-                      <strong>₹${totals.totalPacking.toFixed(2)}</strong>
-                    </div>
-                  ` : ''}
-                  ${totals.totalFreight > 0 ? `
-                    <div class="d-flex justify-content-between mb-1">
-                      <span>Total Freight:</span>
-                      <strong>₹${totals.totalFreight.toFixed(2)}</strong>
-                    </div>
-                  ` : ''}
+                  <div class="d-flex justify-content-between mb-1">
+                    <span>Total Freight:</span>
+                    <strong>₹${totals.totalFreight.toFixed(2)}</strong>
+                  </div>
                   <div class="d-flex justify-content-between mb-1">
                     <span>Total Tax:</span>
-                    <strong>₹${totals.totalGST.toFixed(2)}</strong>
+                    <strong>₹${totals.totalTax.toFixed(2)}</strong>
                   </div>
                   <div class="d-flex justify-content-between mb-1">
                     <span>Total Buy Cost:</span>
@@ -1472,8 +1420,8 @@ export default function QuotationModal() {
                   </div>
                   <hr class="my-1"/>
                   <div class="d-flex justify-content-between total-row">
-                    <span>Grand Total:</span>
-                    <strong class="text-primary">₹${totals.grandTotal.toFixed(2)}</strong>
+                    <span>Grand Total (incl. Tax):</span>
+                    <strong class="text-primary">₹${totals.grandTotalWithGST.toFixed(2)}</strong>
                   </div>
                 </div>
               </div>
@@ -1491,14 +1439,14 @@ export default function QuotationModal() {
               </div>
             </div>
             <div class="col-4 text-end">
-              <img src="${qrCodeImage}" alt="QR Code" class="qr-code">
+              <img src="${qrCodeImage}" alt="QR Code" class="qr-code" onerror="this.style.display='none'">
               <p class="mt-1 small">Scan for payment</p>
             </div>
           </div>
           
           <div class="mt-3 p-2 bg-light rounded">
             <h5>Notes:</h5>
-            <p class="mb-0">${quotation.notes || 'Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.'}</p>
+            <p class="mb-0">${quotation.notes || 'Please process this quote as per the terms mentioned. All prices are in INR. Delivery within 7-10 business days.'}</p>
             ${quotation.requote_note ? `
               <p class="mb-0 mt-1"><strong>Re-quote Note:</strong> ${quotation.requote_note}</p>
             ` : ''}
@@ -1574,7 +1522,7 @@ export default function QuotationModal() {
 
   const totals = calculateTotals();
 
-  // Item Selection Popup Modal - FIXED VERSION
+  // Item Selection Popup Modal
   const renderItemPopup = () => {
     if (!showItemPopup) return null;
     
@@ -1781,7 +1729,6 @@ export default function QuotationModal() {
                               setNewItemCutWidth(e.target.value);
                               const length = parseFloat(newItemLength) || 0;
                               const quantity = parseFloat(newItemQuantity) || 1;
-                              // Count = Length × Width × Quantity
                               const count = width * length * quantity;
                               setNewItemCount(count.toFixed(2));
                             }}
@@ -1802,7 +1749,6 @@ export default function QuotationModal() {
                               setNewItemLength(e.target.value);
                               const width = parseFloat(newItemCutWidth) || 0;
                               const quantity = parseFloat(newItemQuantity) || 1;
-                              // Count = Length × Width × Quantity
                               const count = width * length * quantity;
                               setNewItemCount(count.toFixed(2));
                             }}
@@ -1823,7 +1769,6 @@ export default function QuotationModal() {
                               setNewItemQuantity(quantity.toString());
                               const width = parseFloat(newItemCutWidth) || 0;
                               const length = parseFloat(newItemLength) || 0;
-                              // Count = Length × Width × Quantity
                               const count = width * length * quantity;
                               setNewItemCount(count.toFixed(2));
                             }}
@@ -1936,7 +1881,7 @@ export default function QuotationModal() {
                           quantity: quantity,
                           unit: selectedStockItem["Unit"] || "pcs",
                           profit_percentage: profitPercentage,
-                          tax_rate: selectedStockItem["GST"] || 18.0,
+                          tax_rate: selectedStockItem["GST"] || 18,
                           packing_charges: parseFloat(newItemPackingCharges) || 0,
                           freight_charges: parseFloat(newItemFreightCharges) || 0,
                           customer_description: newItemCustomerDescription,
@@ -1976,9 +1921,22 @@ export default function QuotationModal() {
     );
   };
 
-  // Preview Modal - UPDATED WITH CORRECT CALCULATIONS
+  // Preview Modal - UPDATED with tax on left
   const renderPreviewModal = () => {
     if (!showPreviewModal) return null;
+    
+    // Calculate tax summary for preview
+    const taxSummary = {};
+    items.forEach(item => {
+      const taxRate = item.tax_rate || 18;
+      const taxAmount = calculateGSTAmount(item);
+      const taxableValue = calculateGrandTotal(item);
+      if (!taxSummary[taxRate]) {
+        taxSummary[taxRate] = { taxAmount: 0, taxableValue: 0 };
+      }
+      taxSummary[taxRate].taxAmount += taxAmount;
+      taxSummary[taxRate].taxableValue += taxableValue;
+    });
     
     return (
       <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -2009,7 +1967,7 @@ export default function QuotationModal() {
                       <div className="col-5">
                         <h1 className="mb-1">{issuer.name}</h1>
                         <p className="mb-1">{issuer.address}</p>
-                        <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                        <p className="mb-1">Phone: {issuer.phone} | Web: {issuer.website}</p>
                         <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                       </div>
                       <div className="col-5 text-end">
@@ -2054,21 +2012,22 @@ export default function QuotationModal() {
                           <th>UoM</th>
                           <th>MRP</th>
                           <th>Price/Unit</th>
-                          <th>Profit %</th>
                           <th>Total</th>
                           <th>Packing</th>
                           <th>Freight</th>
                           <th>Grand Total</th>
                           <th>GST %</th>
-                          <th>Amount</th>
-                        </tr>
-                      </thead>
+                          <th>Tax Amount</th>
+                          <th>Amount (incl. Tax)</th>
+                          </tr>
+                        </thead>
                       <tbody>
                         {items.map((item, index) => {
                           const pricePerUnitValue = pricePerUnit(item);
                           const totalValue = calculateTotal(item);
                           const grandTotalValue = calculateGrandTotal(item);
-                          const profitPercentage = parseFloat(item.profit_percentage) || 20;
+                          const taxAmount = calculateGSTAmount(item);
+                          const finalAmount = grandTotalValue + taxAmount;
                           
                           return (
                             <tr key={item.id}>
@@ -2086,13 +2045,13 @@ export default function QuotationModal() {
                               <td>{item.unit}</td>
                               <td>₹{parseFloat(item.mrp || 0).toFixed(2)}</td>
                               <td>₹{pricePerUnitValue.toFixed(2)}</td>
-                              <td>{profitPercentage}%</td>
                               <td>₹{totalValue.toFixed(2)}</td>
                               <td>₹{parseFloat(item.packing_charges || 0).toFixed(2)}</td>
                               <td>₹{parseFloat(item.freight_charges || 0).toFixed(2)}</td>
                               <td>₹{grandTotalValue.toFixed(2)}</td>
-                              <td>{item.tax_rate}%</td>
-                              <td><strong>₹{itemTotal(item).toFixed(2)}</strong></td>
+                              <td>{item.tax_rate || 18}%</td>
+                              <td>₹{taxAmount.toFixed(2)}</td>
+                              <td><strong>₹{finalAmount.toFixed(2)}</strong></td>
                             </tr>
                           );
                         })}
@@ -2112,25 +2071,13 @@ export default function QuotationModal() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(() => {
-                            const taxSummary = {};
-                            items.forEach(item => {
-                              const taxRate = item.tax_rate || 18;
-                              const taxAmount = gstAmount(item);
-                              if (!taxSummary[taxRate]) {
-                                taxSummary[taxRate] = 0;
-                              }
-                              taxSummary[taxRate] += taxAmount;
-                            });
-                            
-                            return Object.entries(taxSummary).map(([rate, amount]) => (
-                              <tr key={rate}>
-                                <td>{rate}%</td>
-                                <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
-                                <td>₹{amount.toFixed(2)}</td>
-                              </tr>
-                            ));
-                          })()}
+                          {Object.entries(taxSummary).map(([rate, data]) => (
+                            <tr key={rate}>
+                              <td>{rate}%</td>
+                              <td>₹{data.taxableValue.toFixed(2)}</td>
+                              <td>₹{data.taxAmount.toFixed(2)}</td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -2143,21 +2090,13 @@ export default function QuotationModal() {
                             <strong>₹{totals.totalPricePerUnit.toFixed(2)}</strong>
                           </div>
                           <div className="d-flex justify-content-between mb-2">
-                            <span>Total Profit:</span>
-                            <strong className="text-success">₹{totals.totalProfit.toFixed(2)}</strong>
+                            <span>Total Packing:</span>
+                            <strong>₹{totals.totalPacking.toFixed(2)}</strong>
                           </div>
-                          {totals.totalPacking > 0 && (
-                            <div className="d-flex justify-content-between mb-2">
-                              <span>Total Packing:</span>
-                              <strong>₹{totals.totalPacking.toFixed(2)}</strong>
-                            </div>
-                          )}
-                          {totals.totalFreight > 0 && (
-                            <div className="d-flex justify-content-between mb-2">
-                              <span>Total Freight:</span>
-                              <strong>₹{totals.totalFreight.toFixed(2)}</strong>
-                            </div>
-                          )}
+                          <div className="d-flex justify-content-between mb-2">
+                            <span>Total Freight:</span>
+                            <strong>₹{totals.totalFreight.toFixed(2)}</strong>
+                          </div>
                           <div className="d-flex justify-content-between mb-2">
                             <span>Total Tax:</span>
                             <strong>₹{totals.totalGST.toFixed(2)}</strong>
@@ -2168,8 +2107,8 @@ export default function QuotationModal() {
                           </div>
                           <hr/>
                           <div className="d-flex justify-content-between total-row">
-                            <span>Grand Total:</span>
-                            <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                            <span>Grand Total (incl. Tax):</span>
+                            <strong className="text-primary">₹{totals.grandTotalWithGST.toFixed(2)}</strong>
                           </div>
                         </div>
                       </div>
@@ -2202,7 +2141,7 @@ export default function QuotationModal() {
                   
                   <div className="mt-4 p-3 bg-light rounded">
                     <h5>Notes:</h5>
-                    <p className="mb-0">{notes || 'Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.'}</p>
+                    <p className="mb-0">{notes || 'Please process this quote as per the terms mentioned. All prices are in INR. Delivery within 7-10 business days.'}</p>
                     {requoteNote && (
                       <p className="mb-0 mt-2"><strong>Re-quote Note:</strong> {requoteNote}</p>
                     )}
@@ -2244,9 +2183,22 @@ export default function QuotationModal() {
     );
   };
 
-  // View Quotation Modal - UPDATED WITH CORRECT CALCULATIONS
+  // View Quotation Modal - UPDATED with tax on left
   const renderViewModal = () => {
     if (!showViewModal || !selectedQuotation) return null;
+    
+    // Calculate tax summary for view
+    const taxSummary = {};
+    (selectedQuotation.items || []).forEach(item => {
+      const taxRate = item.tax_rate || 18;
+      const taxAmount = parseFloat(item.tax_amount) || 0;
+      const taxableValue = parseFloat(item.grand_total) || 0;
+      if (!taxSummary[taxRate]) {
+        taxSummary[taxRate] = { taxAmount: 0, taxableValue: 0 };
+      }
+      taxSummary[taxRate].taxAmount += taxAmount;
+      taxSummary[taxRate].taxableValue += taxableValue;
+    });
     
     return (
       <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
@@ -2274,7 +2226,7 @@ export default function QuotationModal() {
                     <div className="col-5">
                       <h1 className="mb-1">{issuer.name}</h1>
                       <p className="mb-1">{issuer.address}</p>
-                      <p className="mb-1">Phone: {issuer.phone} | Email: {issuer.email}</p>
+                      <p className="mb-1">Phone: {issuer.phone} | Web: {issuer.website}</p>
                       <p className="mb-1">GSTIN: {issuer.gstin} | State: {issuer.stateCode}</p>
                     </div>
                     <div className="col-5 text-end">
@@ -2319,13 +2271,13 @@ export default function QuotationModal() {
                         <th>UoM</th>
                         <th>MRP</th>
                         <th>Price/Unit</th>
-                        <th>Profit %</th>
                         <th>Total</th>
                         <th>Packing</th>
                         <th>Freight</th>
                         <th>Grand Total</th>
                         <th>GST %</th>
-                        <th>Amount</th>
+                        <th>Tax Amount</th>
+                        <th>Amount (incl. Tax)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2364,7 +2316,9 @@ export default function QuotationModal() {
                         const packing = parseFloat(item.packing_charges) || 0;
                         const freight = parseFloat(item.freight_charges) || 0;
                         const grandTotalValue = totalValue + packing + freight;
-                        const sellingPrice = parseFloat(item.item_total) || 0;
+                        const taxRate = parseFloat(item.tax_rate) || 18;
+                        const taxAmount = parseFloat(item.tax_amount) || (grandTotalValue * taxRate / 100);
+                        const finalAmount = grandTotalValue + taxAmount;
                         
                         return (
                           <tr key={index}>
@@ -2382,13 +2336,13 @@ export default function QuotationModal() {
                             <td>{item.unit || ''}</td>
                             <td>₹{mrp.toFixed(2)}</td>
                             <td>₹{pricePerUnitValue.toFixed(2)}</td>
-                            <td>{profitPercentage}%</td>
                             <td>₹{totalValue.toFixed(2)}</td>
                             <td>₹{packing.toFixed(2)}</td>
                             <td>₹{freight.toFixed(2)}</td>
                             <td>₹{grandTotalValue.toFixed(2)}</td>
-                            <td>{item.tax_rate || 18}%</td>
-                            <td><strong>₹{sellingPrice.toFixed(2)}</strong></td>
+                            <td>{taxRate}%</td>
+                            <td>₹{taxAmount.toFixed(2)}</td>
+                            <td><strong>₹{finalAmount.toFixed(2)}</strong></td>
                           </tr>
                         );
                       })}
@@ -2408,25 +2362,13 @@ export default function QuotationModal() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(() => {
-                          const taxSummary = {};
-                          (selectedQuotation.items || []).forEach(item => {
-                            const taxRate = item.tax_rate || 18;
-                            const taxAmount = item.tax_amount || 0;
-                            if (!taxSummary[taxRate]) {
-                              taxSummary[taxRate] = 0;
-                            }
-                            taxSummary[taxRate] += taxAmount;
-                          });
-                          
-                          return Object.entries(taxSummary).map(([rate, amount]) => (
-                            <tr key={rate}>
-                              <td>{rate}%</td>
-                              <td>₹{(amount / (parseFloat(rate) / 100)).toFixed(2)}</td>
-                              <td>₹{amount.toFixed(2)}</td>
-                            </tr>
-                          ));
-                        })()}
+                        {Object.entries(taxSummary).map(([rate, data]) => (
+                          <tr key={rate}>
+                            <td>{rate}%</td>
+                            <td>₹{data.taxableValue.toFixed(2)}</td>
+                            <td>₹{data.taxAmount.toFixed(2)}</td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
@@ -2439,8 +2381,12 @@ export default function QuotationModal() {
                           <strong>₹{(selectedQuotation.total_price_per_unit || 0).toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
-                          <span>Total Profit:</span>
-                          <strong className="text-success">₹{(selectedQuotation.total_profit || 0).toFixed(2)}</strong>
+                          <span>Total Packing:</span>
+                          <strong>₹{(selectedQuotation.total_packing || 0).toFixed(2)}</strong>
+                        </div>
+                        <div className="d-flex justify-content-between mb-2">
+                          <span>Total Freight:</span>
+                          <strong>₹{(selectedQuotation.total_freight || 0).toFixed(2)}</strong>
                         </div>
                         <div className="d-flex justify-content-between mb-2">
                           <span>Total Tax:</span>
@@ -2464,8 +2410,8 @@ export default function QuotationModal() {
                         })()}
                         <hr/>
                         <div className="d-flex justify-content-between total-row">
-                          <span>Grand Total:</span>
-                          <strong className="text-primary">₹{(selectedQuotation.grand_total || 0).toFixed(2)}</strong>
+                          <span>Grand Total (incl. Tax):</span>
+                          <strong className="text-primary">₹{(selectedQuotation.grand_total_with_gst || selectedQuotation.grand_total).toFixed(2)}</strong>
                         </div>
                       </div>
                     </div>
@@ -2487,7 +2433,7 @@ export default function QuotationModal() {
                       src={qrCodeImage} 
                       alt="QR Code" 
                       className="img-fluid"
-                      style={{ maxWidth: '400px', maxHeight: '400px', objectFit: 'contain' }}
+                      style={{ maxWidth: '120px', maxHeight: '120px', objectFit: 'contain' }}
                       onError={(e) => {
                         e.target.style.display = 'none';
                       }}
@@ -2498,7 +2444,7 @@ export default function QuotationModal() {
                 
                 <div className="mt-4 p-3 bg-light rounded">
                   <h5>Notes:</h5>
-                  <p className="mb-0">{selectedQuotation.notes || 'Please process this quote as per the terms mentioned. All prices are in INR and inclusive of GST. Delivery within 7-10 business days.'}</p>
+                  <p className="mb-0">{selectedQuotation.notes || 'Please process this quote as per the terms mentioned. All prices are in INR. Delivery within 7-10 business days.'}</p>
                   {selectedQuotation.requote_note && (
                     <p className="mb-0 mt-2"><strong>Re-quote Note:</strong> {selectedQuotation.requote_note}</p>
                   )}
@@ -2520,7 +2466,7 @@ export default function QuotationModal() {
     );
   };
 
-  // Items Modal - UPDATED WITH CORRECT CALCULATIONS
+  // Items Modal - UPDATED with tax rate field
   const renderItemsModal = () => {
     if (!showItemsModal) return null;
     
@@ -2576,20 +2522,21 @@ export default function QuotationModal() {
                           <tr>
                             <th width="50">#</th>
                             <th>Item Name</th>
-                            <th width="120">Brand Code</th>
-                            <th width="120">Part No</th>
-                            <th width="80">Width</th>
-                            <th width="80">Length</th>
-                            <th width="80">Qty</th>
-                            <th width="80">Count</th>
-                            <th width="80">Unit</th>
-                            <th width="100">MRP</th>
-                            <th width="100">Price/Unit</th>
-                            <th width="80">Profit %</th>
-                            <th width="120">Total</th>
-                            <th width="100">Packing</th>
-                            <th width="100">Freight</th>
-                            <th width="120">Grand Total</th>
+                            <th width="100">Brand Code</th>
+                            <th width="100">Part No</th>
+                            <th width="70">Width</th>
+                            <th width="70">Length</th>
+                            <th width="70">Qty</th>
+                            <th width="70">Count</th>
+                            <th width="70">Unit</th>
+                            <th width="90">MRP</th>
+                            <th width="90">Price/Unit</th>
+                            <th width="70">Profit %</th>
+                            <th width="90">Total</th>
+                            <th width="90">Packing</th>
+                            <th width="90">Freight</th>
+                            <th width="90">GST %</th>
+                            <th width="100">Grand Total</th>
                             <th width="80">Actions</th>
                           </tr>
                         </thead>
@@ -2599,6 +2546,9 @@ export default function QuotationModal() {
                             const totalValue = calculateTotal(item);
                             const grandTotalValue = calculateGrandTotal(item);
                             const profitPercentage = parseFloat(item.profit_percentage) || 20;
+                            const taxRate = parseFloat(item.tax_rate) || 18;
+                            const taxAmount = grandTotalValue * taxRate / 100;
+                            const finalAmount = grandTotalValue + taxAmount;
                             
                             return (
                               <tr key={item.id}>
@@ -2702,10 +2652,20 @@ export default function QuotationModal() {
                                     onChange={(e) => handleItemChange(index, "freight_charges", e.target.value)}
                                   />
                                 </td>
-                                <td className="text-end fw-bold text-primary">
-                                  ₹{grandTotalValue.toFixed(2)}
-                                </td>
                                 <td>
+                                  <input
+                                    type="number"
+                                    className="form-control form-control-sm text-end"
+                                    min="0"
+                                    step="0.01"
+                                    value={item.tax_rate || 18}
+                                    onChange={(e) => handleItemChange(index, "tax_rate", e.target.value)}
+                                  />
+                                </td>
+                                <td className="text-end fw-bold text-primary">
+                                  ₹{finalAmount.toFixed(2)}
+                                </td>
+                                <td className="text-center">
                                   <button
                                     className="btn btn-sm btn-danger"
                                     onClick={() => removeItem(index)}
@@ -2713,8 +2673,8 @@ export default function QuotationModal() {
                                   >
                                     <i className="bi bi-trash"></i>
                                   </button>
-                                </td>
-                              </tr>
+                                 </td>
+                               </tr>
                             );
                           })}
                         </tbody>
@@ -2738,10 +2698,6 @@ export default function QuotationModal() {
                         <strong>₹{totals.totalPricePerUnit.toFixed(2)}</strong>
                       </div>
                       <div className="d-flex justify-content-between mb-2">
-                        <span>Total Profit:</span>
-                        <strong className="text-success">₹{totals.totalProfit.toFixed(2)}</strong>
-                      </div>
-                      <div className="d-flex justify-content-between mb-2">
                         <span>Total Packing:</span>
                         <strong>₹{totals.totalPacking.toFixed(2)}</strong>
                       </div>
@@ -2750,7 +2706,7 @@ export default function QuotationModal() {
                         <strong>₹{totals.totalFreight.toFixed(2)}</strong>
                       </div>
                       <div className="d-flex justify-content-between mb-2">
-                        <span>Tax (18%):</span>
+                        <span>Total Tax:</span>
                         <strong>₹{totals.totalGST.toFixed(2)}</strong>
                       </div>
                       <div className="d-flex justify-content-between mb-2">
@@ -2759,8 +2715,8 @@ export default function QuotationModal() {
                       </div>
                       <hr />
                       <div className="d-flex justify-content-between fw-bold">
-                        <span>Grand Total:</span>
-                        <strong className="text-primary">₹{totals.grandTotal.toFixed(2)}</strong>
+                        <span>Grand Total (incl. Tax):</span>
+                        <strong className="text-primary">₹{totals.grandTotalWithGST.toFixed(2)}</strong>
                       </div>
                     </div>
                   </div>
@@ -2782,7 +2738,7 @@ export default function QuotationModal() {
     );
   };
 
-  // Company Details Modal
+  // Company Details Modal - UPDATED (removed profit display)
   const renderCompanyModal = () => {
     if (!showCompanyModal) return null;
     
@@ -3317,8 +3273,7 @@ export default function QuotationModal() {
                       <th>Contact</th>
                       <th>Items</th>
                       <th>Status</th>
-                      <th>Total</th>
-                      <th>Profit</th>
+                      <th>Total (incl. Tax)</th>
                       <th width="200">Actions</th>
                     </tr>
                   </thead>
@@ -3327,28 +3282,7 @@ export default function QuotationModal() {
                       const isCompleted = quote.status?.toLowerCase() === 'completed';
                       const isDraft = quote.status?.toLowerCase() === 'draft';
                       const isRequote = quote.status?.toLowerCase() === 'requote';
-                      
-                      // Calculate total profit for this quotation
-                      const totalProfit = (quote.items || []).reduce((sum, item) => {
-                        const mrp = parseFloat(item.mrp) || 0;
-                        const width = parseFloat(item.cut_width) || 0;
-                        const length = parseFloat(item.length) || 0;
-                        const profitPercentage = parseFloat(item.profit_percentage) || 20;
-                        const pricePerUnitValue = mrp * width * length;
-                        const profitPerUnit = pricePerUnitValue * (profitPercentage / 100);
-                        return sum + profitPerUnit;
-                      }, 0);
-                      
-                      // Calculate total buy cost
-                      const totalBuyCost = (quote.items || []).reduce((sum, item) => {
-                        const mrp = parseFloat(item.mrp) || 0;
-                        const width = parseFloat(item.cut_width) || 0;
-                        const length = parseFloat(item.length) || 0;
-                        const pricePerUnitValue = mrp * width * length;
-                        return sum + pricePerUnitValue;
-                      }, 0);
-                      
-                      const profitMargin = totalBuyCost > 0 ? ((totalProfit / totalBuyCost) * 100).toFixed(2) : "0.00";
+                      const totalWithGST = quote.grand_total_with_gst || quote.grand_total || 0;
                       
                       return (
                         <tr key={quote.id}>
@@ -3382,12 +3316,7 @@ export default function QuotationModal() {
                           </td>
                           <td>
                             <strong className="text-primary mobile-text-small">
-                              ₹{((quote.grand_total || 0)).toFixed(2)}
-                            </strong>
-                          </td>
-                          <td>
-                            <strong className={totalProfit >= 0 ? 'text-success' : 'text-danger'}>
-                              ₹{totalProfit.toFixed(2)}
+                              ₹{totalWithGST.toFixed(2)}
                             </strong>
                           </td>
                           <td>
@@ -3456,7 +3385,6 @@ export default function QuotationModal() {
                 </table>
               </div>
               
-              {/* PAGINATION */}
               {totalPages > 1 && (
                 <div className="d-flex justify-content-between align-items-center p-3 border-top mobile-pagination">
                   <div className="text-muted mobile-text-small">

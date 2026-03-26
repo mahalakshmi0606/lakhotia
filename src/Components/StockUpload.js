@@ -21,11 +21,17 @@ export default function StockUploadPage() {
     "GST"
   ];
 
-  // Configuration for duplicate detection
+  // Configuration for duplicate detection - NOW INCLUDES BATCH CODE
   const duplicateDetectionFields = [
     "Item Name",
     "Batch Code",
     "HSN"
+  ];
+
+  // For batch-based uniqueness - if batch is different, it's a unique item
+  const uniqueIdentifierFields = [
+    "Item Name",
+    "Batch Code"
   ];
 
   const [rows, setRows] = useState([]);
@@ -97,7 +103,7 @@ export default function StockUploadPage() {
   };
 
   // -------------------------
-  // NEW: Deduct sold quantity from matching stock and mark as deducted
+  // Deduct sold quantity from matching stock and mark as deducted
   // -------------------------
   const deductFromStock = async (soldItem) => {
     if (!soldItem._hasMatch) {
@@ -177,7 +183,7 @@ export default function StockUploadPage() {
         // Remove deducted item from soldItems list
         setSoldItems(prev => prev.filter(item => item._id !== soldItem._id));
 
-        setSuccess(`Deducted ${soldQty} from "${soldItem["Item Name"]}". New quantity: ${newQty}. Item marked as deducted.`);
+        setSuccess(`Deducted ${soldQty} from "${soldItem["Item Name"]}" (Batch: ${soldItem["Batch Code"] || "N/A"}). New quantity: ${newQty}. Item marked as deducted.`);
       } else {
         alert(`Failed to mark item as deducted: ${result.message}`);
       }
@@ -188,7 +194,7 @@ export default function StockUploadPage() {
   };
 
   // -------------------------
-  // Helper: Find matching stock item in current rows
+  // Helper: Find matching stock item in current rows (MUST match BATCH CODE as well)
   // -------------------------
   const findMatchingStockItemInRows = (soldItem) => {
     const itemName = (soldItem["Item Name"] || "").toLowerCase().trim();
@@ -196,25 +202,32 @@ export default function StockUploadPage() {
     const brand = (soldItem["Brand"] || "").toLowerCase().trim();
     const batchCode = (soldItem["Batch Code"] || "").toLowerCase().trim();
     
-    // Try to find in current rows
+    // Try to find in current rows - BATCH CODE IS CRITICAL FOR MATCHING
     for (const row of rows) {
       let match = false;
+      const rowBatchCode = (row["Batch Code"] || "").toLowerCase().trim();
       
-      // Match by Item Name
-      if (itemName && (row["Item Name"] || "").toLowerCase().trim() === itemName) {
-        match = true;
-      }
-      // Match by Brand Code
-      else if (brandCode && (row["Brand Code"] || "").toLowerCase().trim() === brandCode) {
-        match = true;
-      }
-      // Match by Brand
-      else if (brand && (row["Brand"] || "").toLowerCase().trim() === brand) {
-        match = true;
-      }
-      // Match by Batch Code
-      else if (batchCode && (row["Batch Code"] || "").toLowerCase().trim() === batchCode) {
-        match = true;
+      // If sold item has batch code, we must match by batch code first
+      if (batchCode) {
+        if (rowBatchCode === batchCode) {
+          // Batch code matches, now check other fields
+          if (itemName && (row["Item Name"] || "").toLowerCase().trim() === itemName) {
+            match = true;
+          } else if (brandCode && (row["Brand Code"] || "").toLowerCase().trim() === brandCode) {
+            match = true;
+          } else if (brand && (row["Brand"] || "").toLowerCase().trim() === brand) {
+            match = true;
+          }
+        }
+      } else {
+        // No batch code on sold item, match by other fields
+        if (itemName && (row["Item Name"] || "").toLowerCase().trim() === itemName) {
+          match = true;
+        } else if (brandCode && (row["Brand Code"] || "").toLowerCase().trim() === brandCode) {
+          match = true;
+        } else if (brand && (row["Brand"] || "").toLowerCase().trim() === brand) {
+          match = true;
+        }
       }
       
       if (match) {
@@ -240,7 +253,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Utility: Duplicate checker
+  // Utility: Duplicate checker - IMPROVED BATCH CODE AWARE
   // ----------------------------------------------------
   const checkForDuplicates = (newRows, existingRows, checkFields = duplicateDetectionFields) => {
     const duplicates = [];
@@ -248,22 +261,65 @@ export default function StockUploadPage() {
 
     for (const newRow of newRows) {
       let isDuplicate = false;
+      const newItemName = String(newRow["Item Name"] || "").trim().toLowerCase();
+      const newBatchCode = String(newRow["Batch Code"] || "").trim().toLowerCase();
+      const newHSN = String(newRow["HSN"] || "").trim().toLowerCase();
       
       for (const existingRow of existingRows) {
-        const allMatch = checkFields.every(field => {
-          const newValue = String(newRow[field] || "").trim().toLowerCase();
-          const existingValue = String(existingRow[field] || "").trim().toLowerCase();
-          return newValue === existingValue && newValue !== "";
-        });
+        const existingItemName = String(existingRow["Item Name"] || "").trim().toLowerCase();
+        const existingBatchCode = String(existingRow["Batch Code"] || "").trim().toLowerCase();
+        const existingHSN = String(existingRow["HSN"] || "").trim().toLowerCase();
+        
+        // CRITICAL: Different batch codes mean different items - NEVER duplicates
+        if (newBatchCode && existingBatchCode && newBatchCode !== existingBatchCode) {
+          continue; // Skip this existing row, it's a different batch
+        }
+        
+        // Check if batch codes match or both are missing
+        const batchCodeMatches = (
+          (newBatchCode && existingBatchCode && newBatchCode === existingBatchCode) ||
+          (!newBatchCode && !existingBatchCode)
+        );
+        
+        // Only check duplicates if batch codes are compatible
+        if (batchCodeMatches) {
+          // Check if all duplicate detection fields match
+          let allMatch = true;
+          
+          for (const field of checkFields) {
+            const newValue = String(newRow[field] || "").trim().toLowerCase();
+            const existingValue = String(existingRow[field] || "").trim().toLowerCase();
+            
+            // For Item Name and HSN, empty values don't count as matches
+            if (field === "Item Name") {
+              if (newValue !== existingValue || !newValue) {
+                allMatch = false;
+                break;
+              }
+            } else if (field === "Batch Code") {
+              if (newValue !== existingValue) {
+                allMatch = false;
+                break;
+              }
+            } else {
+              // For other fields, they need to match (can be empty)
+              if (newValue !== existingValue) {
+                allMatch = false;
+                break;
+              }
+            }
+          }
 
-        if (allMatch) {
-          isDuplicate = true;
-          duplicates.push({
-            ...newRow,
-            duplicateOf: existingRow,
-            duplicateFields: checkFields
-          });
-          break;
+          if (allMatch) {
+            isDuplicate = true;
+            duplicates.push({
+              ...newRow,
+              duplicateOf: existingRow,
+              duplicateFields: checkFields,
+              reason: `Duplicate with same ${checkFields.join(", ")}${newBatchCode ? ` and Batch Code: ${newBatchCode}` : ""}`
+            });
+            break;
+          }
         }
       }
 
@@ -276,17 +332,46 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Create a lookup map for existing stock items
+  // Check if item exists based on Item Name AND Batch Code combination
+  // ----------------------------------------------------
+  const isItemWithBatchExists = (itemName, batchCode, existingRows) => {
+    const normalizedItemName = (itemName || "").toLowerCase().trim();
+    const normalizedBatchCode = (batchCode || "").toLowerCase().trim();
+    
+    return existingRows.some(row => {
+      const rowItemName = (row["Item Name"] || "").toLowerCase().trim();
+      const rowBatchCode = (row["Batch Code"] || "").toLowerCase().trim();
+      
+      // If batch code is provided, match exactly with batch code
+      if (normalizedBatchCode) {
+        return rowItemName === normalizedItemName && rowBatchCode === normalizedBatchCode;
+      }
+      
+      // If no batch code, only match items that also have no batch code
+      return rowItemName === normalizedItemName && !rowBatchCode;
+    });
+  };
+
+  // ----------------------------------------------------
+  // Create a lookup map for existing stock items - KEYED BY ITEM NAME + BATCH CODE
   // ----------------------------------------------------
   const createStockLookupMap = (stockRows) => {
     const map = {};
     
     stockRows.forEach(row => {
       const itemName = (row["Item Name"] || "").toLowerCase().trim();
+      const batchCode = (row["Batch Code"] || "").toLowerCase().trim();
       const brandCode = (row["Brand Code"] || "").toLowerCase().trim();
       const brand = (row["Brand"] || "").toLowerCase().trim();
-      const batchCode = (row["Batch Code"] || "").toLowerCase().trim();
       
+      // Create composite key with batch code (most specific)
+      if (itemName && batchCode) {
+        const key = `${itemName}|${batchCode}`;
+        if (!map[key]) map[key] = [];
+        map[key].push(row);
+      }
+      
+      // For matching without batch code (fallback)
       if (itemName) {
         if (!map[itemName]) map[itemName] = [];
         map[itemName].push(row);
@@ -303,27 +388,45 @@ export default function StockUploadPage() {
         if (!map[key]) map[key] = [];
         map[key].push(row);
       }
-      
-      if (batchCode) {
-        const key = `batch:${batchCode}`;
-        if (!map[key]) map[key] = [];
-        map[key].push(row);
-      }
     });
     
     return map;
   };
 
   // ----------------------------------------------------
-  // Find matching stock item for a GRN/Sold item
+  // Find matching stock item for a GRN/Sold item - BATCH CODE AWARE
   // ----------------------------------------------------
   const findMatchingStockItem = (importItem) => {
     const itemName = (importItem["Item Name"] || "").toLowerCase().trim();
+    const batchCode = (importItem["Batch Code"] || "").toLowerCase().trim();
     const brandCode = (importItem["Brand Code"] || "").toLowerCase().trim();
     const brand = (importItem["Brand"] || "").toLowerCase().trim();
-    const batchCode = (importItem["Batch Code"] || "").toLowerCase().trim();
     
+    // Try exact match with Item Name + Batch Code first (most accurate)
+    if (itemName && batchCode) {
+      const compositeKey = `${itemName}|${batchCode}`;
+      if (existingStockMap[compositeKey] && existingStockMap[compositeKey].length > 0) {
+        const match = existingStockMap[compositeKey].find(item => 
+          item["Length"] && item["Width"] && 
+          (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
+        );
+        if (match) return match;
+        // If no match with dimensions, return first match
+        return existingStockMap[compositeKey][0];
+      }
+    }
+    
+    // Try by Item Name only (without batch) - careful with this
     if (itemName && existingStockMap[itemName]) {
+      // First try to find with matching batch code if available
+      if (batchCode) {
+        const exactBatchMatch = existingStockMap[itemName].find(item => 
+          (item["Batch Code"] || "").toLowerCase().trim() === batchCode
+        );
+        if (exactBatchMatch) return exactBatchMatch;
+      }
+      
+      // Otherwise find any match with dimensions
       const match = existingStockMap[itemName].find(item => 
         item["Length"] && item["Width"] && 
         (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
@@ -331,6 +434,7 @@ export default function StockUploadPage() {
       if (match) return match;
     }
     
+    // Try by Brand Code
     if (brandCode && existingStockMap[`brandcode:${brandCode}`]) {
       const match = existingStockMap[`brandcode:${brandCode}`].find(item => 
         item["Length"] && item["Width"] && 
@@ -339,16 +443,9 @@ export default function StockUploadPage() {
       if (match) return match;
     }
     
+    // Try by Brand
     if (brand && existingStockMap[`brand:${brand}`]) {
       const match = existingStockMap[`brand:${brand}`].find(item => 
-        item["Length"] && item["Width"] && 
-        (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
-      );
-      if (match) return match;
-    }
-    
-    if (batchCode && existingStockMap[`batch:${batchCode}`]) {
-      const match = existingStockMap[`batch:${batchCode}`].find(item => 
         item["Length"] && item["Width"] && 
         (parseFloat(item["Length"]) > 0 || parseFloat(item["Width"]) > 0)
       );
@@ -359,7 +456,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Fetch GRN items with intelligent matching - ONLY ACTIVE ITEMS
+  // Fetch GRN items with intelligent matching - BATCH AWARE
   // ----------------------------------------------------
   const fetchGrnItems = async () => {
     try {
@@ -389,7 +486,7 @@ export default function StockUploadPage() {
             _source: "grn",
             _invoice: grn.invoice_number,
             _po: grn.po_number,
-            _grnId: grn.id, // Store GRN ID for status update
+            _grnId: grn.id,
             _status: grn.status,
             _hasMatch: false,
             _matchReason: ""
@@ -407,6 +504,9 @@ export default function StockUploadPage() {
             );
             baseItem._hasMatch = true;
             baseItem._matchReason = matchingStockItem["Item Name"] || "Matching item found";
+            if (matchingStockItem["Batch Code"] !== baseItem["Batch Code"]) {
+              baseItem._matchReason += " (Different batch - will create new row)";
+            }
           }
           
           return baseItem;
@@ -446,7 +546,6 @@ export default function StockUploadPage() {
       
       if (result.success) {
         console.log(`Updated ${grnIds.length} GRN items status to 'done'`);
-        // Refresh GRN items to hide the imported ones
         fetchGrnItems();
       } else {
         console.error("Failed to update GRN status:", result.message);
@@ -457,7 +556,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Fetch Stock Sold items with intelligent matching - ONLY NOT DEDUCTED ITEMS
+  // Fetch Stock Sold items with intelligent matching - BATCH AWARE
   // ----------------------------------------------------
   const fetchSoldItems = async () => {
     try {
@@ -476,7 +575,7 @@ export default function StockUploadPage() {
             "Qty": sold.quantity || 0,
             "AutoCalculate Count": calculateCount(0, 0, sold.quantity || 0),
             "Buy Price": 0,
-            "Batch Code": "",
+            "Batch Code": sold.batch_code || "",
             "Brand Code": "",
             "Brand Description": "",
             "HSN": sold.hsn_sac || "",
@@ -505,7 +604,7 @@ export default function StockUploadPage() {
               baseItem["Width"],
               baseItem["Qty"]
             );
-            baseItem["Batch Code"] = matchingStockItem["Batch Code"] || "";
+            baseItem["Batch Code"] = matchingStockItem["Batch Code"] || baseItem["Batch Code"];
             baseItem["Brand Code"] = matchingStockItem["Brand Code"] || "";
             baseItem["Brand Description"] = matchingStockItem["Brand Description"] || "";
             baseItem._hasMatch = true;
@@ -528,14 +627,13 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Load GRN items into stock table AND UPDATE GRN STATUS
+  // Load GRN items into stock table - ALWAYS ADD AS NEW ROW (batch aware)
   // ----------------------------------------------------
   const loadGrnItemsToStock = async (selectedItems = []) => {
     let itemsToAdd;
     let grnIdsToUpdate = [];
     
     if (selectedItems.length === 0) {
-      // Use all items
       itemsToAdd = grnItems.map(item => ({
         ...item,
         _id: Math.random().toString(36).slice(2, 9),
@@ -543,7 +641,6 @@ export default function StockUploadPage() {
       }));
       grnIdsToUpdate = grnItems.map(item => item._grnId).filter(id => id);
     } else {
-      // Use selected items
       itemsToAdd = selectedItems.map(item => ({
         ...item,
         _id: Math.random().toString(36).slice(2, 9),
@@ -553,22 +650,24 @@ export default function StockUploadPage() {
     }
     
     const matchedItems = itemsToAdd.filter(item => item._hasMatch).length;
+    const newBatches = itemsToAdd.filter(item => {
+      const exists = isItemWithBatchExists(item["Item Name"], item["Batch Code"], rows);
+      return !exists;
+    }).length;
     
-    // Add to stock table
     setRows(prev => [...prev, ...itemsToAdd]);
     
-    // Update GRN status to "done"
     if (grnIdsToUpdate.length > 0) {
       await updateGrnStatusToDone(grnIdsToUpdate);
     }
     
-    setSuccess(`Added ${itemsToAdd.length} items from GRN to stock table. ${matchedItems > 0 ? `(${matchedItems} items have matched dimensions)` : ''}`);
+    setSuccess(`Added ${itemsToAdd.length} items from GRN to stock table. ${matchedItems > 0 ? `(${matchedItems} items have matched dimensions)` : ''} ${newBatches > 0 ? `${newBatches} new batch records created.` : ''}`);
     
     setShowGrnModal(false);
   };
 
   // ----------------------------------------------------
-  // Load Stock Sold items into stock table
+  // Load Stock Sold items into stock table - ALWAYS ADD AS NEW ROW
   // ----------------------------------------------------
   const loadSoldItemsToStock = (selectedItems = []) => {
     let itemsToAdd;
@@ -588,9 +687,13 @@ export default function StockUploadPage() {
     }
     
     const matchedItems = itemsToAdd.filter(item => item._hasMatch).length;
+    const newBatches = itemsToAdd.filter(item => {
+      const exists = isItemWithBatchExists(item["Item Name"], item["Batch Code"], rows);
+      return !exists;
+    }).length;
     
     setRows(prev => [...prev, ...itemsToAdd]);
-    setSuccess(`Added ${itemsToAdd.length} items from Stock Sold to stock table. ${matchedItems > 0 ? `(${matchedItems} items have matched dimensions)` : ''}`);
+    setSuccess(`Added ${itemsToAdd.length} items from Stock Sold to stock table. ${matchedItems > 0 ? `(${matchedItems} items have matched dimensions)` : ''} ${newBatches > 0 ? `${newBatches} new batch records created.` : ''}`);
     
     setShowSoldModal(false);
   };
@@ -761,7 +864,7 @@ export default function StockUploadPage() {
   }, []);
 
   // ----------------------------------------------------
-  // Handle Excel upload
+  // Handle Excel upload - IMPROVED BATCH AWARE DUPLICATE DETECTION
   // ----------------------------------------------------
   const handleFile = (e) => {
     setError("");
@@ -829,17 +932,21 @@ export default function StockUploadPage() {
           };
         });
 
-        // Duplicate detection
+        // Duplicate detection with batch awareness
         const existingRows = rows;
         const { duplicates, uniqueNewRows } = checkForDuplicates(finalRows, existingRows);
 
         if (duplicates.length > 0) {
+          const batchInfo = duplicates.some(dup => dup["Batch Code"]) 
+            ? "\n\nNOTE: Items with DIFFERENT Batch Codes are ALWAYS added as new rows, even if other details match." 
+            : "";
+            
           const shouldSkipDuplicates = window.confirm(
             `Found ${duplicates.length} duplicate row(s) based on:\n` +
             `${duplicateDetectionFields.join(", ")}\n\n` +
             `Do you want to skip duplicates and add only ${uniqueNewRows.length} unique rows?\n\n` +
             `Click OK to skip duplicates\n` +
-            `Click Cancel to add all ${finalRows.length} rows (including duplicates)`
+            `Click Cancel to add all ${finalRows.length} rows (including duplicates)${batchInfo}`
           );
 
           if (shouldSkipDuplicates) {
@@ -852,7 +959,7 @@ export default function StockUploadPage() {
               Batch: dup["Batch Code"] || "(No Batch)",
               HSN: dup.HSN || "(No HSN)",
               MRP: dup.MRP || "(No MRP)",
-              Status: "Duplicate - Skipped"
+              Status: `Duplicate - Skipped (Same ${duplicateDetectionFields.join(", ")})`
             }));
             
             setUnmatched(prev => [...prev, ...duplicateDisplay]);
@@ -935,10 +1042,14 @@ export default function StockUploadPage() {
         return copy;
       });
 
-      // Check for existing items
-      const brandCodes = cleaned.map(r => r["Brand Code"]).filter(code => code && code.trim());
+      // Check for existing items - now including batch code in uniqueness check
+      const uniqueIdentifiers = cleaned.map(r => ({
+        item_name: r["Item Name"],
+        batch_code: r["Batch Code"] || null,
+        brand_code: r["Brand Code"]
+      })).filter(id => id.item_name);
       
-      if (brandCodes.length === 0) {
+      if (uniqueIdentifiers.length === 0) {
         const saveRes = await fetch("http://localhost:5000/api/stock/bulk-save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -995,10 +1106,10 @@ export default function StockUploadPage() {
         return;
       }
 
-      const checkExistingRes = await fetch("http://localhost:5000/api/stock/bulk-buy-prices", {
+      const checkExistingRes = await fetch("http://localhost:5000/api/stock/check-batch-unique", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brand_codes: brandCodes }),
+        body: JSON.stringify({ items: uniqueIdentifiers }),
       });
       
       const checkData = await checkExistingRes.json();
@@ -1008,15 +1119,16 @@ export default function StockUploadPage() {
         return;
       }
       
-      const existingBrandCodes = checkData.data ? checkData.data.map(item => item.brand_code) : [];
+      // Filter items based on Item Name + Batch Code combination
+      const existingKeys = new Set(checkData.existing?.map(item => `${item.item_name}|${item.batch_code || ""}`) || []);
       const newItems = cleaned.filter(item => {
-        const brandCode = item["Brand Code"];
-        return !brandCode || !existingBrandCodes.includes(brandCode);
+        const key = `${item["Item Name"]}|${item["Batch Code"] || ""}`;
+        return !existingKeys.has(key);
       });
       
       const existingItems = cleaned.filter(item => {
-        const brandCode = item["Brand Code"];
-        return brandCode && existingBrandCodes.includes(brandCode);
+        const key = `${item["Item Name"]}|${item["Batch Code"] || ""}`;
+        return existingKeys.has(key);
       });
 
       let savedNewCount = 0;
@@ -1053,7 +1165,7 @@ export default function StockUploadPage() {
         }
       }
 
-      // Update existing items
+      // Update existing items (same Item Name & Batch Code combination)
       if (existingItems.length > 0) {
         const updateRes = await fetch("http://localhost:5000/api/stock/update", {
           method: "PUT",
@@ -1083,7 +1195,7 @@ export default function StockUploadPage() {
 
       if (errors.length === 0) {
         let message = "Stock data processed successfully!";
-        if (savedNewCount > 0) message += ` Added ${savedNewCount} new items.`;
+        if (savedNewCount > 0) message += ` Added ${savedNewCount} new items (unique by Item Name & Batch Code).`;
         if (updatedCount > 0) message += ` Updated ${updatedCount} existing items.`;
         
         const deductedItems = Object.keys(deductionStatus).length;
@@ -1152,9 +1264,12 @@ export default function StockUploadPage() {
       if (rowData["Brand Code"] && rowData["Brand Code"].trim()) {
         deleteData["Brand Code"] = rowData["Brand Code"];
       }
+      if (rowData["Batch Code"] && rowData["Batch Code"].trim()) {
+        deleteData["Batch Code"] = rowData["Batch Code"];
+      }
 
-      if (!deleteData.ID && !deleteData["Brand Code"]) {
-        setError("Cannot delete item: No ID or Brand Code found");
+      if (!deleteData.ID && !deleteData["Brand Code"] && !deleteData["Batch Code"]) {
+        setError("Cannot delete item: No ID, Brand Code, or Batch Code found");
         return;
       }
 
@@ -1297,7 +1412,7 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // GRN Modal Component - SHOWS ONLY ACTIVE ITEMS
+  // GRN Modal Component
   // ----------------------------------------------------
   const GrnModal = () => {
     const [selectedItems, setSelectedItems] = useState([]);
@@ -1379,7 +1494,8 @@ export default function StockUploadPage() {
             <div>
               <h3 style={{ margin: 0, fontSize: mobileView ? "18px" : "24px" }}>Import Items from GRN</h3>
               <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: mobileView ? "12px" : "14px" }}>
-                Items with matching stock entries will automatically get Length & Width values.
+                Items with matching stock entries will automatically get Length & Width values.<br/>
+                <strong>Note: Items with different Batch Codes are treated as unique entries.</strong>
               </p>
             </div>
             <button 
@@ -1580,7 +1696,7 @@ export default function StockUploadPage() {
                       {!mobileView && (
                         <>
                           <td style={{ padding: "8px" }}>{item["Brand Code"]}</td>
-                          <td style={{ padding: "8px" }}>{item["Batch Code"]}</td>
+                          <td style={{ padding: "8px", fontWeight: "bold", color: "#007bff" }}>{item["Batch Code"]}</td>
                         </>
                       )}
                       <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>{item["Qty"]}</td>
@@ -1623,13 +1739,12 @@ export default function StockUploadPage() {
   };
 
   // ----------------------------------------------------
-  // Stock Sold Modal Component - SHOWS ONLY NOT DEDUCTED ITEMS
+  // Stock Sold Modal Component
   // ----------------------------------------------------
   const SoldModal = () => {
     const [selectedItems, setSelectedItems] = useState([]);
     const [searchSoldTerm, setSearchSoldTerm] = useState("");
 
-    // Filter sold items - already filtered by not_deducted from API
     const filteredSoldItems = soldItems.filter(item => {
       if (!searchSoldTerm) return true;
       const term = searchSoldTerm.toLowerCase();
@@ -1706,7 +1821,8 @@ export default function StockUploadPage() {
             <div>
               <h3 style={{ margin: 0, fontSize: mobileView ? "18px" : "24px" }}>Import from Stock Sold</h3>
               <p style={{ margin: "5px 0 0 0", color: "#666", fontSize: mobileView ? "12px" : "14px" }}>
-                Click "Deduct" to subtract sold quantity from current stock.
+                Click "Deduct" to subtract sold quantity from current stock.<br/>
+                <strong>Note: Deductions require matching Item Name AND Batch Code.</strong>
               </p>
             </div>
             <button 
@@ -1866,11 +1982,12 @@ export default function StockUploadPage() {
                     </th>
                     <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Item</th>
                     <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Brand</th>
+                    <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Batch</th>
                     <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Qty</th>
                     <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>L/W</th>
                     <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Status</th>
                     <th style={{ padding: mobileView ? "8px 4px" : "8px" }}>Action</th>
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody>
                   {filteredSoldItems.map((item) => (
@@ -1898,6 +2015,7 @@ export default function StockUploadPage() {
                         )}
                       </td>
                       <td style={{ padding: mobileView ? "8px 4px" : "8px" }}>{item["Brand"]}</td>
+                      <td style={{ padding: mobileView ? "8px 4px" : "8px", fontWeight: "bold", color: "#007bff" }}>{item["Batch Code"]}</td>
                       <td style={{ padding: mobileView ? "8px 4px" : "8px", fontWeight: "bold" }}>{item["Qty"]}</td>
                       <td style={{ 
                         padding: mobileView ? "8px 4px" : "8px",
@@ -2074,6 +2192,11 @@ export default function StockUploadPage() {
                 <div style={{ fontSize: "14px", color: "#666", marginBottom: "4px" }}>
                   {row["Brand"] || "No Brand"}
                 </div>
+                {row["Batch Code"] && (
+                  <div style={{ fontSize: "12px", color: "#007bff", fontWeight: "bold", marginBottom: "4px" }}>
+                    Batch: {row["Batch Code"]}
+                  </div>
+                )}
                 {row["Brand Code"] && (
                   <div style={{ fontSize: "12px", color: "#888" }}>
                     Code: {row["Brand Code"]}
@@ -2683,7 +2806,7 @@ export default function StockUploadPage() {
               <tr>
                 <th style={{ minWidth: 36 }}>#</th>
                 {fixedHeaders.map((h) => (
-                  <th key={h} style={{ minWidth: 120 }}>
+                  <th key={h} style={{ minWidth: h === "Batch Code" ? 120 : 100 }}>
                     {h === "AutoCalculate Count" ? "Count" : h}
                   </th>
                 ))}
@@ -2720,6 +2843,22 @@ export default function StockUploadPage() {
                             }}>
                               {row[h] || "0"}
                             </div>
+                          ) : h === "Batch Code" ? (
+                            <input
+                              value={row[h] ?? ""}
+                              onChange={(e) => updateCell(row._id, h, e.target.value)}
+                              style={{ 
+                                width: "100%", 
+                                boxSizing: "border-box", 
+                                padding: 6,
+                                border: "1px solid #007bff",
+                                borderRadius: "3px",
+                                backgroundColor: "#f0f8ff",
+                                fontWeight: "bold"
+                              }}
+                              placeholder="Batch Code"
+                              title="Different batch codes create new unique items"
+                            />
                           ) : (
                             <input
                               value={row[h] ?? ""}

@@ -8,7 +8,7 @@ import {
   FaBox, FaTag, FaBarcode, FaRulerCombined, FaRupeeSign,
   FaHashtag, FaReceipt, FaCopy, FaCalendarAlt,
   FaCheckCircle, FaFileAlt, FaClipboardCheck, FaExternalLinkAlt,
-  FaTruck, FaPercent, FaPlus, FaMinus
+  FaTruck, FaPercent, FaPlus, FaMinus, FaSync
 } from "react-icons/fa";
 
 const GRNPage = () => {
@@ -26,6 +26,7 @@ const GRNPage = () => {
   const [filterInvoice, setFilterInvoice] = useState("");
   const [mobileView, setMobileView] = useState(false);
   const [expandedInvoice, setExpandedInvoice] = useState(null);
+  const [existingBatchCodes, setExistingBatchCodes] = useState(new Set());
   
   // State for POs ready for GRN
   const [posReadyForGRN, setPosReadyForGRN] = useState([]);
@@ -47,13 +48,25 @@ const GRNPage = () => {
   useEffect(() => {
     fetchPosReadyForGRN();
     fetchGRN();
+    fetchAllBatchCodes();
   }, []);
+  
+  // Fetch all existing batch codes to prevent duplicates
+  const fetchAllBatchCodes = async () => {
+    try {
+      const res = await axios.get("http://localhost:5000/api/grn/all-batch-codes");
+      if (res.data.success) {
+        setExistingBatchCodes(new Set(res.data.data));
+      }
+    } catch (err) {
+      console.log("Error fetching batch codes", err);
+    }
+  };
   
   // Fetch POs ready for GRN (approved and partially received)
   const fetchPosReadyForGRN = async () => {
     setLoadingPOs(true);
     try {
-      // CORRECTED: Use the GRN blueprint endpoint instead of purchase-orders
       const res = await axios.get("http://localhost:5000/api/grn/ready-for-grn");
       if (res.data.success) {
         setPosReadyForGRN(res.data.data);
@@ -83,7 +96,85 @@ const GRNPage = () => {
     fetchPODetails(poNumber, poData);
   };
   
-  // Fetch PO details by PO number with delivery tracking
+  // Generate unique batch code with duplicate prevention
+  const generateUniqueBatchCode = async (brand, date, index, retryCount = 0) => {
+    const brandPrefix = (brand || "GEN").substring(0, 3).toUpperCase();
+    const formattedDate = date.replace(/-/g, "");
+    let sequence = String(index + 1).padStart(3, '0');
+    
+    // Add random suffix for uniqueness if retrying
+    if (retryCount > 0) {
+      const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      sequence = `${sequence}${randomSuffix}`;
+    }
+    
+    let batchCode = `${brandPrefix}-${formattedDate}-${sequence}`;
+    
+    // Limit sequence length if too long
+    if (batchCode.length > 50) {
+      batchCode = batchCode.substring(0, 50);
+    }
+    
+    // Check if batch code already exists
+    if (existingBatchCodes.has(batchCode) || batchCodeExistsInCurrentItems(batchCode)) {
+      if (retryCount < 10) {
+        // Recursively try with incremented retry count
+        return generateUniqueBatchCode(brand, date, index + 100, retryCount + 1);
+      } else {
+        // Fallback with timestamp
+        const timestamp = Date.now().toString().slice(-6);
+        batchCode = `${brandPrefix}-${formattedDate}-${timestamp}`;
+      }
+    }
+    
+    return batchCode;
+  };
+  
+  // Check if batch code exists in current selected items
+  const batchCodeExistsInCurrentItems = (batchCode) => {
+    return selectedItems.some(item => item.batch_code === batchCode);
+  };
+  
+  // Generate batch codes for all selected items automatically
+  const generateBatchCodesAutomatically = async () => {
+    const today = todayDate;
+    const brandCounts = {};
+    const updatedItems = [...selectedItems];
+    
+    for (let i = 0; i < updatedItems.length; i++) {
+      const item = updatedItems[i];
+      if (!item.selected || !item.received_quantity || item.received_quantity <= 0) continue;
+      
+      const brand = item.brand || "GENERIC";
+      const brandKey = `${brand}_${today}`;
+      
+      if (!brandCounts[brandKey]) {
+        brandCounts[brandKey] = 0;
+      }
+      brandCounts[brandKey]++;
+      
+      const batchNumber = brandCounts[brandKey];
+      const batchCode = await generateUniqueBatchCode(brand, today, batchNumber - 1);
+      
+      updatedItems[i].batch_code = batchCode;
+    }
+    
+    setSelectedItems(updatedItems);
+  };
+  
+  // Auto-generate batch codes when items change
+  useEffect(() => {
+    if (selectedItems.length > 0 && openPopup) {
+      const hasEmptyBatchCodes = selectedItems.some(
+        item => item.selected && item.received_quantity > 0 && !item.batch_code
+      );
+      if (hasEmptyBatchCodes) {
+        generateBatchCodesAutomatically();
+      }
+    }
+  }, [selectedItems, openPopup]);
+  
+  // Fetch PO details by PO number - Only show received items
   const fetchPODetails = async (poNum = null, preloadedData = null) => {
     const poToFetch = poNum || poNumber;
     
@@ -97,7 +188,6 @@ const GRNPage = () => {
       let poData;
       
       if (preloadedData) {
-        // Use preloaded data if available
         poData = preloadedData;
       } else {
         const res = await axios.get(`http://localhost:5000/api/grn/get-po/${poToFetch}`);
@@ -111,12 +201,19 @@ const GRNPage = () => {
       
       setPoDetails(poData);
       
-      // Check if PO has remaining items
-      const remainingItems = poData.remaining_items || poData.items;
+      // Process ONLY received items (items with delivered_quantity > 0)
+      let receivedItems = [];
       
-      if (remainingItems && remainingItems.length > 0) {
-        // Initialize selected items with remaining quantities
-        const itemsWithBatch = remainingItems.map((item, index) => ({
+      if (poData.items && poData.items.length > 0) {
+        // Filter items that have been delivered (received)
+        receivedItems = poData.items.filter(item => 
+          (item.delivered_quantity || 0) > 0
+        );
+      }
+      
+      if (receivedItems && receivedItems.length > 0) {
+        // Initialize selected items with received quantities
+        const itemsWithBatch = receivedItems.map((item, index) => ({
           ...item,
           selected: true,
           batch_code: "",
@@ -126,23 +223,22 @@ const GRNPage = () => {
           brand: item.brand || "",
           brand_code: item.brand_code || "",
           index: index,
-          current_delivery: item.remaining_quantity || item.quantity,
-          remaining_quantity: item.remaining_quantity || item.quantity,
-          delivered_quantity: item.delivered_quantity || 0,
-          original_quantity: item.original_quantity || item.quantity
+          // IMPORTANT: This is the quantity that was already received
+          received_quantity: item.delivered_quantity || 0,
+          original_quantity: item.original_quantity || item.quantity,
+          item_name: item.item_name
         }));
+        
         setSelectedItems(itemsWithBatch);
         
-        if (poData.delivery_status === 'partial') {
-          toast.info(`This PO has partial deliveries. Remaining quantities loaded.`);
-        } else {
-          toast.success("PO details loaded successfully!");
-        }
+        const totalReceived = receivedItems.reduce((sum, item) => sum + (item.delivered_quantity || 0), 0);
+        
+        toast.info(`This PO has ${receivedItems.length} item(s) with received quantity: ${totalReceived} units`);
         
         // Open the popup
         setOpenPopup(true);
       } else {
-        toast.error("No items remaining to receive");
+        toast.error("No received items found for this PO");
         setPoDetails(null);
       }
     } catch (err) {
@@ -154,45 +250,8 @@ const GRNPage = () => {
     }
   };
   
-  // Generate batch code
-  const generateBatchCode = (brand, date, index) => {
-    const brandPrefix = (brand || "GEN").substring(0, 3).toUpperCase();
-    const formattedDate = date.replace(/-/g, "");
-    const sequence = String(index + 1).padStart(3, '0');
-    return `${brandPrefix}-${formattedDate}-${sequence}`;
-  };
-  
-  // Generate batch codes for all selected items
-  const generateBatchCodes = () => {
-    const today = todayDate;
-    const brandCounts = {};
-    
-    const updatedItems = selectedItems.map((item, index) => {
-      if (!item.selected) return item;
-      
-      const brand = item.brand || "GENERIC";
-      const brandKey = `${brand}_${today}`;
-      
-      if (!brandCounts[brandKey]) {
-        brandCounts[brandKey] = 0;
-      }
-      brandCounts[brandKey]++;
-      
-      const batchNumber = brandCounts[brandKey];
-      const batchCode = generateBatchCode(brand, today, batchNumber - 1);
-      
-      return {
-        ...item,
-        batch_code: batchCode
-      };
-    });
-    
-    setSelectedItems(updatedItems);
-    toast.success("Batch codes generated successfully!");
-  };
-  
-  // Generate batch code for specific item
-  const generateItemBatchCode = (index) => {
+  // Manual batch code generation for specific item
+  const regenerateItemBatchCode = async (index) => {
     const item = selectedItems[index];
     if (!item.brand) {
       toast.error("Please enter brand name for this item first");
@@ -200,61 +259,50 @@ const GRNPage = () => {
     }
     
     const today = todayDate;
-    const sameBrandItems = selectedItems.filter((it, idx) => 
-      it.brand === item.brand && idx <= index && it.selected
-    );
-    
-    const batchNumber = sameBrandItems.length;
-    const batchCode = generateBatchCode(item.brand, today, batchNumber - 1);
+    const batchCode = await generateUniqueBatchCode(item.brand, today, index);
     
     const updatedItems = [...selectedItems];
     updatedItems[index].batch_code = batchCode;
     setSelectedItems(updatedItems);
+    toast.success("Batch code regenerated successfully!");
   };
   
-  // Handle delivery quantity change for partial GRN
-  const handleDeliveryQuantityChange = (index, value) => {
-    const updatedItems = [...selectedItems];
-    const item = updatedItems[index];
-    const maxQty = item.remaining_quantity || item.quantity;
-    let newQty = parseFloat(value) || 0;
-    
-    if (newQty > maxQty) {
-      newQty = maxQty;
-      toast.warning(`Maximum quantity for ${item.item_name} is ${maxQty}`);
-    }
-    if (newQty < 0) newQty = 0;
-    
-    updatedItems[index].current_delivery = newQty;
-    updatedItems[index].selected = newQty > 0;
-    setSelectedItems(updatedItems);
-  };
-  
-  // Toggle item selection
+  // Toggle item selection (for selecting/deselecting items to generate GRN)
   const toggleItemSelection = (index) => {
     const updatedItems = [...selectedItems];
-    if (updatedItems[index].current_delivery > 0) {
+    if (updatedItems[index].received_quantity > 0) {
       updatedItems[index].selected = !updatedItems[index].selected;
+      if (!updatedItems[index].selected) {
+        updatedItems[index].batch_code = "";
+      } else if (!updatedItems[index].batch_code) {
+        regenerateItemBatchCode(index);
+      }
     } else {
-      toast.warning("Please enter quantity > 0 to select this item");
+      toast.warning("No received quantity for this item");
     }
     setSelectedItems(updatedItems);
   };
   
-  // Select all items with remaining quantity
+  // Select all items with received quantity
   const selectAllItems = () => {
     const updatedItems = selectedItems.map(item => ({
       ...item,
-      selected: (item.current_delivery || 0) > 0
+      selected: (item.received_quantity || 0) > 0
     }));
     setSelectedItems(updatedItems);
+    
+    // Generate batch codes for newly selected items
+    setTimeout(() => {
+      generateBatchCodesAutomatically();
+    }, 100);
   };
   
   // Deselect all items
   const deselectAllItems = () => {
     const updatedItems = selectedItems.map(item => ({
       ...item,
-      selected: false
+      selected: false,
+      batch_code: ""
     }));
     setSelectedItems(updatedItems);
   };
@@ -263,6 +311,14 @@ const GRNPage = () => {
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...selectedItems];
     updatedItems[index][field] = value;
+    
+    // If brand changes, regenerate batch code
+    if (field === 'brand' && updatedItems[index].selected && updatedItems[index].received_quantity > 0) {
+      setTimeout(() => {
+        regenerateItemBatchCode(index);
+      }, 100);
+    }
+    
     setSelectedItems(updatedItems);
   };
   
@@ -273,17 +329,17 @@ const GRNPage = () => {
       .catch(() => toast.error("Failed to copy"));
   };
   
-  // Submit GRN from PO (supports partial delivery)
+  // Submit GRN for received items only
   const handleSubmitGRN = async () => {
-    // Filter selected items that have delivery quantity > 0
+    // Filter selected items that are selected and have received quantity > 0
     const itemsToSubmit = selectedItems
-      .filter(item => item.selected && item.current_delivery > 0)
+      .filter(item => item.selected && item.received_quantity > 0)
       .map(item => {
-        const { selected, index, remaining_quantity, delivered_quantity, original_quantity, current_delivery, ...itemData } = item;
+        const { selected, index, received_quantity, ...itemData } = item;
         return {
           ...itemData,
-          quantity: current_delivery,
-          batch_code: item.batch_code || generateBatchCode(item.brand || "GEN", todayDate, 0),
+          quantity: item.received_quantity, // This is the already received quantity
+          batch_code: item.batch_code,
           hsn_code: item.hsn_code || "",
           brand_description: item.brand_description || "",
           buy_price: parseFloat(item.buy_price) || 0,
@@ -293,31 +349,32 @@ const GRNPage = () => {
       });
     
     if (itemsToSubmit.length === 0) {
-      toast.error("Please select at least one item with quantity > 0");
+      toast.error("Please select at least one item to generate GRN");
       return;
     }
     
     // Validate batch codes
+    const itemsWithoutBatch = itemsToSubmit.filter(item => !item.batch_code);
+    if (itemsWithoutBatch.length > 0) {
+      toast.error(`Please generate batch codes for: ${itemsWithoutBatch.map(i => i.item_name).join(", ")}`);
+      return;
+    }
+    
+    // Check for duplicate batch codes
     const batchCodes = itemsToSubmit.map(item => item.batch_code);
     const uniqueBatchCodes = new Set(batchCodes);
     
     if (batchCodes.length !== uniqueBatchCodes.size) {
-      toast.error("Duplicate batch codes detected! Please regenerate unique codes.");
+      const duplicates = batchCodes.filter((code, idx) => batchCodes.indexOf(code) !== idx);
+      toast.error(`Duplicate batch codes detected: ${[...new Set(duplicates)].join(", ")}`);
       return;
     }
-    
-    // Check if this is a partial delivery
-    const isPartial = itemsToSubmit.some(item => item.quantity < item.original_quantity);
-    const remainingItems = selectedItems.some(item => 
-      item.remaining_quantity && item.remaining_quantity > item.current_delivery
-    );
     
     try {
       const payload = {
         po_number: poNumber,
         items: itemsToSubmit,
-        is_partial: isPartial,
-        remaining_items: remainingItems
+        is_partial: false // These are already received items, not partial
       };
       
       const res = await axios.post("http://localhost:5000/api/grn/save-from-po", payload);
@@ -325,6 +382,13 @@ const GRNPage = () => {
       if (res.data.success) {
         toast.success(res.data.message);
         setInvoiceNumber(res.data.invoice_number);
+        
+        // Update existing batch codes set
+        itemsToSubmit.forEach(item => {
+          if (item.batch_code) {
+            setExistingBatchCodes(prev => new Set([...prev, item.batch_code]));
+          }
+        });
         
         // Refresh data
         await fetchPosReadyForGRN();
@@ -605,12 +669,12 @@ const GRNPage = () => {
                             </p>
                             <p className="mb-0 small">
                               <FaBox className="me-1" size={10} />
-                              {po.remaining_items?.length || 0} items remaining
+                              {po.received_items?.length || 0} items received
                             </p>
                             {po.delivery_status === 'partial' && po.remaining_amount && (
                               <p className="mb-0 small text-warning">
                                 <FaRupeeSign className="me-1" size={10} />
-                                Remaining: ₹{parseFloat(po.remaining_amount).toLocaleString('en-IN')}
+                                Pending: ₹{parseFloat(po.remaining_amount).toLocaleString('en-IN')}
                               </p>
                             )}
                           </div>
@@ -620,7 +684,7 @@ const GRNPage = () => {
                             onClick={() => handlePOSelect(po.po_number, po)}
                           >
                             <FaClipboardCheck className="me-1" size={10} />
-                            {po.delivery_status === 'partial' ? 'Continue Delivery' : 'Create GRN'}
+                            Generate GRN
                           </button>
                         </div>
                       </div>
@@ -819,7 +883,7 @@ const GRNPage = () => {
         </div>
       </div>
       
-      {/* CREATE GRN POPUP MODAL */}
+      {/* CREATE GRN POPUP MODAL - Shows only received items */}
       {openPopup && poDetails && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-scrollable modal-fullscreen-md-down modal-xl">
@@ -827,19 +891,13 @@ const GRNPage = () => {
               <div className="modal-header bg-success text-white py-2">
                 <h5 className="modal-title fs-6">
                   <FaFileInvoice className="me-2" />
-                  {mobileView ? `GRN: ${poNumber}` : `Create GRN from PO: ${poNumber}`}
-                  {poDetails.delivery_status === 'partial' && (
-                    <span className="badge bg-warning text-dark ms-2">
-                      <FaPercent className="me-1" size={10} />
-                      Continue Partial Delivery
-                    </span>
-                  )}
+                  {mobileView ? `GRN: ${poNumber}` : `Generate GRN for Received Items - ${poNumber}`}
                 </h5>
                 <button type="button" className="btn-close btn-close-white btn-sm" onClick={() => setOpenPopup(false)}></button>
               </div>
               
               <div className="modal-body p-2">
-                {/* PO Information - Mobile Optimized */}
+                {/* PO Information */}
                 <div className="card mb-3">
                   <div className="card-header bg-light py-2">
                     <h6 className="mb-0 fw-bold small">PO Information</h6>
@@ -862,49 +920,42 @@ const GRNPage = () => {
                         <small className="text-muted">Customer:</small>
                         <div className="small">{poDetails.customer_name}</div>
                       </div>
-                      <div className="col-12">
-                        <small className="text-muted">GST:</small>
-                        <div className="small">{poDetails.gst_number || "N/A"}</div>
-                      </div>
                     </div>
                   </div>
                 </div>
                 
-                {/* Delivery Summary */}
-                {poDetails.delivery_status === 'partial' && (
-                  <div className="alert alert-info py-2 mb-3">
-                    <small>
-                      <FaTruck className="me-1" />
-                      <strong>Partial Delivery Status:</strong> This PO already has partial deliveries.
-                      Enter quantities for remaining items below.
-                    </small>
-                  </div>
-                )}
+                {/* Info Alert */}
+                <div className="alert alert-info py-2 mb-3">
+                  <small>
+                    <FaTruck className="me-1" />
+                    <strong>Received Items:</strong> The items below have already been received. Generate GRN to create official documentation.
+                  </small>
+                </div>
                 
-                {/* Batch Code Generator */}
+                {/* Batch Code Info */}
                 <div className="card mb-3">
-                  <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                    <h6 className="mb-0 fw-bold small">Batch Codes</h6>
-                    <button 
-                      className="btn btn-sm btn-primary"
-                      onClick={generateBatchCodes}
-                    >
-                      <FaCopy className="me-1" size={10} />
-                      {mobileView ? "Generate" : "Generate All"}
-                    </button>
+                  <div className="card-header bg-light py-2">
+                    <h6 className="mb-0 fw-bold small">
+                      <FaBarcode className="me-1" />
+                      Batch Codes (Auto-generated)
+                    </h6>
                   </div>
                   <div className="card-body p-2">
-                    <div className="alert alert-info py-1 px-2 mb-0">
-                      <small>Format: BRAND-YYYYMMDD-001</small>
+                    <div className="alert alert-success py-1 px-2 mb-0">
+                      <small>
+                        <FaSync className="me-1" />
+                        Batch codes are automatically generated with duplicate prevention.
+                        Format: BRAND-YYYYMMDD-001 (unique suffix added if duplicate)
+                      </small>
                     </div>
                   </div>
                 </div>
                 
-                {/* Items Selection with Quantity Control */}
+                {/* Items Selection - Only Received Items */}
                 <div className="card mb-3">
                   <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center">
                     <h6 className="mb-0 fw-bold small">
-                      Items ({selectedItems.filter(i => i.selected && i.current_delivery > 0).length} selected)
+                      Received Items ({selectedItems.filter(i => i.selected && i.received_quantity > 0).length} selected)
                     </h6>
                     <div>
                       <button className="btn btn-sm btn-outline-success me-1" onClick={selectAllItems}>
@@ -919,15 +970,15 @@ const GRNPage = () => {
                     {selectedItems.map((item, index) => (
                       <div 
                         key={index} 
-                        className={`card mb-2 ${item.selected && item.current_delivery > 0 ? 'border-success' : ''}`}
-                        style={{ backgroundColor: item.selected && item.current_delivery > 0 ? '#f0fff4' : 'white' }}
+                        className={`card mb-2 ${item.selected && item.received_quantity > 0 ? 'border-success' : ''}`}
+                        style={{ backgroundColor: item.selected && item.received_quantity > 0 ? '#f0fff4' : 'white' }}
                       >
                         <div className="card-body p-2">
                           <div className="d-flex justify-content-between align-items-start mb-1">
                             <div className="d-flex align-items-center gap-2">
                               <input
                                 type="checkbox"
-                                checked={item.selected && item.current_delivery > 0}
+                                checked={item.selected && item.received_quantity > 0}
                                 onChange={() => toggleItemSelection(index)}
                                 className="form-check-input mt-0"
                               />
@@ -938,21 +989,19 @@ const GRNPage = () => {
                             </span>
                           </div>
                           
-                          {/* Delivery Progress Indicator */}
-                          {(item.delivered_quantity > 0 || item.original_quantity) && (
-                            <div className="mb-2">
-                              <div className="d-flex justify-content-between small text-muted">
-                                <span>Delivered: {item.delivered_quantity || 0}</span>
-                                <span>Remaining: {item.remaining_quantity || item.quantity}</span>
-                              </div>
-                              <div className="progress" style={{ height: '4px' }}>
-                                <div 
-                                  className="progress-bar bg-info" 
-                                  style={{ width: `${((item.delivered_quantity || 0) / (item.original_quantity || item.quantity)) * 100}%` }}
-                                />
-                              </div>
+                          {/* Received Quantity Display */}
+                          <div className="mb-2">
+                            <div className="d-flex justify-content-between small text-muted">
+                              <span>Received Quantity:</span>
+                              <span className="fw-bold text-success">{item.received_quantity || 0}</span>
                             </div>
-                          )}
+                            <div className="progress" style={{ height: '4px' }}>
+                              <div 
+                                className="progress-bar bg-success" 
+                                style={{ width: `${((item.received_quantity || 0) / (item.original_quantity || item.quantity)) * 100}%` }}
+                              />
+                            </div>
+                          </div>
                           
                           <div className="row g-1 mt-1">
                             <div className="col-6">
@@ -1018,27 +1067,21 @@ const GRNPage = () => {
                             <div className="col-4">
                               <div className="fw-bold text-success small text-end">
                                 <FaRupeeSign size={8} />
-                                {(item.current_delivery * (parseFloat(item.buy_price) || 0)).toFixed(0)}
+                                {(item.received_quantity * (parseFloat(item.buy_price) || 0)).toFixed(0)}
                               </div>
                             </div>
                             
-                            {/* Delivery Quantity Input for Partial GRN */}
+                            {/* Received Quantity - Read Only */}
                             <div className="col-12">
-                              <label className="small text-muted mb-1">Delivery Quantity</label>
-                              <div className="d-flex gap-2">
-                                <input
-                                  type="number"
-                                  className="form-control form-control-sm"
-                                  value={item.current_delivery || 0}
-                                  onChange={(e) => handleDeliveryQuantityChange(index, e.target.value)}
-                                  min="0"
-                                  max={item.remaining_quantity || item.quantity}
-                                  step="1"
-                                />
-                                <span className="small text-muted align-self-center">
-                                  / {item.remaining_quantity || item.quantity}
-                                </span>
-                              </div>
+                              <label className="small text-muted mb-1">Received Quantity (from PO)</label>
+                              <input
+                                type="number"
+                                className="form-control form-control-sm bg-light"
+                                value={item.received_quantity || 0}
+                                readOnly
+                                disabled
+                                style={{ backgroundColor: '#e9ecef', cursor: 'not-allowed' }}
+                              />
                             </div>
                             
                             <div className="col-12">
@@ -1048,25 +1091,32 @@ const GRNPage = () => {
                                   className="form-control form-control-sm flex-grow-1"
                                   value={item.batch_code || ""}
                                   onChange={(e) => handleItemChange(index, 'batch_code', e.target.value.toUpperCase())}
-                                  placeholder="Batch Code"
+                                  placeholder="Batch Code (Auto-generated)"
+                                  readOnly={!item.batch_code}
+                                  style={{ backgroundColor: item.batch_code ? '#f8f9fa' : 'white' }}
                                 />
-                                <button
-                                  className="btn btn-sm btn-outline-info"
-                                  onClick={() => generateItemBatchCode(index)}
-                                  title="Generate"
-                                >
-                                  Gen
-                                </button>
                                 {item.batch_code && (
-                                  <button
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={() => copyToClipboard(item.batch_code)}
-                                    title="Copy"
-                                  >
-                                    <FaCopy size={10} />
-                                  </button>
+                                  <>
+                                    <button
+                                      className="btn btn-sm btn-outline-info"
+                                      onClick={() => regenerateItemBatchCode(index)}
+                                      title="Regenerate"
+                                    >
+                                      <FaSync size={10} />
+                                    </button>
+                                    <button
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={() => copyToClipboard(item.batch_code)}
+                                      title="Copy"
+                                    >
+                                      <FaCopy size={10} />
+                                    </button>
+                                  </>
                                 )}
                               </div>
+                              {!item.batch_code && item.selected && item.received_quantity > 0 && (
+                                <small className="text-muted">Generating batch code...</small>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1075,8 +1125,10 @@ const GRNPage = () => {
                     
                     <div className="alert alert-warning mt-2 py-1 px-2">
                       <small>
-                        <strong>Note:</strong> Enter quantity to deliver for each item.
-                        {poDetails.delivery_status === 'partial' && " This is a partial delivery. Remaining items can be delivered later."}
+                        <strong>Note:</strong> 
+                        <br />- Only items with received quantity are shown
+                        <br />- Batch codes are automatically generated with duplicate prevention
+                        <br />- Select items you want to include in GRN and click "Generate GRN"
                       </small>
                     </div>
                   </div>
@@ -1087,10 +1139,10 @@ const GRNPage = () => {
                 <button
                   className="btn btn-success btn-sm"
                   onClick={handleSubmitGRN}
-                  disabled={selectedItems.filter(item => item.selected && item.current_delivery > 0).length === 0}
+                  disabled={selectedItems.filter(item => item.selected && item.received_quantity > 0 && item.batch_code).length === 0}
                 >
                   <FaFileInvoice className="me-2" size={12} />
-                  {poDetails.delivery_status === 'partial' ? "Create Partial GRN" : "Create GRN"}
+                  Generate GRN
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setOpenPopup(false)}>
                   Cancel
@@ -1117,233 +1169,125 @@ const GRNPage = () => {
               <div className="modal-body p-2">
                 <div className="card border-0 shadow-sm">
                   <div className="card-body p-2">
-                    {/* Mobile View Details */}
-                    {mobileView ? (
-                      <div>
-                        <div className="mb-3">
-                          <div className="d-flex justify-content-between align-items-center mb-2">
-                            <h6 className="fw-bold text-primary mb-0">
-                              {viewData[0]?.invoice_number}
-                            </h6>
-                            <span className="badge bg-secondary">{viewData.length} items</span>
-                          </div>
-                          <div className="row g-1">
-                            <div className="col-6">
-                              <small className="text-muted">PO:</small>
-                              <div className="small">{viewData[0]?.po_number}</div>
-                            </div>
-                            <div className="col-6">
-                              <small className="text-muted">Date:</small>
-                              <div className="small">{viewData[0]?.invoice_date}</div>
-                            </div>
-                            <div className="col-12">
-                              <small className="text-muted">Company:</small>
-                              <div className="small">{viewData[0]?.company_name}</div>
-                            </div>
-                            <div className="col-12">
-                              <small className="text-muted">Customer:</small>
-                              <div className="small">{viewData[0]?.customer_name}</div>
-                            </div>
-                          </div>
+                    {/* Desktop View */}
+                    <div className="row mb-4">
+                      <div className="col-md-6">
+                        <h4 className="text-primary fw-bold">
+                          <FaFileInvoice className="me-2" />
+                          {viewData[0]?.invoice_number}
+                          {viewData[0]?.is_partial && (
+                            <span className="badge bg-warning text-dark ms-2">
+                              <FaPercent className="me-1" size={12} />
+                              Partial Delivery
+                            </span>
+                          )}
+                        </h4>
+                        <p>
+                          <strong>PO Number:</strong> 
+                          <span className="badge bg-secondary ms-2">{viewData[0]?.po_number}</span>
+                        </p>
+                        <p>
+                          <strong>Invoice Date:</strong> 
+                          <FaCalendarAlt className="me-1 ms-2" />
+                          {viewData[0]?.invoice_date}
+                        </p>
+                        <p>
+                          <strong><FaBuilding className="me-1" /> Company:</strong> {viewData[0]?.company_name}
+                        </p>
+                        <p><strong>GST:</strong> {viewData[0]?.gst_number || 'N/A'}</p>
+                      </div>
+                      <div className="col-md-6">
+                        <p>
+                          <strong><FaUser className="me-1" /> Customer:</strong> {viewData[0]?.customer_name}
+                        </p>
+                        <p><strong>Mobile:</strong> {viewData[0]?.customer_mobile}</p>
+                        <p><strong>Email:</strong> {viewData[0]?.customer_email}</p>
+                        <p><strong>Created:</strong> {viewData[0]?.created_on?.slice(0, 16)}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="border-top pt-3">
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h6 className="fw-bold mb-0">
+                          <FaBox className="me-2" />
+                          Items ({viewData.length})
+                        </h6>
+                        <div className="text-muted">
+                          Total Amount: 
+                          <span className="fw-bold text-success ms-2">
+                            <FaRupeeSign className="me-1" />
+                            {viewData.reduce((total, item) => total + (item.quantity * item.buy_price), 0).toLocaleString('en-IN', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
                         </div>
-                        
-                        <div className="border-top pt-2">
-                          <h6 className="fw-bold small mb-2">Items</h6>
-                          {viewData.map((item, index) => (
-                            <div key={index} className="card mb-2 bg-light">
-                              <div className="card-body p-2">
-                                <div className="fw-bold small">{item.item_name}</div>
-                                <div className="row g-1 mt-1">
-                                  <div className="col-6">
-                                    <small className="text-muted d-block">
-                                      Brand: {item.brand || '-'}
-                                    </small>
-                                  </div>
-                                  <div className="col-6">
-                                    <small className="text-muted d-block">
-                                      HSN: {item.hsn_code || '-'}
-                                    </small>
-                                  </div>
-                                  <div className="col-6">
-                                    <small className="text-muted d-block">
-                                      Qty: {item.quantity}
-                                    </small>
-                                  </div>
-                                  <div className="col-6">
-                                    <small className="text-muted d-block">
-                                      Price: ₹{parseFloat(item.buy_price).toFixed(2)}
-                                    </small>
-                                  </div>
-                                  <div className="col-12 mt-1">
-                                    <small className="badge bg-dark">
-                                      Batch: {item.batch_code}
-                                    </small>
+                      </div>
+                      <div className="table-responsive">
+                        <table className="table table-sm table-bordered">
+                          <thead className="table-light">
+                            <tr>
+                              <th>#</th>
+                              <th>Item Name</th>
+                              <th>Brand</th>
+                              <th>HSN</th>
+                              <th>Size</th>
+                              <th>Qty</th>
+                              <th>Buy Price</th>
+                              <th>Total</th>
+                              <th>Batch Code</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {viewData.map((item, index) => (
+                              <tr key={index}>
+                                <td>{index + 1}</td>
+                                <td className="fw-bold">{item.item_name}</td>
+                                <td>{item.brand}</td>
+                                <td>{item.hsn_code || '-'}</td>
+                                <td>
+                                  {item.length || item.width
+                                    ? `${item.length || ''}${item.width ? '×' + item.width : ''}`
+                                    : '-'
+                                  }
+                                </td>
+                                <td>{item.quantity}</td>
+                                <td>₹{parseFloat(item.buy_price).toFixed(2)}</td>
+                                <td className="fw-bold text-success">
+                                  ₹{(item.quantity * item.buy_price).toFixed(2)}
+                                </td>
+                                <td>
+                                  <div className="d-flex align-items-center">
+                                    <span className="badge bg-dark fw-bold">
+                                      {item.batch_code}
+                                    </span>
                                     <button
                                       className="btn btn-sm btn-outline-info ms-2"
                                       onClick={() => copyToClipboard(item.batch_code)}
+                                      title="Copy batch code"
                                     >
-                                      <FaCopy size={10} />
+                                      <FaCopy />
                                     </button>
                                   </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                          
-                          <div className="d-flex justify-content-between align-items-center mt-2 p-2 bg-success bg-opacity-10 rounded">
-                            <span className="fw-bold small">Total Amount:</span>
-                            <span className="fw-bold text-success">
-                              <FaRupeeSign className="me-1" size={12} />
-                              {viewData.reduce((total, item) => total + (item.quantity * item.buy_price), 0).toLocaleString('en-IN', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Desktop View */
-                      <>
-                        <div className="row mb-4">
-                          <div className="col-md-6">
-                            <h4 className="text-primary fw-bold">
-                              <FaFileInvoice className="me-2" />
-                              {viewData[0]?.invoice_number}
-                              {viewData[0]?.is_partial && (
-                                <span className="badge bg-warning text-dark ms-2">
-                                  <FaPercent className="me-1" size={12} />
-                                  Partial Delivery
-                                </span>
-                              )}
-                            </h4>
-                            <p>
-                              <strong>PO Number:</strong> 
-                              <span className="badge bg-secondary ms-2">{viewData[0]?.po_number}</span>
-                            </p>
-                            <p>
-                              <strong>Invoice Date:</strong> 
-                              <FaCalendarAlt className="me-1 ms-2" />
-                              {viewData[0]?.invoice_date}
-                            </p>
-                            <p>
-                              <strong><FaBuilding className="me-1" /> Company:</strong> {viewData[0]?.company_name}
-                            </p>
-                            <p><strong>Address:</strong> {viewData[0]?.company_address}</p>
-                            <p><strong>GST:</strong> {viewData[0]?.gst_number || 'N/A'}</p>
-                          </div>
-                          <div className="col-md-6">
-                            <p>
-                              <strong><FaUser className="me-1" /> Customer:</strong> {viewData[0]?.customer_name}
-                            </p>
-                            <p><strong>Mobile:</strong> {viewData[0]?.customer_mobile}</p>
-                            <p><strong>Email:</strong> {viewData[0]?.customer_email}</p>
-                            <p><strong>Department:</strong> {viewData[0]?.department}</p>
-                            <p><strong>Created:</strong> {viewData[0]?.created_on?.slice(0, 16)}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="border-top pt-3">
-                          <div className="d-flex justify-content-between align-items-center mb-3">
-                            <h6 className="fw-bold mb-0">
-                              <FaBox className="me-2" />
-                              Items ({viewData.length})
-                            </h6>
-                            <div className="text-muted">
-                              Total Amount: 
-                              <span className="fw-bold text-success ms-2">
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="table-secondary">
+                            <tr>
+                              <td colSpan="8" className="text-end fw-bold">Total Amount:</td>
+                              <td className="fw-bold text-success">
                                 <FaRupeeSign className="me-1" />
                                 {viewData.reduce((total, item) => total + (item.quantity * item.buy_price), 0).toLocaleString('en-IN', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2
                                 })}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="table-responsive">
-                            <table className="table table-sm table-bordered">
-                              <thead className="table-light">
-                                <tr>
-                                  <th>#</th>
-                                  <th>Item Name</th>
-                                  <th>Brand</th>
-                                  <th>Code</th>
-                                  <th>Description</th>
-                                  <th>HSN</th>
-                                  <th>Size</th>
-                                  <th>Unit</th>
-                                  <th>Qty</th>
-                                  <th>Buy Price</th>
-                                  <th>Total</th>
-                                  <th>Batch Code</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {viewData.map((item, index) => (
-                                  <tr key={index}>
-                                    <td>{index + 1}</td>
-                                    <td className="fw-bold">{item.item_name}</td>
-                                    <td>{item.brand}</td>
-                                    <td>{item.brand_code || '-'}</td>
-                                    <td>{item.brand_description || '-'}</td>
-                                    <td>
-                                      {item.hsn_code ? (
-                                        <span className="badge bg-info text-dark">
-                                          <FaHashtag className="me-1" />
-                                          {item.hsn_code}
-                                        </span>
-                                      ) : '-'}
-                                    </td>
-                                    <td>
-                                      {item.length || item.width
-                                        ? `${item.length || ''}${item.width ? '×' + item.width : ''}`
-                                        : '-'
-                                      }
-                                    </td>
-                                    <td>{item.unit}</td>
-                                    <td>{item.quantity}</td>
-                                    <td>
-                                      <FaRupeeSign className="me-1" />
-                                      {parseFloat(item.buy_price).toFixed(2)}
-                                    </td>
-                                    <td className="fw-bold text-success">
-                                      <FaRupeeSign className="me-1" />
-                                      {(item.quantity * item.buy_price).toFixed(2)}
-                                    </td>
-                                    <td>
-                                      <div className="d-flex align-items-center">
-                                        <span className="badge bg-dark fw-bold">
-                                          {item.batch_code}
-                                        </span>
-                                        <button
-                                          className="btn btn-sm btn-outline-info ms-2"
-                                          onClick={() => copyToClipboard(item.batch_code)}
-                                          title="Copy batch code"
-                                        >
-                                          <FaCopy />
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                              <tfoot className="table-secondary">
-                                <tr>
-                                  <td colSpan="10" className="text-end fw-bold">Total Amount:</td>
-                                  <td colSpan="2" className="fw-bold text-success">
-                                    <FaRupeeSign className="me-1" />
-                                    {viewData.reduce((total, item) => total + (item.quantity * item.buy_price), 0).toLocaleString('en-IN', {
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2
-                                    })}
-                                  </td>
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        </div>
-                      </>
-                    )}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1357,31 +1301,6 @@ const GRNPage = () => {
           </div>
         </div>
       )}
-      
-      {/* Mobile Styles */}
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .modal-fullscreen-md-down {
-            margin: 0.5rem;
-            max-width: calc(100% - 1rem);
-          }
-          .btn {
-            white-space: nowrap;
-          }
-          .input-group-text {
-            padding: 0.25rem 0.5rem;
-          }
-          .table-responsive {
-            font-size: 0.875rem;
-          }
-          .card-header {
-            padding: 0.5rem;
-          }
-          .card-body {
-            padding: 0.5rem;
-          }
-        }
-      `}</style>
     </div>
   );
 };
