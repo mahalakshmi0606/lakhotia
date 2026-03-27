@@ -7,14 +7,8 @@ const FILE_BASE = "http://localhost:5000";
 
 const DashboardImageSetter = () => {
   const [imagePreview, setImagePreview] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
-  const [imageId, setImageId] = useState(null);
-
   const [pageLoading, setPageLoading] = useState(true);
   const [imageLoading, setImageLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const fileInputRef = useRef(null);
 
   // =========================
   // GET latest image
@@ -25,9 +19,7 @@ const DashboardImageSetter = () => {
         const res = await axios.get(`${API_BASE}/latest`);
 
         if (res.data?.image_url) {
-          setImageId(res.data.id);
           setImageLoading(true);
-
           // cache busting
           setImagePreview(
             `${FILE_BASE}${res.data.image_url}?v=${Date.now()}`
@@ -42,44 +34,6 @@ const DashboardImageSetter = () => {
 
     fetchLatestImage();
   }, []);
-
-  // =========================
-  // Change image (local preview + auto save)
-  // =========================
-  const handleImageChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setImageFile(file);
-    setImageLoading(true);
-    setImagePreview(URL.createObjectURL(file));
-
-    const formData = new FormData();
-    formData.append("image", file);
-
-    try {
-      setSaving(true);
-
-      let res;
-      if (imageId) {
-        res = await axios.put(`${API_BASE}/update/${imageId}`, formData);
-      } else {
-        res = await axios.post(`${API_BASE}/upload`, formData);
-        setImageId(res.data?.id || null);
-      }
-
-      if (res?.data?.image_url) {
-        setImagePreview(
-          `${FILE_BASE}${res.data.image_url}?v=${Date.now()}`
-        );
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to save image");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div style={styles.wrapper}>
@@ -97,14 +51,6 @@ const DashboardImageSetter = () => {
       <div style={styles.content}>
         {pageLoading && <Loader text="Loading dashboard image..." />}
 
-        <input
-          type="file"
-          accept="image/*"
-          hidden
-          ref={fileInputRef}
-          onChange={handleImageChange}
-        />
-
         {!pageLoading && imagePreview && (
           <>
             {imageLoading && <Loader text="Rendering image..." />}
@@ -114,9 +60,7 @@ const DashboardImageSetter = () => {
               style={{
                 ...styles.image,
                 display: imageLoading ? "none" : "block",
-                cursor: "pointer",
               }}
-              onClick={() => fileInputRef.current.click()}
               onLoad={() => setImageLoading(false)}
               onError={() => setImageLoading(false)}
             />
@@ -124,12 +68,8 @@ const DashboardImageSetter = () => {
         )}
 
         {!pageLoading && !imagePreview && (
-          <div
-            style={{ ...styles.placeholder, cursor: "pointer" }}
-            onClick={() => fileInputRef.current.click()}
-          >
-            <h2>Click to Upload Image</h2>
-            <p>Image will be saved automatically</p>
+          <div style={styles.placeholder}>
+            <p>No dashboard image available</p>
           </div>
         )}
       </div>
@@ -148,7 +88,7 @@ const Loader = ({ text }) => (
 );
 
 // =========================
-// Styles (unchanged)
+// Styles
 // =========================
 const styles = {
   wrapper: {
@@ -177,6 +117,7 @@ const styles = {
     justifyContent: "center",
     alignItems: "center",
     color: "#cbd5f5",
+    backgroundColor: "#0f172a",
   },
 
   loaderWrapper: {

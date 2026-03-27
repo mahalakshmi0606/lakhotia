@@ -63,7 +63,7 @@ const GRNPage = () => {
     }
   };
   
-  // Fetch POs ready for GRN (approved and partially received)
+  // Fetch POs ready for GRN (approved and not completed)
   const fetchPosReadyForGRN = async () => {
     setLoadingPOs(true);
     try {
@@ -174,7 +174,7 @@ const GRNPage = () => {
     }
   }, [selectedItems, openPopup]);
   
-  // Fetch PO details by PO number - Only show received items
+  // Fetch PO details by PO number
   const fetchPODetails = async (poNum = null, preloadedData = null) => {
     const poToFetch = poNum || poNumber;
     
@@ -201,7 +201,7 @@ const GRNPage = () => {
       
       setPoDetails(poData);
       
-      // Process ONLY received items (items with delivered_quantity > 0)
+      // Get items that have delivered quantity (received)
       let receivedItems = [];
       
       if (poData.items && poData.items.length > 0) {
@@ -223,7 +223,6 @@ const GRNPage = () => {
           brand: item.brand || "",
           brand_code: item.brand_code || "",
           index: index,
-          // IMPORTANT: This is the quantity that was already received
           received_quantity: item.delivered_quantity || 0,
           original_quantity: item.original_quantity || item.quantity,
           item_name: item.item_name
@@ -267,7 +266,7 @@ const GRNPage = () => {
     toast.success("Batch code regenerated successfully!");
   };
   
-  // Toggle item selection (for selecting/deselecting items to generate GRN)
+  // Toggle item selection
   const toggleItemSelection = (index) => {
     const updatedItems = [...selectedItems];
     if (updatedItems[index].received_quantity > 0) {
@@ -329,16 +328,16 @@ const GRNPage = () => {
       .catch(() => toast.error("Failed to copy"));
   };
   
-  // Submit GRN for received items only
+  // Submit GRN and update PO status
   const handleSubmitGRN = async () => {
     // Filter selected items that are selected and have received quantity > 0
     const itemsToSubmit = selectedItems
       .filter(item => item.selected && item.received_quantity > 0)
       .map(item => {
-        const { selected, index, received_quantity, ...itemData } = item;
+        const { selected, index, ...itemData } = item;
         return {
           ...itemData,
-          quantity: item.received_quantity, // This is the already received quantity
+          quantity: item.received_quantity,
           batch_code: item.batch_code,
           hsn_code: item.hsn_code || "",
           brand_description: item.brand_description || "",
@@ -374,7 +373,7 @@ const GRNPage = () => {
       const payload = {
         po_number: poNumber,
         items: itemsToSubmit,
-        is_partial: false // These are already received items, not partial
+        is_partial: false
       };
       
       const res = await axios.post("http://localhost:5000/api/grn/save-from-po", payload);
@@ -883,7 +882,7 @@ const GRNPage = () => {
         </div>
       </div>
       
-      {/* CREATE GRN POPUP MODAL - Shows only received items */}
+      {/* CREATE GRN POPUP MODAL */}
       {openPopup && poDetails && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
           <div className="modal-dialog modal-dialog-scrollable modal-fullscreen-md-down modal-xl">
@@ -951,7 +950,7 @@ const GRNPage = () => {
                   </div>
                 </div>
                 
-                {/* Items Selection - Only Received Items */}
+                {/* Items Selection */}
                 <div className="card mb-3">
                   <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center">
                     <h6 className="mb-0 fw-bold small">
@@ -1129,6 +1128,7 @@ const GRNPage = () => {
                         <br />- Only items with received quantity are shown
                         <br />- Batch codes are automatically generated with duplicate prevention
                         <br />- Select items you want to include in GRN and click "Generate GRN"
+                        <br />- After GRN generation, PO status will be automatically updated to "Completed"
                       </small>
                     </div>
                   </div>
