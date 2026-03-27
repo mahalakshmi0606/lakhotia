@@ -28,7 +28,7 @@ const GRNPage = () => {
   const [expandedInvoice, setExpandedInvoice] = useState(null);
   const [existingBatchCodes, setExistingBatchCodes] = useState(new Set());
   
-  // State for POs ready for GRN
+  // State for POs ready for GRN (only completed status)
   const [posReadyForGRN, setPosReadyForGRN] = useState([]);
   const [loadingPOs, setLoadingPOs] = useState(false);
   
@@ -63,11 +63,12 @@ const GRNPage = () => {
     }
   };
   
-  // Fetch POs ready for GRN (approved and not completed)
+  // Fetch POs ready for GRN (status = completed and not fully processed)
   const fetchPosReadyForGRN = async () => {
     setLoadingPOs(true);
     try {
-      const res = await axios.get("http://localhost:5000/api/grn/ready-for-grn");
+      // Fetch POs with status "completed" that are ready for GRN
+      const res = await axios.get("http://localhost:5000/api/grn/ready-for-grn?status=completed");
       if (res.data.success) {
         setPosReadyForGRN(res.data.data);
       }
@@ -621,14 +622,14 @@ const GRNPage = () => {
             </div>
           </div>
           
-          {/* POs Ready for GRN Section */}
+          {/* POs Ready for GRN Section - Only Completed POs */}
           <div className="card mb-4 border-primary">
             <div className="card-header bg-light py-2 d-flex justify-content-between align-items-center">
               <h5 className="mb-0 fw-bold text-primary fs-6">
                 <FaTruck className="me-2" />
-                {mobileView ? "Ready for GRN" : "Purchase Orders Ready for GRN"}
+                {mobileView ? "Completed POs Ready for GRN" : "Completed Purchase Orders Ready for GRN"}
               </h5>
-              <span className="badge bg-primary">
+              <span className="badge bg-success">
                 {posReadyForGRN.length}
               </span>
             </div>
@@ -643,7 +644,8 @@ const GRNPage = () => {
               ) : posReadyForGRN.length === 0 ? (
                 <div className="text-center py-4">
                   <FaFileAlt className="text-muted mb-2" size={32} />
-                  <h6 className="text-muted small">No POs ready for GRN</h6>
+                  <h6 className="text-muted small">No completed POs ready for GRN</h6>
+                  <p className="text-muted small">Only POs with status 'Completed' will appear here</p>
                 </div>
               ) : (
                 <div className="row g-2">
@@ -656,8 +658,8 @@ const GRNPage = () => {
                               <FaReceipt className="me-1" />
                               {mobileView ? po.po_number.slice(0, 8) + '...' : po.po_number}
                             </h6>
-                            <span className={`badge ${po.delivery_status === 'partial' ? 'bg-warning' : 'bg-success'} small`}>
-                              {po.delivery_status === 'partial' ? 'Partial' : 'New'}
+                            <span className="badge bg-success small">
+                              Completed
                             </span>
                           </div>
                           
@@ -679,7 +681,7 @@ const GRNPage = () => {
                           </div>
                           
                           <button
-                            className="btn btn-primary btn-sm w-100"
+                            className="btn btn-success btn-sm w-100"
                             onClick={() => handlePOSelect(po.po_number, po)}
                           >
                             <FaClipboardCheck className="me-1" size={10} />
