@@ -10,7 +10,7 @@ import {
   FaFilePdf,
 } from "react-icons/fa";
 
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
@@ -283,7 +283,7 @@ const VisitReportPage = () => {
   // ======================================================
   return (
     <div className="container py-4">
-      <ToastContainer />
+      
 
       {/* HEADER */}
       <div className="d-flex justify-content-between align-items-center mb-3 p-3 rounded-3 shadow-sm bg-warning-subtle">

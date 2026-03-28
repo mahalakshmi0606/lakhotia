@@ -1,6 +1,6 @@
 // ✅ SettingsMatrix.js - UPDATED VERSION
 import React, { useState, useEffect } from "react";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { menuItems } from "./Sidebar"; // ✅ Static modules from Sidebar.js
 
@@ -170,7 +170,7 @@ const SettingsMatrix = () => {
 
   return (
     <div style={styles.container}>
-      <ToastContainer position="top-right" autoClose={2000} hideProgressBar />
+      
       <h2 style={styles.heading}>Settings</h2>
 
       <div style={styles.tableWrapper}>

@@ -51,6 +51,9 @@ import Dashboardsetter from "./Components/Dashboardsetter";
 import EmployeeReportPage from "./Components/EmployeeReport";
 import PurchaseOrderReceiptPage from "./Components/PurchaseOrderReceived";
 
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState("");
@@ -141,6 +144,16 @@ function AppContent({
 
   return (
     <div style={styles.appContainer}>
+      <ToastContainer 
+        position="top-right" 
+        autoClose={3000} 
+        hideProgressBar={false} 
+        newestOnTop={true} 
+        closeOnClick 
+        pauseOnHover 
+        theme="colored"
+        style={{ zIndex: 999999, top: '10px', right: '10px' }}
+      />
       {isAuthenticated ? (
         <>
           <Header

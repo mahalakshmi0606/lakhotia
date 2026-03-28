@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { 
@@ -552,7 +552,7 @@ const PurchaseOrderPage = () => {
       const payload = {
         po_date: formData.po_date,
         delivery_date: formData.delivery_date || null,
-        company_id: formData.company_id,
+        company_id: formData.company_id || null,
         company_name: formData.company_name,
         company_address: formData.company_address,
         customer_name: formData.customer_name,
@@ -706,7 +706,7 @@ const PurchaseOrderPage = () => {
 
   return (
     <div className="container-fluid mt-4">
-      <ToastContainer position="top-right" autoClose={3000} />
+      
 
       <div className="card shadow border-0">
         <div className="card-header bg-primary text-white">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { FaPlus, FaEye, FaCalendarAlt, FaPercentage, FaCalendarCheck, FaCalculator } from "react-icons/fa";
 import axios from "axios";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 
@@ -252,7 +252,7 @@ const AdvancePage = () => {
 
   return (
     <div className="container mt-4">
-      <ToastContainer position="top-right" autoClose={3000} />
+      
 
       {/* HEADER */}
       <div className="d-flex justify-content-between align-items-center mb-4">

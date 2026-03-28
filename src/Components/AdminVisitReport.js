@@ -7,7 +7,7 @@ import {
   FaFileExcel,
   FaFilePdf,
 } from "react-icons/fa";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
@@ -153,7 +153,7 @@ const VisitReportPage = () => {
 
   return (
     <div className="container py-2 py-md-4">
-      <ToastContainer position="top-right" autoClose={2000} />
+      
 
       {/* Header Section */}
       <div

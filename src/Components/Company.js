@@ -24,7 +24,7 @@ import {
   FaBriefcase,
   FaUserTie
 } from "react-icons/fa";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import { Table, Button, Modal, Form, Row, Col, InputGroup, Pagination, Alert } from "react-bootstrap";
 import * as XLSX from "xlsx";
 
@@ -1577,17 +1577,7 @@ const CompanyPage = () => {
         }
       `}</style>
 
-      <ToastContainer 
-        position={window.innerWidth < 768 ? "top-center" : "top-right"}
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
+      
     </div>
   );
 };

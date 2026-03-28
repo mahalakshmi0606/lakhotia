@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const API_URL = "http://localhost:5000/api/designations";
@@ -107,7 +107,7 @@ const DesignationPage = () => {
 
   return (
     <div style={styles.container}>
-      <ToastContainer position="top-right" autoClose={2000} hideProgressBar />
+      
       <h2 style={styles.heading}>Designations</h2>
 
       <button style={styles.addButton} onClick={() => setFormOpen(true)}>

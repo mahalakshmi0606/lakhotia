@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { 
@@ -105,9 +105,9 @@ const AllDeliveryItemsPage = () => {
         setAllItems(allItemsList);
         
         if (pos.length === 0) {
-          toast.info("No purchase orders found");
+          // toast.info("No purchase orders found");
         } else {
-          toast.success(`Loaded ${pos.length} purchase order(s) with ${allItemsList.length} items`);
+          // toast.success(`Loaded ${pos.length} purchase order(s) with ${allItemsList.length} items`);
         }
       } else {
         setError("Failed to load purchase orders");
@@ -294,11 +294,25 @@ const AllDeliveryItemsPage = () => {
   // Filter items based on selected status
   const getFilteredItems = () => {
     if (selectedStatus === "all") return allItems;
-    if (selectedStatus === "pending") return allItems.filter(item => item.pending_quantity > 0);
-    if (selectedStatus === "fully_received") return allItems.filter(item => item.is_fully_received);
+    
+    // Status-based filters
     if (selectedStatus === "approved") return allItems.filter(item => item.status === "approved");
-    if (selectedStatus === "completed") return allItems.filter(item => item.status === "completed");
-    if (selectedStatus === "pending_receipt") return allItems.filter(item => item.pending_quantity > 0);
+    if (selectedStatus === "completed") {
+      return allItems.filter(item => 
+        item.status === "completed" || 
+        item.status === "converted_to_grn"
+      );
+    }
+    
+    // Delivery-based filters
+    if (selectedStatus === "pending") {
+      return allItems.filter(item => 
+        item.pending_quantity > 0 || 
+        item.status === "partially_received"
+      );
+    }
+    if (selectedStatus === "fully_received") return allItems.filter(item => item.is_fully_received);
+    
     return allItems;
   };
 
@@ -307,15 +321,19 @@ const AllDeliveryItemsPage = () => {
     let filtered = purchaseOrders;
     
     if (selectedStatus === "pending") {
-      filtered = purchaseOrders.filter(po => calculateTotalPending(po.items) > 0);
+      filtered = purchaseOrders.filter(po => 
+        calculateTotalPending(po.items) > 0 || 
+        po.status === "partially_received"
+      );
     } else if (selectedStatus === "fully_received") {
       filtered = purchaseOrders.filter(po => calculateTotalPending(po.items) === 0);
     } else if (selectedStatus === "approved") {
       filtered = purchaseOrders.filter(po => po.status === "approved");
     } else if (selectedStatus === "completed") {
-      filtered = purchaseOrders.filter(po => po.status === "completed");
-    } else if (selectedStatus === "pending_receipt") {
-      filtered = purchaseOrders.filter(po => calculateTotalPending(po.items) > 0);
+      filtered = purchaseOrders.filter(po => 
+        po.status === "completed" || 
+        po.status === "converted_to_grn"
+      );
     }
     
     return filtered;
@@ -332,11 +350,14 @@ const AllDeliveryItemsPage = () => {
 
   // Get status badge class
   const getStatusBadgeClass = (status) => {
-    switch(status) {
+    const s = (status || "").toLowerCase();
+    switch(s) {
       case 'approved': return 'bg-success';
       case 'pending': return 'bg-warning';
       case 'rejected': return 'bg-danger';
-      case 'completed': return 'bg-info';
+      case 'completed': 
+      case 'converted_to_grn': return 'bg-info';
+      case 'partially_received': return 'bg-primary';
       default: return 'bg-secondary';
     }
   };
@@ -365,12 +386,18 @@ const AllDeliveryItemsPage = () => {
   };
 
   const getPOStatusText = (po) => {
+    if (!po) return '-';
+    
     const totalReceived = calculateTotalReceived(po.items);
     const totalOrdered = calculateTotalOrdered(po.items);
+    
+    if (po.status === 'converted_to_grn') return 'Converted to GRN';
+    if (po.status === 'partially_received') return 'Partially Received';
     
     if (totalReceived === 0) return 'Not Started';
     if (totalReceived < totalOrdered) return 'Partially Received';
     if (totalReceived === totalOrdered && totalOrdered > 0) return 'Fully Received';
+    
     return po.status;
   };
 
@@ -440,7 +467,7 @@ const AllDeliveryItemsPage = () => {
 
   return (
     <div className="container-fluid mt-4">
-      <ToastContainer position="top-right" autoClose={3000} />
+      
 
       <div className="card shadow border-0">
         <div className="card-header bg-primary text-white">
@@ -527,11 +554,11 @@ const AllDeliveryItemsPage = () => {
                   All Items
                 </button>
                 <button 
-                  className={`btn ${selectedStatus === 'pending_receipt' ? 'btn-primary' : 'btn-outline-secondary'} mb-1`}
-                  onClick={() => setSelectedStatus('pending_receipt')}
+                  className={`btn ${selectedStatus === 'approved' ? 'btn-primary' : 'btn-outline-secondary'} mb-1`}
+                  onClick={() => setSelectedStatus('approved')}
                 >
-                  <FaTruck className="me-1" />
-                  Pending Receipt
+                  <FaFileInvoice className="me-1" />
+                  Approved
                 </button>
                 <button 
                   className={`btn ${selectedStatus === 'pending' ? 'btn-primary' : 'btn-outline-secondary'} mb-1`}
@@ -548,18 +575,11 @@ const AllDeliveryItemsPage = () => {
                   Fully Received
                 </button>
                 <button 
-                  className={`btn ${selectedStatus === 'approved' ? 'btn-primary' : 'btn-outline-secondary'} mb-1`}
-                  onClick={() => setSelectedStatus('approved')}
-                >
-                  <FaFileInvoice className="me-1" />
-                  Approved
-                </button>
-                <button 
                   className={`btn ${selectedStatus === 'completed' ? 'btn-primary' : 'btn-outline-secondary'} mb-1`}
                   onClick={() => setSelectedStatus('completed')}
                 >
                   <FaHistory className="me-1" />
-                  Completed
+                  Completed / GRN
                 </button>
               </div>
             </div>
@@ -863,8 +883,8 @@ const AllDeliveryItemsPage = () => {
                           <td className="fw-bold text-primary">{item.po_number}</td>
                           <td>{item.po_date?.slice(0, 10)}</td>
                           <td>
-                            <span className={`badge ${getStatusBadgeClass(item.po_status)}`}>
-                              {item.po_status}
+                            <span className={`badge ${getPOStatusBadgeClass(po)}`}>
+                              {getPOStatusText(po)}
                             </span>
                           </td>
                           <td>{item.company_name}</td>

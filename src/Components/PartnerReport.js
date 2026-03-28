@@ -13,7 +13,7 @@ import {
   FaKey,
   FaLock
 } from "react-icons/fa";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import { Table, Button, Modal, Form, Row, Col, InputGroup, Pagination, Alert } from "react-bootstrap";
 import * as XLSX from "xlsx";
 
@@ -1240,7 +1240,7 @@ const CompanyPage = () => {
         </Modal.Footer>
       </Modal>
 
-      <ToastContainer />
+      
     </div>
   );
 };

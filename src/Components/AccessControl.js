@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const USER_TYPES_API = "http://localhost:5000/api/usertype";
@@ -82,7 +82,7 @@ export default function AccessControlPage() {
 
   return (
     <div style={styles.container}>
-      <ToastContainer position="top-right" autoClose={2000} hideProgressBar />
+      
 
       <h2 style={styles.heading}>User Type Access Control</h2>
 

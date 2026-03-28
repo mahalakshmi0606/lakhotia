@@ -1,7 +1,7 @@
 // StockSoldPage.js
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const API_COMPLETED_TASKS = "http://localhost:5000/api/tasks/completed";
@@ -557,7 +557,7 @@ const StockSoldPage = () => {
 
   return (
     <div style={styles.page}>
-      <ToastContainer />
+      
       
       {/* HEADER WITH TABS */}
       <div style={styles.header}>

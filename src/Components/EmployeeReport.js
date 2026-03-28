@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FaEdit, FaTrash, FaPlus, FaTimes, FaEye, FaPaperclip, FaDownload, FaSearch, FaFileExcel, FaFilePdf, FaEyeSlash, FaChevronLeft, FaChevronRight } from "react-icons/fa";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const EmployeePage = () => {
@@ -1485,7 +1485,7 @@ const EmployeePage = () => {
         </div>
       )}
 
-      <ToastContainer position="top-right" autoClose={2000} />
+      
     </div>
   );
 };

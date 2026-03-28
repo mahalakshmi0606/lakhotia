@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import { 
@@ -514,6 +514,9 @@ const PurchaseOrderPage = () => {
       toast.success("PO Approved Successfully!");
       fetchPurchaseOrders();
       fetchStats();
+      if (viewData && viewData.id === po.id) {
+        setViewData(null);
+      }
     } catch (err) {
       toast.error("Error approving PO");
       console.error(err);
@@ -525,6 +528,9 @@ const PurchaseOrderPage = () => {
     setPendingActionPO(po);
     setRejectionRemarks("");
     setShowRejectionModal(true);
+    if (viewData && viewData.id === po.id) {
+      setViewData(null);
+    }
   };
 
   // Submit rejection with remarks
@@ -567,6 +573,9 @@ const PurchaseOrderPage = () => {
       toast.success("PO Marked as Completed! Delivery date updated.");
       fetchPurchaseOrders();
       fetchStats();
+      if (viewData && viewData.id === poId) {
+        setViewData(null);
+      }
     } catch (err) {
       toast.error("Error marking PO as complete");
       console.error(err);
@@ -657,7 +666,7 @@ const PurchaseOrderPage = () => {
 
   return (
     <div className="container-fluid mt-4">
-      <ToastContainer position="top-right" autoClose={3000} />
+      
 
       <div className="card shadow border-0">
         <div className="card-header bg-primary text-white">
@@ -1913,20 +1922,14 @@ const PurchaseOrderPage = () => {
                   <>
                     <button 
                       className="btn btn-success"
-                      onClick={() => {
-                        setViewData(null);
-                        handleApproveClick(viewData);
-                      }}
+                      onClick={() => handleApproveClick(viewData)}
                     >
                       <FaCheck className="me-2" />
                       Approve
                     </button>
                     <button 
                       className="btn btn-danger"
-                      onClick={() => {
-                        setViewData(null);
-                        handleRejectClick(viewData);
-                      }}
+                      onClick={() => handleRejectClick(viewData)}
                     >
                       <FaTimes className="me-2" />
                       Reject
@@ -1936,10 +1939,7 @@ const PurchaseOrderPage = () => {
                 {viewData.status === 'approved' && (
                   <button 
                     className="btn btn-info"
-                    onClick={() => {
-                      setViewData(null);
-                      markAsComplete(viewData.id);
-                    }}
+                    onClick={() => markAsComplete(viewData.id)}
                   >
                     Mark Complete
                   </button>
