@@ -1,16 +1,21 @@
 // CasualLabourSalaryReport.js
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
 
-const API_FETCH_EMP = "http://127.0.0.1:5000/api/employee/all";
-const API_FETCH_ATT = "http://127.0.0.1:5000/api/attendance/summary";
-const API_FETCH_ADVANCE = "http://127.0.0.1:5000/api/advance"; // Your advance API endpoint
+
+const API_FETCH_EMP = `${API_BASE}/employee/all`;
+const API_FETCH_ATT = `${API_BASE}/attendance/summary`;
+const API_FETCH_ADVANCE = `${API_BASE}/advance`; // Your advance API endpoint
+
 
 // 🔥 UPDATED API — SAVE CASUAL SALARY
-const API_SAVE_SALARY = "http://127.0.0.1:5000/api/casual/save";
+const API_SAVE_SALARY = `${API_BASE}/casual/save`;
+
 
 // 🔥 UPDATED API — FETCH PRE-SAVED REPORT
-const API_GET_SAVED = "http://127.0.0.1:5000/api/casual/fetch";
+const API_GET_SAVED = `${API_BASE}/casual/fetch`;
+
 
 // Helper function to create month-year key
 const getMonthYearKey = (month, year) => {

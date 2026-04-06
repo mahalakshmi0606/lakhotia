@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
+
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -11,9 +13,10 @@ import {
   FaChevronLeft, FaChevronRight, FaTruck, FaCalculator
 } from "react-icons/fa";
 
-const API_BASE_URL = "http://localhost:5000/api/purchase-orders";
-const STOCK_API_URL = "http://localhost:5000/api/stock/all";
-const COMPANY_API_URL = "http://localhost:5000/api/company";
+const API_BASE_URL = `${API_BASE}/purchase-orders`;
+const STOCK_API_URL = `${API_BASE}/stock/all`;
+const COMPANY_API_URL = `${API_BASE}/company`;
+
 
 const PurchaseOrderPage = () => {
   const todayDate = new Date().toISOString().slice(0, 10);

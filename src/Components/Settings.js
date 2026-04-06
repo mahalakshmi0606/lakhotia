@@ -1,11 +1,14 @@
 // ✅ SettingsMatrix.js - UPDATED VERSION
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "../config";
+
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { menuItems } from "./Sidebar"; // ✅ Static modules from Sidebar.js
 
-const USER_TYPE_API = "http://localhost:5000/api/usertype";
-const PERMISSION_API = "http://localhost:5000/api/permissions";
+const USER_TYPE_API = `${API_BASE}/usertype`;
+const PERMISSION_API = `${API_BASE}/permissions`;
+
 
 // ✅ Helper to get ALL modules from menuItems
 const getAllModules = () => {

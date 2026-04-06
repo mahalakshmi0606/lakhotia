@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { FaUserCircle, FaLock, FaEye, FaEyeSlash } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import Logo from "./Name1.jpg";
+import { API_BASE } from "../config";
 
 const Login = ({ onLogin }) => {
   const navigate = useNavigate();
@@ -26,7 +27,7 @@ const Login = ({ onLogin }) => {
     try {
       // 1️⃣ EMPLOYEE LOGIN
       const empResponse = await fetch(
-        "http://localhost:5000/api/employee/login",
+        `${API_BASE}/employee/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -42,7 +43,7 @@ const Login = ({ onLogin }) => {
 
       // 2️⃣ AUTH LOGIN
       const authResponse = await fetch(
-        "http://localhost:5000/api/auth/login",
+        `${API_BASE}/auth/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -58,7 +59,7 @@ const Login = ({ onLogin }) => {
 
       // 3️⃣ COMPANY LOGIN
       const companyResponse = await fetch(
-        "http://localhost:5000/api/company/login",
+        `${API_BASE}/company/login`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

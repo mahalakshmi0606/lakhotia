@@ -3,6 +3,7 @@ import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { API_BASE } from "../config";
 import { 
   FaEye, FaSearch, FaFileInvoice, FaBuilding, FaUser, 
   FaBox, FaTag, FaBarcode, FaRulerCombined, FaRupeeSign,
@@ -54,7 +55,7 @@ const GRNPage = () => {
   // Fetch all existing batch codes to prevent duplicates
   const fetchAllBatchCodes = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/grn/all-batch-codes");
+      const res = await axios.get(`${API_BASE}/grn/all-batch-codes`);
       if (res.data.success) {
         setExistingBatchCodes(new Set(res.data.data));
       }
@@ -68,7 +69,7 @@ const GRNPage = () => {
     setLoadingPOs(true);
     try {
       // Fetch POs with status "completed" that are ready for GRN
-      const res = await axios.get("http://localhost:5000/api/grn/ready-for-grn?status=completed");
+      const res = await axios.get(`${API_BASE}/grn/ready-for-grn?status=completed`);
       if (res.data.success) {
         setPosReadyForGRN(res.data.data);
       }
@@ -83,7 +84,7 @@ const GRNPage = () => {
   // Fetch GRN records
   const fetchGRN = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/grn/all");
+      const res = await axios.get(`${API_BASE}/grn/all`);
       if (res.data.success) setGrnList(res.data.data);
     } catch (err) {
       console.log("Error loading GRN", err);
@@ -191,7 +192,7 @@ const GRNPage = () => {
       if (preloadedData) {
         poData = preloadedData;
       } else {
-        const res = await axios.get(`http://localhost:5000/api/grn/get-po/${poToFetch}`);
+        const res = await axios.get(`${API_BASE}/grn/get-po/${poToFetch}`);
         if (!res.data.success) {
           toast.error(res.data.message || "PO not found");
           setPoDetails(null);
@@ -377,7 +378,7 @@ const GRNPage = () => {
         is_partial: false
       };
       
-      const res = await axios.post("http://localhost:5000/api/grn/save-from-po", payload);
+      const res = await axios.post(`${API_BASE}/grn/save-from-po`, payload);
       
       if (res.data.success) {
         toast.success(res.data.message);
@@ -412,7 +413,7 @@ const GRNPage = () => {
   // View GRN details by invoice
   const viewGRNByInvoice = async (invoiceNumber) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/grn/invoice/${invoiceNumber}`);
+      const res = await axios.get(`${API_BASE}/grn/invoice/${invoiceNumber}`);
       
       if (res.data.success) {
         setViewData(res.data.data);

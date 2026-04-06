@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { API_BASE } from "../config";
 
 const Dashboard = () => {
   const email = localStorage.getItem("email"); // logged-in user
@@ -20,15 +21,15 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       // Total employees
-      const empRes = await axios.get("http://localhost:5000/api/employee/all");
+      const empRes = await axios.get(`${API_BASE}/employee/all`);
       const totalEmployees = Array.isArray(empRes.data) ? empRes.data.length : 0;
 
       // Total companies
-      const companyRes = await axios.get("http://localhost:5000/api/company");
+      const companyRes = await axios.get(`${API_BASE}/company`);
       const totalCompanies = Array.isArray(companyRes.data) ? companyRes.data.length : 0;
 
       // Tasks assigned TO me
-      const assignedToRes = await axios.get("http://localhost:5000/api/tasks", {
+      const assignedToRes = await axios.get(`${API_BASE}/tasks`, {
         params: { assigned_to: email },
       });
       const tasksAssignedToMe = { Pending: 0, "In Progress": 0, Completed: 0 };
@@ -37,7 +38,7 @@ const Dashboard = () => {
       });
 
       // Tasks assigned BY me
-      const assignedByRes = await axios.get(`http://localhost:5000/api/tasks/assigned-by/${email}`);
+      const assignedByRes = await axios.get(`${API_BASE}/tasks/assigned-by/${email}`);
       const tasksAssignedByMe = { Pending: 0, "In Progress": 0, Completed: 0 };
       assignedByRes.data.forEach(task => {
         tasksAssignedByMe[task.status] = (tasksAssignedByMe[task.status] || 0) + 1;

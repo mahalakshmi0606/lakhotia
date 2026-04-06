@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_BASE } from "../config";
 
-const API_URL = "http://localhost:5000/api/designations";
+const API_URL = `${API_BASE}/designations`;
 
 const DesignationPage = () => {
   const [designations, setDesignations] = useState([]);

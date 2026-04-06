@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { API_BASE } from "../config";
 
 export default function StockUploadPage() {
   // Updated column order with Brand included
@@ -157,7 +158,7 @@ export default function StockUploadPage() {
 
     // Mark this sold item as deducted in the backend
     try {
-      const response = await fetch(`http://localhost:5000/api/stock_sold/mark_deducted/${soldItem._originalId}`, {
+      const response = await fetch(`${API_BASE}/stock_sold/mark_deducted/${soldItem._originalId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -461,7 +462,7 @@ export default function StockUploadPage() {
   const fetchGrnItems = async () => {
     try {
       setLoadingGrn(true);
-      const res = await fetch("http://localhost:5000/api/grn/all?status=active");
+      const res = await fetch(`${API_BASE}/grn/all?status=active`);
       const data = await res.json();
       
       if (data && data.success && Array.isArray(data.data)) {
@@ -531,7 +532,7 @@ export default function StockUploadPage() {
     try {
       if (!grnIds || grnIds.length === 0) return;
       
-      const response = await fetch("http://localhost:5000/api/grn/update-status-bulk", {
+      const response = await fetch(`${API_BASE}/grn/update-status-bulk`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
@@ -561,7 +562,7 @@ export default function StockUploadPage() {
   const fetchSoldItems = async () => {
     try {
       setLoadingSold(true);
-      const res = await fetch("http://localhost:5000/api/stock_sold/not_deducted");
+      const res = await fetch(`${API_BASE}/stock_sold/not_deducted`);
       const data = await res.json();
       
       if (data && data.success && Array.isArray(data.data)) {
@@ -799,7 +800,7 @@ export default function StockUploadPage() {
       try {
         setLoadingStock(true);
         setError("");
-        const res = await fetch("http://localhost:5000/api/stock/all");
+        const res = await fetch(`${API_BASE}/stock/all`);
         const data = await res.json();
         
         if (data && data.success && Array.isArray(data.data)) {
@@ -1050,7 +1051,7 @@ export default function StockUploadPage() {
       })).filter(id => id.item_name);
       
       if (uniqueIdentifiers.length === 0) {
-        const saveRes = await fetch("http://localhost:5000/api/stock/bulk-save", {
+        const saveRes = await fetch(`${API_BASE}/stock/bulk-save`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ records: cleaned }),
@@ -1076,7 +1077,8 @@ export default function StockUploadPage() {
           }
           
           // Refresh data
-          const refreshRes = await fetch("http://localhost:5000/api/stock/all");
+          const refreshRes = await fetch(`${API_BASE}/stock/all`);
+
           const refreshData = await refreshRes.json();
           if (refreshData && refreshData.success && Array.isArray(refreshData.data)) {
             const refreshedRows = refreshData.data.map((row, index) => ({
@@ -1106,7 +1108,7 @@ export default function StockUploadPage() {
         return;
       }
 
-      const checkExistingRes = await fetch("http://localhost:5000/api/stock/check-batch-unique", {
+      const checkExistingRes = await fetch(`${API_BASE}/stock/check-batch-unique`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items: uniqueIdentifiers }),
@@ -1137,7 +1139,7 @@ export default function StockUploadPage() {
 
       // Save new items
       if (newItems.length > 0) {
-        const saveRes = await fetch("http://localhost:5000/api/stock/bulk-save", {
+        const saveRes = await fetch(`${API_BASE}/stock/bulk-save`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ records: newItems }),
@@ -1167,7 +1169,7 @@ export default function StockUploadPage() {
 
       // Update existing items (same Item Name & Batch Code combination)
       if (existingItems.length > 0) {
-        const updateRes = await fetch("http://localhost:5000/api/stock/update", {
+        const updateRes = await fetch(`${API_BASE}/stock/update`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ records: existingItems }),
@@ -1212,7 +1214,8 @@ export default function StockUploadPage() {
         setSuccess(message);
         
         // Refresh stock data
-        const refreshRes = await fetch("http://localhost:5000/api/stock/all");
+        const refreshRes = await fetch(`${API_BASE}/stock/all`);
+
         const refreshData = await refreshRes.json();
         if (refreshData && refreshData.success && Array.isArray(refreshData.data)) {
           const refreshedRows = refreshData.data.map((row, index) => ({
@@ -1273,7 +1276,7 @@ export default function StockUploadPage() {
         return;
       }
 
-      const res = await fetch("http://localhost:5000/api/stock/delete", {
+      const res = await fetch(`${API_BASE}/stock/delete`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(deleteData),
@@ -1285,7 +1288,7 @@ export default function StockUploadPage() {
         setRows(prev => prev.filter((r) => r._id !== id));
         setSuccess("Item deleted successfully!");
         
-        const refreshRes = await fetch("http://localhost:5000/api/stock/all");
+        const refreshRes = await fetch(`${API_BASE}/stock/all`);
         const refreshData = await refreshRes.json();
         if (refreshData && refreshData.success && Array.isArray(refreshData.data)) {
           const refreshedRows = refreshData.data.map((row, index) => ({

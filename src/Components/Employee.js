@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { FaEdit, FaTrash, FaPlus, FaTimes, FaEye, FaPaperclip, FaDownload, FaSearch, FaFileExcel, FaFilePdf, FaEyeSlash, FaChevronLeft, FaChevronRight } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { API_BASE, FILE_BASE } from "../config";
 
 const EmployeePage = () => {
   const [employees, setEmployees] = useState([]);
@@ -29,7 +30,7 @@ const EmployeePage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  const API_URL = "http://localhost:5000/api/employee";
+  const API_URL = `${API_BASE}/employee`;
 
   // ESI/PF Status Options (Matches Backend)
   const esiPfOptions = [
@@ -93,19 +94,19 @@ const EmployeePage = () => {
     setLoggedUser(userDisplayName);
 
     // Fetch Departments
-    fetch("http://localhost:5000/api/department/all")
+    fetch(`${API_BASE}/department/all`)
       .then((res) => res.json())
       .then((data) => setDepartments(data))
       .catch(() => toast.error("Error fetching departments"));
 
     // Fetch Designations
-    fetch("http://localhost:5000/api/designations")
+    fetch(`${API_BASE}/designations`)
       .then((res) => res.json())
       .then((data) => setDesignations(data))
       .catch(() => toast.error("Error fetching designations"));
 
     // Fetch User Types
-    fetch("http://localhost:5000/api/usertype")
+    fetch(`${API_BASE}/usertype`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success) setUserTypes(data.data);
@@ -571,7 +572,7 @@ const EmployeePage = () => {
       setFormData({
         photo: null,
         photoPreview: data.photo
-          ? `http://localhost:5000/api/employee/uploads/${data.photo}`
+          ? `${FILE_BASE}/api/employee/uploads/${data.photo}`
           : null,
         name: data.name || "",
         dob: data.dob || "",
@@ -604,7 +605,7 @@ const EmployeePage = () => {
   // View attachment in new tab
   const handleViewAttachment = (attachmentName) => {
     if (attachmentName) {
-      window.open(`http://localhost:5000/api/employee/uploads/${attachmentName}`, '_blank');
+      window.open(`${FILE_BASE}/api/employee/uploads/${attachmentName}`, '_blank');
     }
   };
 
@@ -612,7 +613,7 @@ const EmployeePage = () => {
   const handleDownloadAttachment = (attachmentName, documentType) => {
     if (attachmentName) {
       const link = document.createElement('a');
-      link.href = `http://localhost:5000/api/employee/uploads/${attachmentName}`;
+      link.href = `${FILE_BASE}/api/employee/uploads/${attachmentName}`;
       link.download = `${documentType}_${selectedEmployee?.name || 'document'}`;
       document.body.appendChild(link);
       link.click();
@@ -1213,7 +1214,8 @@ const EmployeePage = () => {
               <div style={styles.viewLeft}>
                 {selectedEmployee.photo ? (
                   <img
-                    src={`http://localhost:5000/api/employee/uploads/${selectedEmployee.photo}`}
+                    src={`${FILE_BASE}/api/employee/uploads/${selectedEmployee.photo}`}
+
                     alt="emp"
                     style={styles.viewPhoto}
                   />
@@ -1354,7 +1356,8 @@ const EmployeePage = () => {
                   <td style={styles.td}>
                     {emp.photo ? (
                       <img
-                        src={`http://localhost:5000/api/employee/uploads/${emp.photo}`}
+                        src={`${FILE_BASE}/api/employee/uploads/${emp.photo}`}
+
                         alt="emp"
                         style={styles.tablePhoto}
                       />

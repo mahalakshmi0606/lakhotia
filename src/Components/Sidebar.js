@@ -1,5 +1,7 @@
 // Sidebar.js
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "../config";
+
 import {
   FaHome,
   FaIndustry,
@@ -178,7 +180,8 @@ export const menuItems = [
   }
 ];
 
-const USER_TYPE_PERMISSION_API = "http://localhost:5000/api/user-type";
+const USER_TYPE_PERMISSION_API = `${API_BASE}/user-type`;
+
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const location = useLocation();

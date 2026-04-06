@@ -6,8 +6,8 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import "react-toastify/dist/ReactToastify.css";
+import { API_BASE } from "../config";
 
-const API_BASE = "http://localhost:5000/api";
 const DEFAULT_USER_TYPE = "Customer";
 
 const UserTypePage = () => {

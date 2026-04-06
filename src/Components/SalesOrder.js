@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
+
 import dayjs from "dayjs";
 import { 
   Modal, 
@@ -114,9 +116,10 @@ export default function QuotationModal() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   // API base URLs
-  const API_BASE_URL = "http://127.0.0.1:5000";
-  const API_TASKS = `${API_BASE_URL}/api/tasks`;
-  const API_EMPLOYEES = `${API_BASE_URL}/api/employee/all`;
+  // Removed hardcoded API_BASE_URL
+  const API_TASKS = `${API_BASE}/tasks`;
+  const API_EMPLOYEES = `${API_BASE}/employee/all`;
+
 
   // Check if mobile view on mount and resize
   useEffect(() => {
@@ -156,7 +159,7 @@ export default function QuotationModal() {
     if (!brandCodes || brandCodes.length === 0) return {};
     
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/stock/bulk-buy-prices`, {
+      const response = await axios.post(`${API_BASE}/stock/bulk-buy-prices`, {
         brand_codes: brandCodes
       });
       
@@ -259,7 +262,7 @@ export default function QuotationModal() {
   // Fetch existing task for an item
   const fetchExistingTaskForItem = async (itemId) => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/tasks/by-item/${itemId}`);
+      const response = await axios.get(`${API_BASE}/tasks/by-item/${itemId}`);
       if (response.data && response.data.length > 0) {
         return response.data[0];
       }
@@ -273,7 +276,7 @@ export default function QuotationModal() {
   // Fetch quotation counts by status
   const fetchQuotationCounts = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`);
+      const response = await axios.get(`${API_BASE}/quotations/statistics`);
       if (response.data.success) {
         const counts = {
           all: response.data.data.total || 0,
@@ -329,7 +332,7 @@ export default function QuotationModal() {
         params.q = searchTerm.trim();
       }
       
-      const response = await axios.get(`${API_BASE_URL}/api/quotations`, { params });
+      const response = await axios.get(`${API_BASE}/quotations`, { params });
       
       if (response.data.success) {
         const fetchedQuotations = response.data.data || [];
@@ -516,7 +519,7 @@ export default function QuotationModal() {
       const loggedInUser = localStorage.getItem("username") || "Admin User";
       
       const response = await axios.patch(
-        `${API_BASE_URL}/api/quotations/items/${id}/rejection-reason`,
+        `${API_BASE}/quotations/items/${id}/rejection-reason`,
         {
           rejection_reason: rejectionReason,
           updated_by: loggedInUser
@@ -577,7 +580,7 @@ export default function QuotationModal() {
       }
       
       const response = await axios.put(
-        `${API_BASE_URL}/api/quotations/${quotationForStatusUpdate.id}/items/status`,
+        `${API_BASE}/quotations/${quotationForStatusUpdate.id}/items/status`,
         {
           item_updates: updates,
           updated_by: loggedInUser
@@ -587,7 +590,7 @@ export default function QuotationModal() {
       if (response.data.success) {
         alert(`✅ Item statuses updated successfully!`);
         
-        const refreshedResponse = await axios.get(`${API_BASE_URL}/api/quotations/${quotationForStatusUpdate.id}`);
+        const refreshedResponse = await axios.get(`${API_BASE}/quotations/${quotationForStatusUpdate.id}`);
         if (refreshedResponse.data.success) {
           setSelectedQuotation(refreshedResponse.data.data);
           await fetchQuotations();
@@ -755,7 +758,7 @@ export default function QuotationModal() {
         
         try {
           await axios.patch(
-            `${API_BASE_URL}/api/quotations/items/${taskFormData.item_id}/sales-order-status`,
+            `${API_BASE}/quotations/items/${taskFormData.item_id}/sales-order-status`,
             {
               sales_order_item_status: "ordered",
               updated_by: loggedInUser
@@ -763,7 +766,7 @@ export default function QuotationModal() {
           );
           
           await axios.patch(
-            `${API_BASE_URL}/api/quotations/items/${taskFormData.item_id}/mark-sales-order`,
+            `${API_BASE}/quotations/items/${taskFormData.item_id}/mark-sales-order`,
             {
               remark: `Sales order ${isUpdatingExistingTask ? 'updated' : 'created'} with PO: ${taskFormData.po_number}`,
               updated_by: loggedInUser
@@ -806,7 +809,7 @@ export default function QuotationModal() {
         await fetchQuotations();
         
         if (selectedQuotation && selectedQuotation.id === taskFormData.quotation_id) {
-          const refreshedResponse = await axios.get(`${API_BASE_URL}/api/quotations/${taskFormData.quotation_id}`);
+          const refreshedResponse = await axios.get(`${API_BASE}/quotations/${taskFormData.quotation_id}`);
           if (refreshedResponse.data.success) {
             setSelectedQuotation(refreshedResponse.data.data);
           }

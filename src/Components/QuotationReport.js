@@ -3,6 +3,8 @@ import axios from "axios";
 import dayjs from "dayjs";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { API_BASE } from "../config";
+
 
 // Bootstrap CSS and Icons
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -146,7 +148,8 @@ export default function QuotationModal() {
   const quotationRef = useRef(null);
 
   // API base URL
-  const API_BASE_URL = "http://127.0.0.1:5000";
+  // Removed hardcoded API_BASE_URL
+
 
   // Helper functions for extracting data from description
   const extractBrandCode = (description) => {
@@ -193,7 +196,7 @@ export default function QuotationModal() {
     if (!brandCodes || brandCodes.length === 0) return {};
     
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/stock/bulk-buy-prices`, {
+      const response = await axios.post(`${API_BASE}/stock/bulk-buy-prices`, {
         brand_codes: brandCodes
       });
       
@@ -221,7 +224,7 @@ export default function QuotationModal() {
   // Fetch statistics
   const fetchStatistics = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`);
+      const response = await axios.get(`${API_BASE}/quotations/statistics`);
       if (response.data.success) {
         setStatistics(response.data.data);
       }
@@ -243,7 +246,7 @@ export default function QuotationModal() {
         params.q = searchTerm.trim();
       }
       
-      const response = await axios.get(`${API_BASE_URL}/api/quotations`, {
+      const response = await axios.get(`${API_BASE}/quotations`, {
         params
       });
       
@@ -404,7 +407,7 @@ export default function QuotationModal() {
       setLoadingCompanies(true);
       setCompanyError(null);
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/company`, {
+        const response = await axios.get(`${API_BASE}/company`, {
           timeout: 5000,
           headers: {
             'Accept': 'application/json',
@@ -467,7 +470,7 @@ export default function QuotationModal() {
       setLoadingStock(true);
       setStockError(null);
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/stock/all`, {
+        const response = await axios.get(`${API_BASE}/stock/all`, {
           timeout: 5000,
           headers: {
             'Accept': 'application/json',
@@ -739,7 +742,7 @@ export default function QuotationModal() {
         updated_by: "User"
       };
       
-      const response = await axios.put(`${API_BASE_URL}/api/quotations/${quotation.id}`, updateData, {
+      const response = await axios.put(`${API_BASE}/quotations/${quotation.id}`, updateData, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -1029,7 +1032,7 @@ export default function QuotationModal() {
     
     try {
       if (isUpdate) {
-        const response = await axios.put(`${API_BASE_URL}/api/quotations/${currentQuotationId}`, quotationData, {
+        const response = await axios.put(`${API_BASE}/quotations/${currentQuotationId}`, quotationData, {
           headers: {
             'Content-Type': 'application/json'
           }
@@ -1049,7 +1052,7 @@ export default function QuotationModal() {
           throw new Error(response.data.message || "Failed to update quotation");
         }
       } else {
-        const response = await axios.post(`${API_BASE_URL}/api/quotations`, quotationData, {
+        const response = await axios.post(`${API_BASE}/quotations`, quotationData, {
           headers: {
             'Content-Type': 'application/json'
           }
@@ -1123,7 +1126,7 @@ export default function QuotationModal() {
   const markAsCompleted = async (quotationId) => {
     if (window.confirm("Are you sure you want to mark this quotation as completed? This action cannot be undone.")) {
       try {
-        const response = await axios.patch(`${API_BASE_URL}/api/quotations/${quotationId}/status`, {
+        const response = await axios.patch(`${API_BASE}/quotations/${quotationId}/status`, {
           status: "completed",
           updated_by: "User"
         });
@@ -1146,7 +1149,7 @@ export default function QuotationModal() {
   async function deleteQuotation(quoteId) {
     if (window.confirm("Are you sure you want to delete this quotation?")) {
       try {
-        const response = await axios.delete(`${API_BASE_URL}/api/quotations/${quoteId}`);
+        const response = await axios.delete(`${API_BASE}/quotations/${quoteId}`);
         
         if (response.data.success) {
           await fetchQuotations();

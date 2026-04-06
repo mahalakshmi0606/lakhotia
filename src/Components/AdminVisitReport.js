@@ -11,14 +11,13 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
+import { API_BASE } from "../config";
 
 // Excel + PDF
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-
-const API_BASE = "http://localhost:5000/api";
 
 const VisitReportPage = () => {
   const [reports, setReports] = useState([]);

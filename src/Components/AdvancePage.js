@@ -5,8 +5,10 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 
-const API_ADVANCE = "http://localhost:5000/api/advance";
-const API_EMPLOYEE = "http://localhost:5000/api/employee/all";
+import { API_BASE } from "../config";
+
+const API_ADVANCE = `${API_BASE}/advance`;
+const API_EMPLOYEE = `${API_BASE}/employee/all`;
 const PAGE_SIZE = 10;
 
 const AdvancePage = () => {

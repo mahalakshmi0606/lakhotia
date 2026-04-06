@@ -1,13 +1,13 @@
-// AttendanceReport.jsx
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "../config";
 
-const API_ATTENDANCE = "http://localhost:5000/api/attendance";
-const API_EMPLOYEES = "http://localhost:5000/api/employee/all";
-const API_SAVE_SUMMARY = "http://localhost:5000/api/attendance/summary";
+const API_ATTENDANCE = `${API_BASE}/attendance`;
+const API_EMPLOYEES = `${API_BASE}/employee/all`;
+const API_SAVE_SUMMARY = `${API_BASE}/attendance/summary`;
 
 // holidays endpoints (note trailing slash)
-const API_GET_HOLIDAYS = "http://localhost:5000/api/holidays";
-const API_SAVE_HOLIDAYS = "http://localhost:5000/api/holidays/";
+const API_GET_HOLIDAYS = `${API_BASE}/holidays`;
+const API_SAVE_HOLIDAYS = `${API_BASE}/holidays/`;
 
 const AttendanceReport = () => {
   const [attendanceData, setAttendanceData] = useState([]);

@@ -10,10 +10,11 @@ import {
   FaHashtag, FaReceipt, FaCalculator, FaTimesCircle,
   FaTruck, FaPercent, FaFileInvoice
 } from "react-icons/fa";
+import { API_BASE } from "../config";
 
-const API_BASE_URL = "http://localhost:5000/api/purchase-orders";
-const STOCK_API_URL = "http://localhost:5000/api/stock/all";
-const COMPANY_API_URL = "http://localhost:5000/api/company";
+const API_BASE_URL = `${API_BASE}/purchase-orders`;
+const STOCK_API_URL = `${API_BASE}/stock/all`;
+const COMPANY_API_URL = `${API_BASE}/company`;
 
 const PurchaseOrderPage = () => {
   const todayDate = new Date().toISOString().slice(0, 10);

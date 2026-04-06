@@ -1,5 +1,7 @@
 // RejectedItemsPage.js
 import React, { useState, useEffect } from "react";
+import { API_BASE } from "../config";
+
 import axios from "axios";
 import { 
   Modal, 
@@ -92,7 +94,8 @@ export default function RejectedItemsPage() {
   });
 
   // API base URL
-  const API_BASE_URL = "http://127.0.0.1:5000";
+  const API_BASE_URL = API_BASE;
+
 
   // Helper functions for extracting data from description
   const extractBrandCode = (description) => {

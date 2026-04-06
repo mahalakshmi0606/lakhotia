@@ -1,10 +1,8 @@
-// SalaryReport.js
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { API_BASE } from "../config";
 
-const API_SAVE = "http://127.0.0.1:5000/api/salary/esipf/save";
-const API_FETCH = "http://127.0.0.1:5000/api/salary/esipf/fetch";
-const API_ADVANCE = "http://127.0.0.1:5000/api/advance"; // Your advance API endpoint
+const API_SAVE = `${API_BASE}/salary/esipf/save`;
+const API_FETCH = `${API_BASE}/salary/esipf/fetch`;
+const API_ADVANCE = `${API_BASE}/advance`; // Your advance API endpoint
 
 // Helper function to create month-year key
 const getMonthYearKey = (month, year) => {
@@ -263,7 +261,7 @@ const SalaryReport = () => {
   const fetchEligibleEmployees = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("http://127.0.0.1:5000/api/employee/all");
+      const res = await axios.get(`${API_BASE}/employee/all`);
       const filtered = res.data.filter((emp) => emp.esiPfStatus === "ESI/PF");
       setRecords(filtered);
       setLoading(false);
@@ -279,7 +277,7 @@ const SalaryReport = () => {
   const fetchAttendanceSummary = async () => {
     if (!month || !year) return;
     try {
-      const res = await axios.get("http://127.0.0.1:5000/api/attendance/summary", {
+      const res = await axios.get(`${API_BASE}/attendance/summary`, {
         params: { month, year },
       });
 

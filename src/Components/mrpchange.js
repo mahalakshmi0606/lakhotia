@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
+
 import * as XLSX from "xlsx";
 
-const API_STOCK_ALL = "http://127.0.0.1:5000/api/stock/all";
-const API_MRP_UPDATE = "http://127.0.0.1:5000/api/stock/update-mrp";
+const API_STOCK_ALL = `${API_BASE}/stock/all`;
+const API_MRP_UPDATE = `${API_BASE}/stock/update-mrp`;
+
 
 export default function MRPChangePage() {
   const [file, setFile] = useState(null);

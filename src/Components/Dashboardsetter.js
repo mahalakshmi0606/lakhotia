@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE as BASE, FILE_BASE } from "../config";
 
 const HEADER_HEIGHT = 64;
-const API_BASE = "http://localhost:5000/api/dashboard-setter";
-const FILE_BASE = "http://localhost:5000";
+const API_BASE = `${BASE}/dashboard-setter`;
 
 const DashboardImageSetter = () => {
   const [imagePreview, setImagePreview] = useState(null);

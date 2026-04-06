@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
+
 import dayjs from "dayjs";
 import { 
   Modal, 
@@ -71,7 +73,8 @@ export default function QuotationModal() {
   const [exportData, setExportData] = useState([]);
 
   // API base URL
-  const API_BASE_URL = "http://127.0.0.1:5000";
+  // Removed hardcoded API_BASE_URL
+
 
   // Fetch saved quotations from backend on component mount
   useEffect(() => {
@@ -84,7 +87,7 @@ export default function QuotationModal() {
     if (!brandCodes || brandCodes.length === 0) return {};
     
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/stock/bulk-buy-prices`, {
+      const response = await axios.post(`${API_BASE}/stock/bulk-buy-prices`, {
         brand_codes: brandCodes
       });
       
@@ -182,7 +185,7 @@ export default function QuotationModal() {
   // Fetch quotation counts by status
   const fetchQuotationCounts = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`);
+      const response = await axios.get(`${API_BASE}/quotations/statistics`);
       if (response.data.success) {
         const counts = {
           all: response.data.data.total || 0,
@@ -211,7 +214,7 @@ export default function QuotationModal() {
         params.q = searchTerm.trim();
       }
       
-      const response = await axios.get(`${API_BASE_URL}/api/quotations`, { params });
+      const response = await axios.get(`${API_BASE}/quotations`, { params });
       
       if (response.data.success) {
         const fetchedQuotations = response.data.data || [];
@@ -633,7 +636,7 @@ export default function QuotationModal() {
         status: exportStatus
       };
       
-      const response = await axios.get(`${API_BASE_URL}/api/quotations/export`, { params });
+      const response = await axios.get(`${API_BASE}/quotations/export`, { params });
       
       if (response.data.success) {
         const fetchedQuotations = response.data.data || [];

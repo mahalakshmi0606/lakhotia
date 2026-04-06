@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Modal, Button, Form, Table, Spinner, Alert, Badge, Pagination, Card, Row, Col } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
+import { API_BASE } from "../config";
 
-const API_URL = "http://localhost:5000/api/tasks";
-const API_EMPLOYEES = "http://localhost:5000/api/employee/all";
-const API_QUOTATIONS = "http://localhost:5000/api/quotations";
+const API_URL = `${API_BASE}/tasks`;
+const API_EMPLOYEES = `${API_BASE}/employee/all`;
+const API_QUOTATIONS = `${API_BASE}/quotations`;
 
 const TaskPage = () => {
   const [tasks, setTasks] = useState([]);

@@ -4,8 +4,9 @@ import { saveAs } from "file-saver";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { API_BASE } from "../config";
 
-const API_URL = "http://localhost:5000/api/attendance";
+const API_URL = `${API_BASE}/attendance`;
 
 const AttendancePage = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);

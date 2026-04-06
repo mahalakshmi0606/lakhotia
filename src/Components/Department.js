@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from "react";
+import axios from "axios";
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
-// ✅ Flask backend base URL
-const API_URL = "http://localhost:5000/api/department";
+import { API_BASE } from "../config";
 
 const DepartmentPage = () => {
   const [departments, setDepartments] = useState([]);
@@ -15,10 +14,8 @@ const DepartmentPage = () => {
   // ✅ Fetch all departments from Flask API
   const fetchDepartments = async () => {
     try {
-      const response = await fetch(`${API_URL}/all`);
-      if (!response.ok) throw new Error("Failed to fetch departments");
-      const data = await response.json();
-      setDepartments(data);
+      const response = await axios.get(`${API_BASE}/department/all`);
+      setDepartments(response.data);
     } catch (error) {
       console.error("Error fetching departments:", error);
       toast.error("Failed to load departments");
@@ -44,11 +41,11 @@ const DepartmentPage = () => {
     }
 
     try {
-      let url = `${API_URL}/add`;
+      let url = `${API_BASE}/department/add`;
       let method = "POST";
 
       if (editId) {
-        url = `${API_URL}/update/${editId}`;
+        url = `${API_BASE}/department/update/${editId}`;
         method = "PUT";
       }
 
@@ -89,7 +86,7 @@ const DepartmentPage = () => {
     if (!window.confirm("Are you sure you want to delete this department?")) return;
 
     try {
-      const response = await fetch(`${API_URL}/delete/${id}`, {
+      const response = await fetch(`${API_BASE}/department/delete/${id}`, {
         method: "DELETE",
       });
       const data = await response.json();

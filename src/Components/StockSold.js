@@ -1,11 +1,14 @@
 // StockSoldPage.js
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
+
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const API_COMPLETED_TASKS = "http://localhost:5000/api/tasks/completed";
-const API_STOCK_SOLD = "http://localhost:5000/api/stock_sold";
+const API_COMPLETED_TASKS = `${API_BASE}/tasks/completed`;
+const API_STOCK_SOLD = `${API_BASE}/stock_sold`;
+
 
 // ❌ Fields to hide in View popup (due_date NOT removed)
 const HIDDEN_FIELDS = [

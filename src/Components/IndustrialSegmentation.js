@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE as CENTRAL_API_BASE } from "../config";
+
 import { FaEdit, FaTrash, FaPlus } from "react-icons/fa";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const API_BASE = "http://localhost:5000/api/industrial_segmentation"; // Flask backend base URL
+const API_BASE = `${CENTRAL_API_BASE}/industrial_segmentation`; // Flask backend base URL
+
 
 const IndustrySegmentationPage = () => {
   const [segments, setSegments] = useState([]);

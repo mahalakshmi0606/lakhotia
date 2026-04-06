@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Table, Button, Form, Spinner, Alert, Badge, Pagination, Card, Row, Col, Modal } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import axios from "axios";
+import { API_BASE } from "../config";
 
-const API_URL = "http://localhost:5000/api/tasks";
+const API_URL = `${API_BASE}/tasks`;
 
 const TaskPage = () => {
   const [tasks, setTasks] = useState([]);

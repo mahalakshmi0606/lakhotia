@@ -33,8 +33,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 import "react-toastify/dist/ReactToastify.css";
-
-const API_BASE = "http://localhost:5000/api";
+import { API_BASE } from "../config";
 
 // Validation functions
 const validateEmail = (email) => {

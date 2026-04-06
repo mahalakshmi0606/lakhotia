@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
+
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-const USER_TYPES_API = "http://localhost:5000/api/usertype";
-const ACCESS_SAVE_API = "http://localhost:5000/api/access-control";
-const ACCESS_GET_API = "http://localhost:5000/api/access-control";
+const USER_TYPES_API = `${API_BASE}/usertype`;
+const ACCESS_SAVE_API = `${API_BASE}/access-control`;
+const ACCESS_GET_API = `${API_BASE}/access-control`;
+
 
 export default function AccessControlPage() {
   const [userTypes, setUserTypes] = useState([]);

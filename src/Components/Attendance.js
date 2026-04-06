@@ -10,8 +10,9 @@ import {
   Badge,
 } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
+import { API_BASE } from "../config";
 
-const API_URL = "http://localhost:5000/api/attendance"; // Flask backend base URL
+const API_URL = `${API_BASE}/attendance`; // Flask backend base URL
 
 const Attendance = () => {
   const username = localStorage.getItem("username") || "Employee";

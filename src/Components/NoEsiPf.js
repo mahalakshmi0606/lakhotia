@@ -1,10 +1,8 @@
-// NoESIPFSalaryReport.js - No ESI/PF
-import React, { useState, useEffect } from "react";
-import axios from "axios";
+import { API_BASE } from "../config";
 
-const API_SAVE = "http://127.0.0.1:5000/api/salary/noesi/save";
-const API_FETCH = "http://127.0.0.1:5000/api/salary/noesi";
-const API_ADVANCE = "http://127.0.0.1:5000/api/advance"; // Your advance API endpoint
+const API_SAVE = `${API_BASE}/salary/noesi/save`;
+const API_FETCH = `${API_BASE}/salary/noesi`;
+const API_ADVANCE = `${API_BASE}/advance`; // Your advance API endpoint
 
 // Helper function to create month-year key
 const getMonthYearKey = (month, year) => {
@@ -290,7 +288,7 @@ const NoESIPFSalaryReport = () => {
   const fetchNoESIPFEmployees = async () => {
     try {
       setLoading(true);
-      const res = await axios.get("http://127.0.0.1:5000/api/employee/all");
+      const res = await axios.get(`${API_BASE}/employee/all`);
 
       const filtered = res.data.filter(
         (emp) => emp.esiPfStatus === "No ESI/PF"
@@ -311,7 +309,7 @@ const NoESIPFSalaryReport = () => {
     if (!month || !year) return;
     try {
       const res = await axios.get(
-        "http://127.0.0.1:5000/api/attendance/summary",
+        `${API_BASE}/attendance/summary`,
         {
           params: { month, year },
         }

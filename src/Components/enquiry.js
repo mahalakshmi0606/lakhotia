@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { API_BASE } from "../config";
+
 import dayjs from "dayjs";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -139,11 +141,12 @@ export default function EnquiryModal() {
   const enquiryRef = useRef(null);
 
   // =============== UPDATED: API Configuration ===============
-  const API_BASE_URL = "http://localhost:5000";
+  // Removed hardcoded API_BASE_URL
+
   
   // Create a custom axios instance with better error handling
   const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: API_BASE,
     timeout: 10000,
     headers: {
       'Content-Type': 'application/json',
@@ -185,7 +188,7 @@ export default function EnquiryModal() {
       setIsCompanyUser(true);
       
       try {
-        const response = await api.get('/api/company');
+        const response = await api.get('/company');
         
         let companiesData = [];
         
@@ -228,7 +231,7 @@ export default function EnquiryModal() {
   // Fetch enquiry counts by status
   const fetchEnquiryCounts = async () => {
     try {
-      const response = await api.get('/api/enquiries/statistics');
+      const response = await api.get('/enquiries/statistics');
       if (response.data.success) {
         const counts = {
           all: response.data.data.total || 0,
@@ -276,7 +279,7 @@ export default function EnquiryModal() {
         params.q = searchTerm.trim();
       }
       
-      const response = await api.get('/api/enquiries', { params });
+      const response = await api.get('/enquiries', { params });
       
       if (response.data.success) {
         const fetchedEnquiries = response.data.data || [];
@@ -286,7 +289,7 @@ export default function EnquiryModal() {
         const enquiriesWithItems = await Promise.all(
           fetchedEnquiries.map(async (enquiry) => {
             try {
-              const itemsResponse = await api.get(`/api/enquiries/${enquiry.id}/items`);
+              const itemsResponse = await api.get(`/enquiries/${enquiry.id}/items`);
               const items = itemsResponse.data.success ? itemsResponse.data.data : [];
               
               const parsedItems = items.map(item => {
@@ -393,7 +396,7 @@ export default function EnquiryModal() {
   const deleteEnquiry = async (enquiryId) => {
     setDeleting(true);
     try {
-      const response = await api.delete(`/api/enquiries/${enquiryId}`);
+      const response = await api.delete(`/enquiries/${enquiryId}`);
       
       if (response.data.success) {
         await fetchEnquiries();
@@ -463,7 +466,7 @@ export default function EnquiryModal() {
       setLoadingCompanies(true);
       setCompanyError(null);
       try {
-        const response = await api.get('/api/company');
+        const response = await api.get('/company');
         
         let companiesData = [];
         
@@ -531,7 +534,7 @@ export default function EnquiryModal() {
       setLoadingStock(true);
       setStockError(null);
       try {
-        const response = await api.get('/api/stock/all');
+        const response = await api.get('/stock/all');
         
         let stockData = [];
         
@@ -829,7 +832,7 @@ export default function EnquiryModal() {
     
     try {
       // Use fetch instead of axios to avoid CORS preflight issues
-      const response = await fetch(`${API_BASE_URL}/api/enquiries/`, {
+      const response = await fetch(`${API_BASE}/enquiries/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

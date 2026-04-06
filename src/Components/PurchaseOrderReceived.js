@@ -9,8 +9,9 @@ import {
   FaSpinner, FaDownload, FaTimesCircle, FaInfoCircle,
   FaChartLine, FaFileInvoice, FaClipboardList, FaClock
 } from "react-icons/fa";
+import { API_BASE } from "../config";
 
-const API_BASE_URL = "http://localhost:5000/api/purchase-orders";
+const API_BASE_URL = `${API_BASE}/purchase-orders`;
 
 const AllDeliveryItemsPage = () => {
   const [purchaseOrders, setPurchaseOrders] = useState([]);

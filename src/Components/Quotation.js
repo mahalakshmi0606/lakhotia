@@ -3,6 +3,8 @@ import axios from "axios";
 import dayjs from "dayjs";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { API_BASE } from "../config";
+
 
 // Bootstrap CSS and Icons
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -185,7 +187,8 @@ export default function QuotationModal() {
   const quotationRef = useRef(null);
 
   // API base URL
-  const API_BASE_URL = "http://localhost:5000";
+  // Removed hardcoded API_BASE_URL
+
 
   // ENQUIRY STATES - NEW
   const [showEnquiriesModal, setShowEnquiriesModal] = useState(false);
@@ -210,7 +213,7 @@ export default function QuotationModal() {
   // Fetch quotation counts by status - UPDATED WITH USER FILTERING
   const fetchQuotationCounts = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`, {
+      const response = await axios.get(`${API_BASE}/quotations/statistics`, {
         params: {
           user_id: currentUser.userId
         }
@@ -272,7 +275,7 @@ export default function QuotationModal() {
           params.status = statusFilter;
         }
         
-        const response = await axios.get(`${API_BASE_URL}/api/quotations/search`, {
+        const response = await axios.get(`${API_BASE}/quotations/search`, {
           params
         });
         
@@ -303,7 +306,7 @@ export default function QuotationModal() {
           params.status = statusFilter;
         }
         
-        const response = await axios.get(`${API_BASE_URL}/api/quotations`, {
+        const response = await axios.get(`${API_BASE}/quotations`, {
           params
         });
         
@@ -502,7 +505,7 @@ export default function QuotationModal() {
   useEffect(() => {
     const fetchStatistics = async () => {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/quotations/statistics`, {
+        const response = await axios.get(`${API_BASE}/quotations/statistics`, {
           params: {
             user_id: currentUser.userId
           }
@@ -526,7 +529,7 @@ export default function QuotationModal() {
       setLoadingCompanies(true);
       setCompanyError(null);
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/company`, {
+        const response = await axios.get(`${API_BASE}/company`, {
           timeout: 5000,
           headers: {
             'Accept': 'application/json',
@@ -590,7 +593,7 @@ export default function QuotationModal() {
       setLoadingStock(true);
       setStockError(null);
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/stock/all`, {
+        const response = await axios.get(`${API_BASE}/stock/all`, {
           timeout: 5000,
           headers: {
             'Accept': 'application/json',
@@ -1150,7 +1153,7 @@ export default function QuotationModal() {
     console.log("Saving quotation with company_id:", selectedCompanyId);
     
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/quotations`, quotationData, {
+      const response = await axios.post(`${API_BASE}/quotations`, quotationData, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -1233,7 +1236,7 @@ export default function QuotationModal() {
     }
     
     try {
-      const response = await axios.get(`${API_BASE_URL}/api/quotations/${quotation.id}`);
+      const response = await axios.get(`${API_BASE}/quotations/${quotation.id}`);
       if (response.data.success) {
         const quoteData = response.data.data;
         
@@ -1461,7 +1464,7 @@ export default function QuotationModal() {
     };
     
     try {
-      const response = await axios.put(`${API_BASE_URL}/api/quotations/${editingQuotation.id}`, quotationData, {
+      const response = await axios.put(`${API_BASE}/quotations/${editingQuotation.id}`, quotationData, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -1581,7 +1584,7 @@ export default function QuotationModal() {
   async function deleteQuotation(quoteId) {
     if (window.confirm("Are you sure you want to delete this quotation?")) {
       try {
-        const response = await axios.delete(`${API_BASE_URL}/api/quotations/${quoteId}`);
+        const response = await axios.delete(`${API_BASE}/quotations/${quoteId}`);
         
         if (response.data.success) {
           await fetchQuotations();
@@ -2007,7 +2010,7 @@ export default function QuotationModal() {
         params.q = enquirySearchTerm.trim();
       }
       
-      const response = await axios.get(`${API_BASE_URL}/api/enquiries`, {
+      const response = await axios.get(`${API_BASE}/enquiries`, {
         params
       });
       
@@ -2125,7 +2128,7 @@ export default function QuotationModal() {
   const viewEnquiryDetails = async (enquiry) => {
     try {
       // Fetch full enquiry details with items
-      const response = await axios.get(`${API_BASE_URL}/api/enquiries/${enquiry.id}`);
+      const response = await axios.get(`${API_BASE}/enquiries/${enquiry.id}`);
       if (response.data.success) {
         setSelectedEnquiry(response.data.data);
         setShowEnquiryDetails(true);
@@ -2143,11 +2146,11 @@ export default function QuotationModal() {
 
     try {
       // Fetch stock items for pricing
-      const stockResponse = await axios.get(`${API_BASE_URL}/api/stock/all`);
+      const stockResponse = await axios.get(`${API_BASE}/stock/all`);
       const stockItems = stockResponse.data.data || stockResponse.data || [];
 
       // Fetch enquiry items
-      const itemsResponse = await axios.get(`${API_BASE_URL}/api/enquiries/${selectedEnquiry.id}/items`);
+      const itemsResponse = await axios.get(`${API_BASE}/enquiries/${selectedEnquiry.id}/items`);
       const enquiryItems = itemsResponse.data.data || [];
 
       // Convert enquiry items to quotation items
@@ -2215,7 +2218,7 @@ export default function QuotationModal() {
 
       // Update enquiry status to converted
       try {
-        await axios.put(`${API_BASE_URL}/api/enquiries/${selectedEnquiry.id}/status`, {
+        await axios.put(`${API_BASE}/enquiries/${selectedEnquiry.id}/status`, {
           status: "converted",
           updated_by: currentUser.username || "User"
         });
