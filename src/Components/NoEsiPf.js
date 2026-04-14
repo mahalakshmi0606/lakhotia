@@ -1,5 +1,6 @@
 import { API_BASE } from "../config";
-
+import axios from "axios";
+import { useState,useEffect } from "react";
 const API_SAVE = `${API_BASE}/salary/noesi/save`;
 const API_FETCH = `${API_BASE}/salary/noesi`;
 const API_ADVANCE = `${API_BASE}/advance`; // Your advance API endpoint
